@@ -5,6 +5,7 @@ import { runCommand } from './commands/run.js';
 import { replayCommand } from './commands/replay.js';
 import { refineCommand } from './commands/refine.js';
 import { configCommand } from './commands/config.js';
+import { profileCommand } from './commands/profile.js';
 
 const VERSION = '1.0.0';
 
@@ -33,6 +34,7 @@ export function createCLI() {
   program.addCommand(replayCommand());
   program.addCommand(refineCommand());
   program.addCommand(configCommand());
+  program.addCommand(profileCommand());
 
   return program;
 }
