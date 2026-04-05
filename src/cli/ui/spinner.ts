@@ -1,26 +1,51 @@
 import ora, { Ora } from 'ora';
+import chalk from 'chalk';
 
-let spinner: Ora | null = null;
+export class Spinner {
+  private spinner: Ora;
 
-export function startSpinner(text: string): Ora {
-  spinner = ora(text).start();
-  return spinner;
-}
+  constructor(text: string) {
+    this.spinner = ora({
+      text,
+      color: 'cyan',
+      spinner: 'dots',
+    });
+  }
 
-export function stopSpinner(success?: string): void {
-  if (spinner) {
-    if (success) {
-      spinner.succeed(success);
-    } else {
-      spinner.stop();
-    }
-    spinner = null;
+  start(text?: string): this {
+    this.spinner.start(text);
+    return this;
+  }
+
+  stop(): this {
+    this.spinner.stop();
+    return this;
+  }
+
+  succeed(text?: string): this {
+    this.spinner.succeed(text);
+    return this;
+  }
+
+  fail(text?: string): this {
+    this.spinner.fail(text);
+    return this;
+  }
+
+  warn(text?: string): this {
+    this.spinner.warn(text);
+    return this;
+  }
+
+  info(text?: string): this {
+    this.spinner.info(text);
+    return this;
+  }
+
+  text(text: string): this {
+    this.spinner.text = text;
+    return this;
   }
 }
 
-export function failSpinner(text: string): void {
-  if (spinner) {
-    spinner.fail(text);
-    spinner = null;
-  }
-}
+export const spinner = (text: string) => new Spinner(text);

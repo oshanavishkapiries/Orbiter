@@ -1,31 +1,17 @@
 #!/usr/bin/env node
 
-import { program } from 'commander';
-import { run } from './cli/commands/run.js';
-import { replay } from './cli/commands/replay.js';
-import { refine } from './cli/commands/refine.js';
-import { config } from './cli/commands/config.js';
+import 'dotenv/config';
+import { createCLI } from './cli/index.js';
 
-program
-  .name('orbiter')
-  .description('AI-powered browser automation')
-  .version('1.0.0');
+async function main() {
+  const cli = createCLI();
+  
+  try {
+    await cli.parseAsync(process.argv);
+  } catch (error) {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  }
+}
 
-program
-  .command('run')
-  .description('Run a prompt')
-  .argument('<prompt>')
-  .action(run);
-program
-  .command('replay')
-  .description('Replay a flow')
-  .argument('<flow>')
-  .action(replay);
-program
-  .command('refine')
-  .description('Refine a flow')
-  .argument('<flow>')
-  .action(refine);
-program.command('config').description('Manage configuration').action(config);
-
-program.parse();
+main();

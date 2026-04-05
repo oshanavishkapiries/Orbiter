@@ -1,20 +1,57 @@
-import type { Config } from './schema.js';
+import type { OrbiterConfig } from './schema.js';
 
-export const defaults: Config = {
-  browser: {
-    headless: true,
-    timeout: 30000,
+export const defaults: OrbiterConfig = {
+  version: 1,
+  llm: {
+    provider: 'openrouter',
+    model: 'anthropic/claude-sonnet-4',
+    maxTokens: 4096,
+    temperature: 0.7,
   },
-  recorder: {
+  browser: {
+    headless: false,
+    defaultTimeout: 30000,
+    viewport: {
+      width: 1280,
+      height: 720,
+    },
+    profilePath: null,
+    stealth: true,
+  },
+  execution: {
+    maxRetries: 3,
+    retryDelay: 1000,
     screenshotOnError: true,
-    videoRecording: false,
+    screenshotOnStep: false,
+  },
+  loop: {
+    defaultDelay: {
+      min: 800,
+      max: 1500,
+    },
+    maxItems: 100,
+    scrollPauseTime: 1000,
+  },
+  recording: {
+    enabled: true,
+    outputDir: './flows',
+    includeScreenshots: false,
   },
   output: {
-    format: 'json',
-    includeMetadata: true,
+    dir: './output',
+    formats: ['json'],
   },
   logging: {
     level: 'info',
-    file: 'logs/orbiter.log',
+    file: {
+      enabled: true,
+      path: './logs',
+      maxSize: '10mb',
+      maxFiles: 10,
+    },
+    console: {
+      enabled: true,
+      colorize: true,
+    },
   },
 };

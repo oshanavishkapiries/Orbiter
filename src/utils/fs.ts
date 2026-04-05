@@ -1,25 +1,22 @@
-import { mkdir, readFile, writeFile, access } from 'fs/promises';
-import { dirname } from 'path';
+import fs from 'fs';
+import path from 'path';
 
-export async function ensureDir(path: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-}
-
-export async function readJson<T>(path: string): Promise<T> {
-  const data = await readFile(path, 'utf-8');
-  return JSON.parse(data) as T;
-}
-
-export async function writeJson(path: string, data: unknown): Promise<void> {
-  await ensureDir(path);
-  await writeFile(path, JSON.stringify(data, null, 2));
-}
-
-export async function fileExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
+export function ensureDir(dirPath: string): void {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
   }
+}
+
+export function writeJson(filePath: string, data: unknown): void {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
+
+export function readJson<T>(filePath: string): T {
+  const content = fs.readFileSync(filePath, 'utf-8');
+  return JSON.parse(content) as T;
+}
+
+export function fileExists(filePath: string): boolean {
+  return fs.existsSync(filePath);
 }

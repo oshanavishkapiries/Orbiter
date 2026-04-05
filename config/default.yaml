@@ -13,3 +13,62 @@ output:
 logging:
   level: info
   file: logs/orbiter.log
+# Orbiter Default Configuration
+version: 1
+
+# LLM Settings
+llm:
+  provider: openrouter
+  model: anthropic/claude-sonnet-4
+  maxTokens: 4096
+  temperature: 0.7
+
+# Browser Settings
+browser:
+  headless: false
+  defaultTimeout: 30000
+  viewport:
+    width: 1280
+    height: 720
+  profilePath: null  # Use custom Chrome profile
+  stealth: true
+
+# Execution Settings
+execution:
+  maxRetries: 3
+  retryDelay: 1000
+  screenshotOnError: true
+  screenshotOnStep: false
+
+# Loop Engine Settings
+loop:
+  defaultDelay:
+    min: 800
+    max: 1500
+  maxItems: 100
+  scrollPauseTime: 1000
+
+# Recording Settings
+recording:
+  enabled: true
+  outputDir: ./flows
+  includeScreenshots: false
+
+# Output Settings  
+output:
+  dir: ./output
+  formats:
+    - json
+    - csv
+
+# Logging Settings
+logging:
+  level: info  # error, warn, info, debug, trace
+  file:
+    enabled: true
+    path: ./logs
+    maxSize: 10mb
+    maxFiles: 10
+  console:
+    enabled: true
+    colorize: true
