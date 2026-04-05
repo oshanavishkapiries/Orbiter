@@ -20,12 +20,14 @@ export const LoggingConfig = z.object({
   file: z.string().optional(),
 });
 
-export const ConfigSchema = z.object({
-  browser: BrowserConfig.optional(),
-  recorder: RecorderConfig.optional(),
-  output: OutputConfig.optional(),
-  logging: LoggingConfig.optional(),
-}).default({});
+export const ConfigSchema = z
+  .object({
+    browser: BrowserConfig.optional(),
+    recorder: RecorderConfig.optional(),
+    output: OutputConfig.optional(),
+    logging: LoggingConfig.optional(),
+  })
+  .default({});
 
 export type Config = z.infer<typeof ConfigSchema>;
 

@@ -1,11 +1,36 @@
+# Dependencies
 node_modules/
+
+# Build
 dist/
+
+# Environment
 .env
-*.log
-flows/*.json
+.env.local
+
+# Logs
+logs/*.log
+
+# Output
+output/*
+!output/.gitkeep
+
+# Errors
+errors/*
+!errors/.gitkeep
+
+# Flows (keep examples)
+flows/*
+!flows/examples/
 !flows/.gitkeep
-output/
-logs/
-errors/
+
+# OS
 .DS_Store
-*.tsbuildinfo
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Test
+coverage/
