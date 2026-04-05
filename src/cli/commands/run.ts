@@ -38,7 +38,7 @@ export function runCommand() {
         const navSp = spinner('Testing navigation...').start();
 
         const browser = context.getBrowserManager();
-        await browser.navigate('https://example.com');
+        await browser.navigate('https://bot.sannysoft.com');
 
         navSp.succeed(`Navigated to: ${browser.getUrl()}`);
 
