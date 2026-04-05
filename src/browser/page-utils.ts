@@ -25,7 +25,9 @@ export class PageUtils {
       if (!element) return null;
       return await element.textContent();
     } catch (error) {
-      logger.error(`Error getting text from ${selector}: ${(error as Error).message}`);
+      logger.error(
+        `Error getting text from ${selector}: ${(error as Error).message}`,
+      );
       return null;
     }
   }
@@ -33,13 +35,18 @@ export class PageUtils {
   /**
    * Get element attribute
    */
-  async getElementAttribute(selector: string, attribute: string): Promise<string | null> {
+  async getElementAttribute(
+    selector: string,
+    attribute: string,
+  ): Promise<string | null> {
     try {
       const element = await this.page.$(selector);
       if (!element) return null;
       return await element.getAttribute(attribute);
     } catch (error) {
-      logger.error(`Error getting attribute from ${selector}: ${(error as Error).message}`);
+      logger.error(
+        `Error getting attribute from ${selector}: ${(error as Error).message}`,
+      );
       return null;
     }
   }
@@ -51,7 +58,9 @@ export class PageUtils {
     try {
       return await this.page.$$(selector);
     } catch (error) {
-      logger.error(`Error finding elements ${selector}: ${(error as Error).message}`);
+      logger.error(
+        `Error finding elements ${selector}: ${(error as Error).message}`,
+      );
       return [];
     }
   }
@@ -75,7 +84,9 @@ export class PageUtils {
         logger.debug(`Scrolled to element: ${selector}`);
       }
     } catch (error) {
-      logger.error(`Error scrolling to ${selector}: ${(error as Error).message}`);
+      logger.error(
+        `Error scrolling to ${selector}: ${(error as Error).message}`,
+      );
       throw error;
     }
   }
@@ -83,7 +94,10 @@ export class PageUtils {
   /**
    * Scroll page
    */
-  async scroll(direction: 'up' | 'down' | 'top' | 'bottom', amount?: number): Promise<void> {
+  async scroll(
+    direction: 'up' | 'down' | 'top' | 'bottom',
+    amount?: number,
+  ): Promise<void> {
     const scrollAmount = amount ?? 500;
 
     await this.page.evaluate(
@@ -91,14 +105,17 @@ export class PageUtils {
         if (direction === 'top') {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else if (direction === 'bottom') {
-          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+          window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: 'smooth',
+          });
         } else if (direction === 'down') {
           window.scrollBy({ top: amount, behavior: 'smooth' });
         } else if (direction === 'up') {
           window.scrollBy({ top: -amount, behavior: 'smooth' });
         }
       },
-      { direction, amount: scrollAmount }
+      { direction, amount: scrollAmount },
     );
 
     logger.debug(`Scrolled ${direction} by ${scrollAmount}px`);
@@ -114,7 +131,11 @@ export class PageUtils {
   /**
    * Get page dimensions
    */
-  async getPageDimensions(): Promise<{ width: number; height: number; scrollHeight: number }> {
+  async getPageDimensions(): Promise<{
+    width: number;
+    height: number;
+    scrollHeight: number;
+  }> {
     return await this.page.evaluate(() => ({
       width: window.innerWidth,
       height: window.innerHeight,
@@ -151,7 +172,9 @@ export class PageUtils {
           // Limit to 50
           const tag = el.tagName.toLowerCase();
           const id = el.id ? `#${el.id}` : '';
-          const classes = el.className ? `.${el.className.split(' ').join('.')}` : '';
+          const classes = el.className
+            ? `.${el.className.split(' ').join('.')}`
+            : '';
           visible.push(`${tag}${id}${classes}`);
         }
       });

@@ -36,7 +36,7 @@ export function runCommand() {
 
         // Test navigation
         const navSp = spinner('Testing navigation...').start();
-        
+
         const browser = context.getBrowserManager();
         await browser.navigate('https://example.com');
 
@@ -61,10 +61,13 @@ export function runCommand() {
         // Summary
         const summary = context.getSummary();
         console.log('\n' + chalk.green('✓ Test Complete'));
-        console.log(chalk.gray(`  Duration: ${(summary.duration / 1000).toFixed(1)}s`));
+        console.log(
+          chalk.gray(`  Duration: ${(summary.duration / 1000).toFixed(1)}s`),
+        );
 
-        console.log('\n' + chalk.yellow('Note: Full LLM integration coming in Phase 2'));
-
+        console.log(
+          '\n' + chalk.yellow('Note: Full LLM integration coming in Phase 2'),
+        );
       } catch (error) {
         logger.error(`Execution failed: ${(error as Error).message}`);
         throw error;

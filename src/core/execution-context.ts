@@ -83,11 +83,17 @@ export class ExecutionContext {
   /**
    * Record step execution
    */
-  recordStep(action: string, target: string | undefined, result: 'success' | 'failed', error?: string): void {
+  recordStep(
+    action: string,
+    target: string | undefined,
+    result: 'success' | 'failed',
+    error?: string,
+  ): void {
     const now = Date.now();
-    const lastTimestamp = this.state.history.length > 0
-      ? this.state.history[this.state.history.length - 1].timestamp
-      : this.state.startTime;
+    const lastTimestamp =
+      this.state.history.length > 0
+        ? this.state.history[this.state.history.length - 1].timestamp
+        : this.state.startTime;
 
     this.state.history.push({
       step: this.state.currentStep,
@@ -120,7 +126,9 @@ export class ExecutionContext {
    * Get last N successful steps
    */
   getLastSuccessfulSteps(n: number): ExecutionHistoryItem[] {
-    return this.state.history.filter((item) => item.result === 'success').slice(-n);
+    return this.state.history
+      .filter((item) => item.result === 'success')
+      .slice(-n);
   }
 
   /**
@@ -132,8 +140,12 @@ export class ExecutionContext {
     failedSteps: number;
     duration: number;
   } {
-    const successful = this.state.history.filter((h) => h.result === 'success').length;
-    const failed = this.state.history.filter((h) => h.result === 'failed').length;
+    const successful = this.state.history.filter(
+      (h) => h.result === 'success',
+    ).length;
+    const failed = this.state.history.filter(
+      (h) => h.result === 'failed',
+    ).length;
 
     return {
       totalSteps: this.state.history.length,

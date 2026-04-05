@@ -26,7 +26,7 @@ export class BrowserManager {
    */
   async launch(options: BrowserLaunchOptions = {}): Promise<BrowserSession> {
     const cfg = config();
-    
+
     logger.info('Launching browser...');
 
     const headless = options.headless ?? cfg.browser.headless;
@@ -49,7 +49,7 @@ export class BrowserManager {
     if (profilePath && fs.existsSync(profilePath)) {
       // Launch with persistent context (user profile)
       logger.debug(`Using browser profile: ${profilePath}`);
-      
+
       context = await chromium.launchPersistentContext(profilePath, {
         headless,
         viewport,
@@ -58,7 +58,6 @@ export class BrowserManager {
       });
 
       page = context.pages()[0] || (await context.newPage());
-      
     } else {
       // Launch regular browser
       browser = await chromium.launch({
@@ -141,7 +140,10 @@ export class BrowserManager {
    */
   async waitForSelector(
     selector: string,
-    options: { timeout?: number; state?: 'attached' | 'detached' | 'visible' | 'hidden' } = {}
+    options: {
+      timeout?: number;
+      state?: 'attached' | 'detached' | 'visible' | 'hidden';
+    } = {},
   ): Promise<void> {
     const page = this.getPage();
     const cfg = config();
@@ -178,10 +180,11 @@ export class BrowserManager {
    */
   async screenshot(options: ScreenshotOptions = {}): Promise<string> {
     const page = this.getPage();
-    
+
     const timestamp = Date.now();
     const filename = `screenshot-${timestamp}.png`;
-    const screenshotPath = options.path || path.join(process.cwd(), 'errors', filename);
+    const screenshotPath =
+      options.path || path.join(process.cwd(), 'errors', filename);
 
     ensureDir(path.dirname(screenshotPath));
 
@@ -216,7 +219,10 @@ export class BrowserManager {
   /**
    * Evaluate JavaScript
    */
-  async evaluate<T>(pageFunction: string | ((...args: any[]) => T | Promise<T>), arg?: any): Promise<T> {
+  async evaluate<T>(
+    pageFunction: string | ((...args: any[]) => T | Promise<T>),
+    arg?: any,
+  ): Promise<T> {
     const page = this.getPage();
     return await page.evaluate(pageFunction, arg);
   }
@@ -234,13 +240,15 @@ export class BrowserManager {
     try {
       await this.session.page.close();
       await this.session.context.close();
-      
+
       if (this.session.browser) {
         await this.session.browser.close();
       }
 
       const duration = Date.now() - this.session.startTime;
-      logger.success(`Browser closed (session duration: ${(duration / 1000).toFixed(1)}s)`);
+      logger.success(
+        `Browser closed (session duration: ${(duration / 1000).toFixed(1)}s)`,
+      );
 
       this.session = null;
     } catch (error) {
@@ -255,7 +263,7 @@ export class BrowserManager {
   private async getRealisticUserAgent(): Promise<string> {
     // Use recent Chrome user agent
     const platform = process.platform;
-    
+
     if (platform === 'darwin') {
       return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     } else if (platform === 'win32') {

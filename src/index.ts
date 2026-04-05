@@ -5,7 +5,7 @@ import { createCLI } from './cli/index.js';
 
 async function main() {
   const cli = createCLI();
-  
+
   try {
     await cli.parseAsync(process.argv);
   } catch (error) {

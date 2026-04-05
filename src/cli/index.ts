@@ -20,7 +20,7 @@ export function createCLI() {
       margin: { top: 1, bottom: 1, left: 0, right: 0 },
       borderStyle: 'round',
       borderColor: 'cyan',
-    }
+    },
   );
 
   program

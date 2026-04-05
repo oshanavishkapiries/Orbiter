@@ -28,7 +28,7 @@ export class ProfileManager {
 
           if (fs.existsSync(prefsPath)) {
             const prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf-8'));
-            
+
             profiles.push({
               name: item,
               path: profilePath,
@@ -60,9 +60,22 @@ export class ProfileManager {
     const homeDir = os.homedir();
 
     if (platform === 'darwin') {
-      return path.join(homeDir, 'Library', 'Application Support', 'Google', 'Chrome');
+      return path.join(
+        homeDir,
+        'Library',
+        'Application Support',
+        'Google',
+        'Chrome',
+      );
     } else if (platform === 'win32') {
-      return path.join(homeDir, 'AppData', 'Local', 'Google', 'Chrome', 'User Data');
+      return path.join(
+        homeDir,
+        'AppData',
+        'Local',
+        'Google',
+        'Chrome',
+        'User Data',
+      );
     } else if (platform === 'linux') {
       return path.join(homeDir, '.config', 'google-chrome');
     }
@@ -100,7 +113,7 @@ export class ProfileManager {
     }
 
     console.log('\nAvailable Chrome Profiles:\n');
-    
+
     profiles.forEach((profile, index) => {
       console.log(`${index + 1}. ${profile.name}`);
       console.log(`   Path: ${profile.path}`);

@@ -57,7 +57,9 @@ export class ConfigLoader {
     const result = configSchema.safeParse(mergedConfig);
 
     if (!result.success) {
-      throw new Error(`Configuration validation failed: ${result.error.message}`);
+      throw new Error(
+        `Configuration validation failed: ${result.error.message}`,
+      );
     }
 
     this.config = result.data;

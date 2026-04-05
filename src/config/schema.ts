@@ -4,7 +4,9 @@ export const configSchema = z.object({
   version: z.number().default(1),
 
   llm: z.object({
-    provider: z.enum(['openrouter', 'openai', 'anthropic']).default('openrouter'),
+    provider: z
+      .enum(['openrouter', 'openai', 'anthropic'])
+      .default('openrouter'),
     model: z.string().default('anthropic/claude-sonnet-4'),
     maxTokens: z.number().default(4096),
     temperature: z.number().min(0).max(2).default(0.7),

@@ -12,7 +12,7 @@ export function refineCommand() {
     .option('-o, --output <path>', 'Output path for refined flow')
     .action(async (flow, options) => {
       logger.info(`Refining flow: ${flow}`);
-      
+
       // TODO: Implement in Phase 6
       logger.info('Refine command not yet implemented. Coming in Phase 6.');
     });

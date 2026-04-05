@@ -12,7 +12,7 @@ export function replayCommand() {
     .option('--headless', 'Run browser in headless mode')
     .action(async (flow, options) => {
       logger.info(`Replaying flow: ${flow}`);
-      
+
       // TODO: Implement in Phase 3
       logger.info('Replay command not yet implemented. Coming in Phase 3.');
     });
