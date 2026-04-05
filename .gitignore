@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+flows/*.json
+!flows/.gitkeep
+output/
+logs/
+errors/
+.DS_Store
+*.tsbuildinfo

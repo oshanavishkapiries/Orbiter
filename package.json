@@ -1,0 +1,47 @@
+{
+  "name": "orbiter",
+  "version": "1.0.0",
+  "description": "AI-powered browser automation",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "orbiter": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "keywords": ["browser", "automation", "ai", "playwright"],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.0",
+  "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^25.5.2",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "boxen": "^8.0.1",
+    "chalk": "^5.6.2",
+    "cli-progress": "^3.12.0",
+    "commander": "^14.0.3",
+    "dotenv": "^17.4.1",
+    "nanoid": "^5.1.7",
+    "ora": "^9.3.0",
+    "playwright": "^1.59.1",
+    "winston": "^3.19.0",
+    "yaml": "^2.8.3",
+    "zod": "^4.3.6"
+  }
+}
