@@ -30,6 +30,7 @@
   "license": "ISC",
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {
+    "@types/axios": "^0.14.4",
     "@types/cli-progress": "^3.11.6",
     "@types/node": "^25.5.2",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
@@ -43,6 +44,7 @@
     "vitest": "^4.1.2"
   },
   "dependencies": {
+    "axios": "^1.14.0",
     "boxen": "^8.0.1",
     "chalk": "^5.6.2",
     "cli-progress": "^3.12.0",
