@@ -1,12 +1,16 @@
 import { Command } from 'commander';
-import { logger } from '../ui/logger.js';
+import { logger, spinner } from '../ui/logger.js';
+import { banners } from '../ui/banner.js';
+import { summaries, ExecutionSummary } from '../ui/summary.js';
+import { Timeline } from '../ui/timeline.js';
+import { ReportGenerator, ReportData, ReportStep } from '../ui/report.js';
 import { ExecutionContext } from '../../core/execution-context.js';
 import { TaskPlanner } from '../../core/planner.js';
 import { TaskExecutor } from '../../core/executor.js';
 import { LLMFactory } from '../../llm/factory.js';
 import { initializeTools } from '../../tools/index.js';
+import { config } from '../../config/index.js';
 import chalk from 'chalk';
-import boxen from 'boxen';
 
 export function runCommand() {
   const cmd = new Command('run');
@@ -19,78 +23,76 @@ export function runCommand() {
     .option('--headless', 'Run browser in headless mode')
     .option('--no-record', 'Disable flow recording')
     .option('--max-steps <number>', 'Maximum steps to execute', '50')
+    .option('--report', 'Generate execution report')
+    .option(
+      '--report-format <format>',
+      'Report format: markdown or json',
+      'markdown',
+    )
     .action(async (prompt, options) => {
       // Banner
-      console.log(
-        '\n' +
-          boxen(
-            chalk.cyan.bold('🚀 ORBITER') + chalk.gray(' - Browser Automation'),
-            {
-              padding: 1,
-              margin: 1,
-              borderStyle: 'round',
-              borderColor: 'cyan',
-            },
-          ),
-      );
+      console.log(banners.run(prompt));
 
-      logger.info(`Task: ${chalk.bold(prompt)}`);
-      console.log(chalk.gray('─'.repeat(60)) + '\n');
-
+      const startTime = Date.now();
+      const timeline = new Timeline();
       const context = new ExecutionContext();
+      const errors: string[] = [];
+
+      timeline.add({
+        type: 'start',
+        message: 'Execution started',
+      });
 
       try {
-        // Initialize tools
-        logger.info('Initializing tools...');
-        initializeTools();
-        logger.success('Tools registered');
+        // Initialize
+        const sp = spinner('Initializing...').start();
 
-        // Initialize browser
-        logger.info('Launching browser...');
+        initializeTools();
+        sp.text('Tools registered');
+
         await context.initialize({
           headless: options.headless,
           profilePath: options.profile,
         });
-        logger.success('Browser ready');
+        sp.text('Browser launched');
 
-        // Initialize LLM
-        logger.info('Connecting to LLM...');
         const llm = LLMFactory.create(undefined, options.model);
-
         const modelInfo = (llm as any).getModelInfo?.() || {
-          name: 'unknown',
-          provider: 'unknown',
+          name: config().llm.model,
+          provider: config().llm.provider,
         };
 
-        logger.success(`LLM ready (${modelInfo.provider}/${modelInfo.name})`);
+        sp.succeed(`Ready (${modelInfo.provider}/${modelInfo.name})`);
 
-        console.log('\n' + chalk.cyan('━'.repeat(60)) + '\n');
+        timeline.add({
+          type: 'step',
+          status: 'success',
+          message: 'Initialization complete',
+        });
 
-        // Plan task
-        logger.info(chalk.bold('PLANNING PHASE'));
+        // Planning phase
+        logger.phase('PLANNING PHASE');
+
         const planner = new TaskPlanner(llm);
         const plan = await planner.plan(prompt);
 
-        console.log('\n' + chalk.blue('LLM Analysis:'));
-        console.log(
-          boxen(plan.reasoning, {
-            padding: 1,
-            borderStyle: 'round',
-            borderColor: 'blue',
-          }),
+        console.log(chalk.blue('\nLLM Analysis:'));
+        console.log(chalk.gray(plan.reasoning.slice(0, 200) + '...'));
+        console.log('');
+
+        logger.bullet(`Estimated steps: ${plan.estimatedSteps}`);
+        logger.bullet(
+          `Pattern detection needed: ${plan.needsDetection ? 'Yes' : 'No'}`,
         );
 
-        console.log(
-          `\n${chalk.gray('Estimated steps:')} ${plan.estimatedSteps}`,
-        );
-        console.log(
-          `${chalk.gray('Pattern detection needed:')} ${plan.needsDetection ? 'Yes' : 'No'}`,
-        );
+        timeline.add({
+          type: 'step',
+          status: 'success',
+          message: `Planning complete (${plan.estimatedSteps} steps estimated)`,
+        });
 
-        console.log('\n' + chalk.cyan('━'.repeat(60)) + '\n');
-
-        // Execute task
-        logger.info(chalk.bold('EXECUTION PHASE'));
+        // Execution phase
+        logger.phase('EXECUTION PHASE');
 
         const executor = new TaskExecutor(
           llm,
@@ -99,54 +101,94 @@ export function runCommand() {
           modelInfo.provider,
           modelInfo.name,
         );
+
         const result = await executor.execute(parseInt(options.maxSteps));
 
-        console.log(chalk.cyan('━'.repeat(60)) + '\n');
+        // Record timeline events from steps
+        for (const step of result.steps) {
+          timeline.add({
+            type: 'step',
+            tool: step.toolName,
+            status: step.success ? 'success' : 'failed',
+            message: step.success
+              ? `${step.toolName} completed`
+              : `${step.toolName} failed: ${step.error}`,
+            duration: step.duration,
+          });
 
-        // Display results
-        if (result.success) {
-          console.log(
-            chalk.green.bold('✅ TASK COMPLETED SUCCESSFULLY') + '\n',
-          );
-        } else {
-          console.log(
-            chalk.yellow.bold('⚠️  TASK COMPLETED WITH ERRORS') + '\n',
-          );
+          if (!step.success && step.error) {
+            errors.push(step.error);
+          }
         }
 
-        // Show performance metrics
-        console.log(chalk.bold('Performance:'));
-        console.log(
-          `  Duration: ${(result.summary.duration / 1000).toFixed(1)}s`,
-        );
-        console.log(
-          `  LLM tokens: ${result.summary.tokensUsed.toLocaleString()}`,
-        );
+        const endTime = Date.now();
 
-        const estimatedCost = (
-          (result.summary.tokensUsed / 1000000) *
-          3
-        ).toFixed(4);
-        console.log(`  Estimated cost: $${estimatedCost} 💰`);
+        timeline.add({
+          type: 'end',
+          message: 'Execution complete',
+        });
 
-        // Next steps
-        if (options.record) {
-          console.log('\n' + chalk.bold('Next steps:'));
-          console.log('  • Flow saved to: ./flows/[flow-name].raw.json');
-          console.log(
-            '  • Optimize flow: orbiter refine flows/[flow-name].raw.json',
-          );
-          console.log(
-            '  • Replay flow: orbiter replay flows/[flow-name].flow.json',
-          );
+        // Summary
+        const summaryData: ExecutionSummary = {
+          success: result.success,
+          totalSteps: result.summary.totalSteps,
+          successfulSteps: result.summary.successfulSteps,
+          failedSteps: result.summary.failedSteps,
+          duration: result.summary.duration,
+          tokensUsed: result.summary.tokensUsed,
+          estimatedCost: (result.summary.tokensUsed / 1_000_000) * 3,
+          flowPath: result.flowPath,
+          outputFiles: result.outputFiles,
+        };
+
+        summaries.execution(summaryData);
+
+        // Generate report if requested
+        if (options.report) {
+          const reportGen = new ReportGenerator();
+
+          const reportData: ReportData = {
+            taskName: prompt.slice(0, 50),
+            goal: prompt,
+            startTime,
+            endTime,
+            success: result.success,
+            totalSteps: result.summary.totalSteps,
+            successfulSteps: result.summary.successfulSteps,
+            failedSteps: result.summary.failedSteps,
+            recoveredSteps: 0,
+            steps: result.steps.map(
+              (s): ReportStep => ({
+                id: s.stepNumber,
+                tool: s.toolName,
+                params: s.params,
+                status: s.success ? 'success' : 'failed',
+                duration: s.duration,
+                error: s.error,
+              }),
+            ),
+            tokensUsed: result.summary.tokensUsed,
+            estimatedCost: (result.summary.tokensUsed / 1_000_000) * 3,
+            flowPath: result.flowPath,
+            outputFiles: result.outputFiles,
+            errors,
+          };
+
+          reportGen.save(reportData, options.reportFormat);
         }
-
-        console.log('');
       } catch (error) {
-        console.log('\n' + chalk.red.bold('❌ EXECUTION FAILED') + '\n');
-        logger.error(`Error: ${(error as Error).message}`);
+        const err = error as Error;
+        logger.error(`Execution failed: ${err.message}`);
 
-        if ((error as Error).message.includes('API key')) {
+        timeline.add({
+          type: 'error',
+          status: 'failed',
+          message: err.message,
+        });
+
+        console.log(banners.error(err.message));
+
+        if (err.message.includes('API key')) {
           console.log(
             chalk.yellow('\nTip: Set OPENROUTER_API_KEY in your .env file'),
           );

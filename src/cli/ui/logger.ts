@@ -1,6 +1,12 @@
 import winston from 'winston';
 import chalk from 'chalk';
+import path from 'path';
 import { config } from '../../config/index.js';
+import { ensureDir } from '../../utils/fs.js';
+
+// ─────────────────────────────────────────────
+// Log Level Colors & Icons
+// ─────────────────────────────────────────────
 
 const levelColors: Record<string, (text: string) => string> = {
   error: chalk.red,
@@ -18,32 +24,56 @@ const levelIcons: Record<string, string> = {
   trace: '·',
 };
 
-// Custom format for console
+// ─────────────────────────────────────────────
+// Verbosity Control
+// ─────────────────────────────────────────────
+
+let verbosityLevel: 'quiet' | 'normal' | 'verbose' | 'debug' = 'normal';
+
+export function setVerbosity(level: typeof verbosityLevel): void {
+  verbosityLevel = level;
+}
+
+export function getVerbosity(): typeof verbosityLevel {
+  return verbosityLevel;
+}
+
+// ─────────────────────────────────────────────
+// Console Format
+// ─────────────────────────────────────────────
+
 const consoleFormat = winston.format.printf(
   ({ level, message, timestamp, ...meta }) => {
     const color = levelColors[level] || chalk.white;
     const icon = levelIcons[level] || '•';
+    const time = chalk.gray(timestamp);
 
-    let output = `${chalk.gray(timestamp)} ${color(icon)} ${message}`;
+    let output = `${time} ${color(icon)} ${message}`;
 
-    // Add metadata if present
-    if (Object.keys(meta).length > 0 && meta.step) {
-      output = `${chalk.gray(timestamp)} ${chalk.cyan(`[${meta.step}]`)} ${color(icon)} ${message}`;
+    // Add step info if present
+    if (meta.step) {
+      output = `${time} ${chalk.cyan(`[${meta.step}]`)} ${color(icon)} ${message}`;
     }
 
     return output;
   },
 );
 
-// Custom format for file
+// ─────────────────────────────────────────────
+// File Format (JSON)
+// ─────────────────────────────────────────────
+
 const fileFormat = winston.format.combine(
   winston.format.timestamp(),
   winston.format.json(),
 );
 
-export function createLogger() {
-  const cfg = config();
+// ─────────────────────────────────────────────
+// Create Logger
+// ─────────────────────────────────────────────
 
+function createWinstonLogger(): winston.Logger {
+  const cfg = config();
   const transports: winston.transport[] = [];
 
   // Console transport
@@ -56,25 +86,30 @@ export function createLogger() {
             ? consoleFormat
             : winston.format.simple(),
         ),
+        level: verbosityLevel === 'quiet' ? 'error' : cfg.logging.level,
       }),
     );
   }
 
   // File transport
   if (cfg.logging.file.enabled) {
+    const logDir = cfg.logging.file.path;
+    ensureDir(logDir);
+
+    // Main log file
     transports.push(
       new winston.transports.File({
-        filename: `${cfg.logging.file.path}/orbiter.log`,
+        filename: path.join(logDir, 'orbiter.log'),
         format: fileFormat,
         maxsize: parseSize(cfg.logging.file.maxSize),
         maxFiles: cfg.logging.file.maxFiles,
       }),
     );
 
-    // Separate error log
+    // Error log file
     transports.push(
       new winston.transports.File({
-        filename: `${cfg.logging.file.path}/error.log`,
+        filename: path.join(logDir, 'error.log'),
         level: 'error',
         format: fileFormat,
         maxsize: parseSize(cfg.logging.file.maxSize),
@@ -98,7 +133,7 @@ function parseSize(size: string): number {
   };
 
   const match = size.toLowerCase().match(/^(\d+)(b|kb|mb|gb)?$/);
-  if (!match) return 10 * 1024 * 1024; // Default 10MB
+  if (!match) return 10 * 1024 * 1024;
 
   const value = parseInt(match[1], 10);
   const unit = match[2] || 'b';
@@ -106,39 +141,183 @@ function parseSize(size: string): number {
   return value * units[unit];
 }
 
-// Singleton logger instance
+// ─────────────────────────────────────────────
+// Singleton Logger
+// ─────────────────────────────────────────────
+
 let loggerInstance: winston.Logger | null = null;
 
-export function getLogger(): winston.Logger {
+function getWinstonLogger(): winston.Logger {
   if (!loggerInstance) {
-    loggerInstance = createLogger();
+    loggerInstance = createWinstonLogger();
   }
   return loggerInstance;
 }
 
-// Convenience exports
-export const logger = {
-  error: (message: string, meta?: object) => getLogger().error(message, meta),
-  warn: (message: string, meta?: object) => getLogger().warn(message, meta),
-  info: (message: string, meta?: object) => getLogger().info(message, meta),
-  debug: (message: string, meta?: object) => getLogger().debug(message, meta),
-  trace: (message: string, meta?: object) =>
-    getLogger().log('trace', message, meta),
+// ─────────────────────────────────────────────
+// Public Logger API
+// ─────────────────────────────────────────────
 
-  // Specialized logging
-  step: (stepNum: number, total: number, action: string, message: string) => {
-    getLogger().info(message, { step: `${stepNum}/${total}`, action });
+export const logger = {
+  error: (message: string, meta?: object) =>
+    getWinstonLogger().error(message, meta),
+
+  warn: (message: string, meta?: object) =>
+    getWinstonLogger().warn(message, meta),
+
+  info: (message: string, meta?: object) => {
+    if (verbosityLevel !== 'quiet') {
+      getWinstonLogger().info(message, meta);
+    }
   },
 
-  success: (message: string) => {
+  debug: (message: string, meta?: object) => {
+    if (verbosityLevel === 'debug' || verbosityLevel === 'verbose') {
+      getWinstonLogger().debug(message, meta);
+    }
+  },
+
+  trace: (message: string, meta?: object) => {
+    if (verbosityLevel === 'debug') {
+      getWinstonLogger().log('trace', message, meta);
+    }
+  },
+
+  // ─────────────────────────────────────────────
+  // Specialized Logging Methods
+  // ─────────────────────────────────────────────
+
+  /**
+   * Step progress indicator
+   */
+  step: (
+    stepNum: number,
+    total: number,
+    tool: string,
+    message: string,
+  ): void => {
+    if (verbosityLevel === 'quiet') return;
+
+    const progress = `[${String(stepNum).padStart(2, '0')}/${String(total).padStart(2, '0')}]`;
+    console.log(`\n${chalk.gray(progress)} ${chalk.cyan(tool)}`);
+    console.log(`  ${chalk.gray('→')} ${message}`);
+  },
+
+  /**
+   * Success checkmark
+   */
+  success: (message: string): void => {
+    if (verbosityLevel === 'quiet') return;
     console.log(`  ${chalk.green('✓')} ${message}`);
   },
 
-  fail: (message: string) => {
+  /**
+   * Failure cross
+   */
+  fail: (message: string): void => {
     console.log(`  ${chalk.red('✖')} ${message}`);
   },
 
-  bullet: (message: string) => {
+  /**
+   * Warning indicator
+   */
+  warning: (message: string): void => {
+    console.log(`  ${chalk.yellow('⚠')} ${message}`);
+  },
+
+  /**
+   * Bullet point
+   */
+  bullet: (message: string): void => {
+    if (verbosityLevel === 'quiet') return;
     console.log(`  ${chalk.gray('→')} ${message}`);
   },
+
+  /**
+   * Blank line
+   */
+  blank: (): void => {
+    if (verbosityLevel === 'quiet') return;
+    console.log('');
+  },
+
+  /**
+   * Section header
+   */
+  section: (title: string): void => {
+    if (verbosityLevel === 'quiet') return;
+    console.log('\n' + chalk.bold(title));
+    console.log(chalk.gray('─'.repeat(40)));
+  },
+
+  /**
+   * Phase header with emphasis
+   */
+  phase: (name: string): void => {
+    if (verbosityLevel === 'quiet') return;
+    console.log('\n' + chalk.cyan('━'.repeat(60)));
+    console.log(chalk.cyan.bold(`  ${name}`));
+    console.log(chalk.cyan('━'.repeat(60)) + '\n');
+  },
 };
+
+// ─────────────────────────────────────────────
+// Spinner Helper (re-export)
+// ─────────────────────────────────────────────
+
+import ora, { Ora } from 'ora';
+
+export class Spinner {
+  private spinner: Ora;
+
+  constructor(text: string) {
+    this.spinner = ora({
+      text,
+      color: 'cyan',
+      spinner: 'dots',
+    });
+  }
+
+  start(text?: string): this {
+    if (verbosityLevel !== 'quiet') {
+      this.spinner.start(text);
+    }
+    return this;
+  }
+
+  stop(): this {
+    this.spinner.stop();
+    return this;
+  }
+
+  succeed(text?: string): this {
+    if (verbosityLevel !== 'quiet') {
+      this.spinner.succeed(text);
+    }
+    return this;
+  }
+
+  fail(text?: string): this {
+    this.spinner.fail(text);
+    return this;
+  }
+
+  warn(text?: string): this {
+    this.spinner.warn(text);
+    return this;
+  }
+
+  info(text?: string): this {
+    if (verbosityLevel !== 'quiet') {
+      this.spinner.info(text);
+    }
+    return this;
+  }
+
+  text(text: string): this {
+    this.spinner.text = text;
+    return this;
+  }
+}
+
+export const spinner = (text: string) => new Spinner(text);

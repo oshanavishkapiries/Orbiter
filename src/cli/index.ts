@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
-import boxen from 'boxen';
+import { banners } from './ui/banner.js';
+import { addGlobalOptions } from './global-options.js';
 import { runCommand } from './commands/run.js';
 import { replayCommand } from './commands/replay.js';
 import { refineCommand } from './commands/refine.js';
@@ -13,30 +13,43 @@ const VERSION = '1.0.0';
 export function createCLI() {
   const program = new Command();
 
-  // Banner
-  const banner = boxen(
-    `${chalk.bold.cyan('🚀 ORBITER')} ${chalk.gray(`v${VERSION}`)}\n${chalk.dim('AI-powered browser automation')}`,
-    {
-      padding: 1,
-      margin: { top: 1, bottom: 1, left: 0, right: 0 },
-      borderStyle: 'round',
-      borderColor: 'cyan',
-    },
-  );
-
   program
     .name('orbiter')
     .description('AI-powered browser automation tool')
-    .version(VERSION, '-v, --version', 'Show version number')
-    .addHelpText('beforeAll', banner);
+    .version(VERSION, '-V, --version', 'Show version number')
+    .addHelpText('beforeAll', banners.main());
 
-  // Commands
+  // Add global options
+  addGlobalOptions(program);
+
+  // Register commands
   program.addCommand(runCommand());
   program.addCommand(replayCommand());
   program.addCommand(refineCommand());
   program.addCommand(configCommand());
   program.addCommand(profileCommand());
   program.addCommand(modelsCommand());
+
+  // Help command customization
+  program.configureHelp({
+    sortSubcommands: true,
+    subcommandTerm: (cmd) => cmd.name(),
+  });
+
+  // Custom help
+  program.addHelpText(
+    'after',
+    `
+${'\x1b[36m'}Examples:${'\x1b[0m'}
+  $ orbiter run "Extract hotels from booking.com"
+  $ orbiter run "Fill login form" --headless
+  $ orbiter replay flows/my-flow.flow.json
+  $ orbiter refine flows/raw-flow.raw.json -i
+
+${'\x1b[36m'}Documentation:${'\x1b[0m'}
+  https://github.com/orbiter-ai/orbiter
+`,
+  );
 
   return program;
 }
