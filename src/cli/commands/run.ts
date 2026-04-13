@@ -56,10 +56,12 @@ export function runCommand() {
         // Initialize LLM
         logger.info('Connecting to LLM...');
         const llm = LLMFactory.create(undefined, options.model);
+
         const modelInfo = (llm as any).getModelInfo?.() || {
           name: 'unknown',
           provider: 'unknown',
         };
+
         logger.success(`LLM ready (${modelInfo.provider}/${modelInfo.name})`);
 
         console.log('\n' + chalk.cyan('━'.repeat(60)) + '\n');
@@ -89,7 +91,14 @@ export function runCommand() {
 
         // Execute task
         logger.info(chalk.bold('EXECUTION PHASE'));
-        const executor = new TaskExecutor(llm, context, plan);
+
+        const executor = new TaskExecutor(
+          llm,
+          context,
+          plan,
+          modelInfo.provider,
+          modelInfo.name,
+        );
         const result = await executor.execute(parseInt(options.maxSteps));
 
         console.log(chalk.cyan('━'.repeat(60)) + '\n');
