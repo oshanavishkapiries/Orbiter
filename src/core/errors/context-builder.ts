@@ -27,7 +27,7 @@ export class ErrorContextBuilder {
     failedTool: string,
     failedParams: Record<string, any>,
     attemptNumber: number,
-    executionSnapshot: ExecutionSnapshot
+    executionSnapshot: ExecutionSnapshot,
   ): Promise<ErrorContext> {
     logger.debug('Building error context...');
 
@@ -73,7 +73,7 @@ export class ErrorContextBuilder {
    * Capture current browser state
    */
   private async captureBrowserState(
-    errorId: string
+    errorId: string,
   ): Promise<BrowserStateSnapshot> {
     let url = 'unknown';
     let title = 'unknown';
@@ -128,7 +128,7 @@ export class ErrorContextBuilder {
 
     const screenshotPath = path.join(
       errorsDir,
-      `error-${errorId}-${Date.now()}.png`
+      `error-${errorId}-${Date.now()}.png`,
     );
 
     try {

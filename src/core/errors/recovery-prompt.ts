@@ -19,10 +19,10 @@ export class RecoveryPromptBuilder {
 PREVIOUS RECOVERY ATTEMPTS (all failed):
 ${recoveryHistory
   .map(
-    r => `  Attempt ${r.attemptNumber}: ${r.strategy}
+    (r) => `  Attempt ${r.attemptNumber}: ${r.strategy}
     Action: ${r.action?.tool} with ${JSON.stringify(r.action?.params)}
     Reason: ${r.reasoning}
-    Error: ${r.error}`
+    Error: ${r.error}`,
   )
   .join('\n')}`
         : '';
@@ -74,13 +74,15 @@ Original goal: ${executionState.originalGoal}
 Current step: ${executionState.stepNumber}/${executionState.totalSteps}
 
 Last 5 successful steps:
-${executionState.previousSteps
-  .slice(-5)
-  .map(
-    s =>
-      `  Step ${s.step}: ${s.tool} (${s.result})${s.selector ? ` → ${s.selector}` : ''}`
-  )
-  .join('\n') || '  (none yet)'}
+${
+  executionState.previousSteps
+    .slice(-5)
+    .map(
+      (s) =>
+        `  Step ${s.step}: ${s.tool} (${s.result})${s.selector ? ` → ${s.selector}` : ''}`,
+    )
+    .join('\n') || '  (none yet)'
+}
 ${previousAttemptsText}
 
 ═══════════════════════════════════════════════

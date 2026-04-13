@@ -39,7 +39,7 @@ export class DomAnalyzer {
           if (role) return `${tag}[role="${role}"]`;
 
           const classes = Array.from(el.classList)
-            .filter(c => !c.match(/^(is-|has-|active|focus)/))
+            .filter((c) => !c.match(/^(is-|has-|active|focus)/))
             .slice(0, 2)
             .join('.');
 
@@ -85,13 +85,13 @@ export class DomAnalyzer {
           '[class*="popup"]',
         ];
         results.hasOverlay = overlaySelectors.some(
-          s => !!document.querySelector(s)
+          (s) => !!document.querySelector(s),
         );
 
         // Analyze all elements
         const allElements = document.querySelectorAll('*');
 
-        allElements.forEach(el => {
+        allElements.forEach((el) => {
           if (!isVisible(el)) return;
 
           const selector = getSelector(el);
@@ -101,7 +101,7 @@ export class DomAnalyzer {
           // Visible elements (top 30)
           if (results.visibleElements.length < 30) {
             results.visibleElements.push(
-              text ? `${selector} ("${text}")` : selector
+              text ? `${selector} ("${text}")` : selector,
             );
           }
 
@@ -120,7 +120,7 @@ export class DomAnalyzer {
               text ||
               '';
             results.clickableElements.push(
-              `${selector}${label ? ` ("${label}")` : ''}`
+              `${selector}${label ? ` ("${label}")` : ''}`,
             );
           }
 
@@ -137,7 +137,7 @@ export class DomAnalyzer {
             const label =
               el.getAttribute('aria-label') || el.getAttribute('name') || '';
             results.inputFields.push(
-              `${selector} [${type}]${label ? ` ("${label}")` : ''}${placeholder ? ` placeholder="${placeholder}"` : ''}`
+              `${selector} [${type}]${label ? ` ("${label}")` : ''}${placeholder ? ` placeholder="${placeholder}"` : ''}`,
             );
           }
 
@@ -145,7 +145,7 @@ export class DomAnalyzer {
           if (results.formElements.length < 10 && tag === 'form') {
             const action = el.getAttribute('action') || '';
             results.formElements.push(
-              `form${action ? `[action="${action}"]` : ''}`
+              `form${action ? `[action="${action}"]` : ''}`,
             );
           }
         });

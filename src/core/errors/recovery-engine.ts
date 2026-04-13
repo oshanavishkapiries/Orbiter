@@ -17,15 +17,13 @@ export class RecoveryEngine {
 
   constructor(
     private llm: LLMProvider,
-    private context: ExecutionContext
+    private context: ExecutionContext,
   ) {}
 
   /**
    * Attempt to recover from an error
    */
-  async recover(
-    errorContext: ErrorContext
-  ): Promise<{
+  async recover(errorContext: ErrorContext): Promise<{
     success: boolean;
     result?: any;
     shouldAbort: boolean;
@@ -100,7 +98,7 @@ export class RecoveryEngine {
    * Get recovery plan from LLM
    */
   private async getLLMRecoveryPlan(
-    errorContext: ErrorContext
+    errorContext: ErrorContext,
   ): Promise<RecoveryPlan | null> {
     const prompt = RecoveryPromptBuilder.build(errorContext);
 
@@ -123,9 +121,7 @@ export class RecoveryEngine {
       const plan = this.parseRecoveryPlan(response.content);
       return plan;
     } catch (error) {
-      logger.error(
-        `Failed to get recovery plan: ${(error as Error).message}`
-      );
+      logger.error(`Failed to get recovery plan: ${(error as Error).message}`);
       return null;
     }
   }
@@ -152,7 +148,9 @@ export class RecoveryEngine {
 
       return plan;
     } catch (error) {
-      logger.debug(`Failed to parse recovery plan: ${(error as Error).message}`);
+      logger.debug(
+        `Failed to parse recovery plan: ${(error as Error).message}`,
+      );
       return null;
     }
   }
@@ -162,7 +160,7 @@ export class RecoveryEngine {
    */
   private async executeRecoveryAction(
     plan: RecoveryPlan,
-    errorContext: ErrorContext
+    errorContext: ErrorContext,
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     const registry = getToolRegistry();
 
@@ -173,12 +171,14 @@ export class RecoveryEngine {
             return { success: false, error: 'No action provided' };
           }
 
-          logger.info(`Trying alternative selector: ${plan.action.params.selector}`);
+          logger.info(
+            `Trying alternative selector: ${plan.action.params.selector}`,
+          );
 
           const result = await registry.execute(
             plan.action.tool,
             plan.action.params,
-            this.context
+            this.context,
           );
 
           return {
@@ -192,13 +192,13 @@ export class RecoveryEngine {
           const waitTime = plan.waitBeforeRetry || 3000;
           logger.info(`Waiting ${waitTime}ms before retry...`);
 
-          await new Promise(r => setTimeout(r, waitTime));
+          await new Promise((r) => setTimeout(r, waitTime));
 
           if (plan.action) {
             const result = await registry.execute(
               plan.action.tool,
               plan.action.params,
-              this.context
+              this.context,
             );
             return {
               success: result.success,
@@ -211,7 +211,7 @@ export class RecoveryEngine {
           const originalResult = await registry.execute(
             errorContext.failedAction.tool,
             errorContext.failedAction.params,
-            this.context
+            this.context,
           );
 
           return {
@@ -231,7 +231,7 @@ export class RecoveryEngine {
             const result = await registry.execute(
               plan.action.tool,
               plan.action.params,
-              this.context
+              this.context,
             );
             return {
               success: result.success,
@@ -243,7 +243,7 @@ export class RecoveryEngine {
           const retryResult = await registry.execute(
             errorContext.failedAction.tool,
             errorContext.failedAction.params,
-            this.context
+            this.context,
           );
 
           return {
@@ -265,7 +265,7 @@ export class RecoveryEngine {
             const result = await registry.execute(
               plan.action.tool,
               plan.action.params,
-              this.context
+              this.context,
             );
             return {
               success: result.success,
@@ -277,7 +277,7 @@ export class RecoveryEngine {
           const scrollResult = await registry.execute(
             errorContext.failedAction.tool,
             errorContext.failedAction.params,
-            this.context
+            this.context,
           );
 
           return {
@@ -301,7 +301,7 @@ export class RecoveryEngine {
               selector: plan.action.params.selector,
               timeout: 10000,
             },
-            this.context
+            this.context,
           );
 
           if (!waitResult.success) {
@@ -312,7 +312,7 @@ export class RecoveryEngine {
           const retryResult = await registry.execute(
             errorContext.failedAction.tool,
             errorContext.failedAction.params,
-            this.context
+            this.context,
           );
 
           return {
@@ -365,7 +365,7 @@ export class RecoveryEngine {
           const retryResult = await registry.execute(
             errorContext.failedAction.tool,
             errorContext.failedAction.params,
-            this.context
+            this.context,
           );
 
           return {
@@ -385,7 +385,7 @@ export class RecoveryEngine {
           const navResult = await registry.execute(
             'navigate',
             plan.action.params,
-            this.context
+            this.context,
           );
 
           return {
@@ -493,7 +493,7 @@ export class RecoveryEngine {
       chalk.bold('Available elements:'),
       ...browserState.domSummary.clickableElements
         .slice(0, 8)
-        .map(el => `  ${chalk.gray(el)}`),
+        .map((el) => `  ${chalk.gray(el)}`),
     ]
       .filter(Boolean)
       .join('\n');
@@ -506,7 +506,7 @@ export class RecoveryEngine {
           padding: 1,
           borderStyle: 'round',
           borderColor: 'red',
-        })
+        }),
     );
   }
 
@@ -536,7 +536,7 @@ export class RecoveryEngine {
           padding: 1,
           borderStyle: 'round',
           borderColor: 'yellow',
-        })
+        }),
     );
   }
 
