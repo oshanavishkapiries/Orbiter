@@ -175,8 +175,7 @@ export class BrowserManager {
 
     const timestamp = Date.now();
     const filename = `screenshot-${timestamp}.png`;
-    const screenshotPath =
-      options.path || path.join(PATHS.errors, filename);
+    const screenshotPath = options.path || path.join(PATHS.errors, filename);
 
     ensureDir(path.dirname(screenshotPath));
 
