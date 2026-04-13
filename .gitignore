@@ -9,24 +9,24 @@ dist/
 .env.local
 
 # Logs
-logs/*.log
+data/logs/*.log
 
 # Output
-output/*
-!output/.gitkeep
+data/outputs/*
+!data/outputs/.gitkeep
 
 # Errors
-errors/*
-!errors/.gitkeep
+data/errors/*
+!data/errors/.gitkeep
 
 # Reports
-reports/*
-!reports/.gitkeep
+data/reports/*
+!data/reports/.gitkeep
 
 # Flows (keep examples)
-flows/*
-!flows/examples/
-!flows/.gitkeep
+data/flows/*
+!data/flows/examples/
+!data/flows/.gitkeep
 
 # OS
 .DS_Store

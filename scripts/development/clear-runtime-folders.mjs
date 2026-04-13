@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
 
-const targetFolders = ["output", "logs", "flows", "errors","reports"];
+const targetFolders = ["data/outputs", "data/logs", "data/flows", "data/errors","data/reports"];
 const KEEP_FILE = ".gitkeep";
 
 async function clearFolderPreserveGitkeep(relativeFolderPath) {
