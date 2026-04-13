@@ -7,6 +7,7 @@ import { refineCommand } from './commands/refine.js';
 import { configCommand } from './commands/config.js';
 import { profileCommand } from './commands/profile.js';
 import { modelsCommand } from './commands/models.js';
+import { memoryCommand } from './commands/memory.js';
 
 const VERSION = '1.0.0';
 
@@ -29,6 +30,7 @@ export function createCLI() {
   program.addCommand(configCommand());
   program.addCommand(profileCommand());
   program.addCommand(modelsCommand());
+  program.addCommand(memoryCommand());
 
   // Help command customization
   program.configureHelp({
