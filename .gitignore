@@ -19,6 +19,10 @@ output/*
 errors/*
 !errors/.gitkeep
 
+# Reports
+reports/*
+!reports/.gitkeep
+
 # Flows (keep examples)
 flows/*
 !flows/examples/
