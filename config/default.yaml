@@ -8,6 +8,10 @@ llm:
   maxTokens: 4096
   temperature: 0.7
 
+# Database Settings
+database:
+  url: postgresql://root:root@45.159.221.130:7777/root
+
 # Browser Settings
 browser:
   headless: false
@@ -39,7 +43,7 @@ recording:
   outputDir: ./flows
   includeScreenshots: false
 
-# Output Settings  
+# Output Settings
 output:
   dir: ./output
   formats:

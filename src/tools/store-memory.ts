@@ -76,7 +76,7 @@ This makes Orbiter smarter over time - always store successful findings!
 
   execute: async (params, context: ExecutionContext): Promise<ToolResult> => {
     try {
-      const memory = getMemoryManager();
+      const memory = await getMemoryManager();
 
       // ─────────────────────────────────────────────
       // Store selector
@@ -89,13 +89,14 @@ This makes Orbiter smarter over time - always store successful findings!
           };
         }
 
-        // Check if exists
-        const existing = memory.getSelector(params.domain, params.elementName);
+        const existing = await memory.getSelector(
+          params.domain,
+          params.elementName,
+        );
 
         if (existing) {
-          // Update existing - add new selector as fallback if different
           if (existing.primary_selector !== params.selector) {
-            memory.addSelectorFallback(existing.id, params.selector);
+            await memory.addSelectorFallback(existing.id, params.selector);
 
             return {
               success: true,
@@ -119,8 +120,7 @@ This makes Orbiter smarter over time - always store successful findings!
           };
         }
 
-        // Create new
-        const entry = memory.rememberSelector({
+        const entry = await memory.rememberSelector({
           domain: params.domain,
           elementName: params.elementName,
           elementType: params.elementType || 'unknown',
@@ -156,7 +156,7 @@ This makes Orbiter smarter over time - always store successful findings!
           };
         }
 
-        const entry = memory.rememberErrorRecovery({
+        const entry = await memory.rememberErrorRecovery({
           domain: params.domain,
           errorType: params.errorType,
           failedSelector: params.failedSelector,

@@ -49,7 +49,7 @@ Memory is persistent across sessions.
 
   execute: async (params, context: ExecutionContext): Promise<ToolResult> => {
     try {
-      const memory = getMemoryManager();
+      const memory = await getMemoryManager();
       const { domain, queryType, elementName, errorType, failedSelector } =
         params;
 
@@ -57,7 +57,7 @@ Memory is persistent across sessions.
       // Selector lookup
       // ─────────────────────────────────────────────
       if (queryType === 'selector' && elementName) {
-        const selector = memory.getSelector(domain, elementName);
+        const selector = await memory.getSelector(domain, elementName);
 
         if (selector) {
           logger.debug(`Memory hit: selector for "${elementName}"`);
@@ -81,8 +81,7 @@ Memory is persistent across sessions.
           };
         }
 
-        // Try search
-        const searchResults = memory.searchSelectors(domain, elementName);
+        const searchResults = await memory.searchSelectors(domain, elementName);
 
         if (searchResults.length > 0) {
           return {
@@ -110,7 +109,7 @@ Memory is persistent across sessions.
       // Error recovery lookup
       // ─────────────────────────────────────────────
       if (queryType === 'error_recovery' && errorType) {
-        const recovery = memory.getErrorRecovery(
+        const recovery = await memory.getErrorRecovery(
           domain,
           errorType,
           failedSelector,
@@ -149,8 +148,8 @@ Memory is persistent across sessions.
       // Get all domain info
       // ─────────────────────────────────────────────
       if (queryType === 'all') {
-        const selectors = memory.getDomainSelectors(domain);
-        const stats = memory.getStats();
+        const selectors = await memory.getDomainSelectors(domain);
+        const stats = await memory.getStats();
 
         return {
           success: true,
@@ -166,7 +165,7 @@ Memory is persistent across sessions.
             })),
             databaseStats: {
               totalMemories: stats.memory.total,
-              databaseSize: stats.database.size,
+              connection: `${stats.database.host}/${stats.database.database}`,
             },
           },
         };

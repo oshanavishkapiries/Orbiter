@@ -3,6 +3,10 @@ import { z } from 'zod';
 export const configSchema = z.object({
   version: z.number().default(1),
 
+  database: z.object({
+    url: z.string().default('postgresql://root:root@45.159.221.130:7777/root'),
+  }),
+
   llm: z.object({
     provider: z
       .enum(['openrouter', 'openai', 'anthropic'])

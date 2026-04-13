@@ -17,11 +17,11 @@ CREATE TABLE IF NOT EXISTS memories (
   success_count INTEGER DEFAULT 0,
   failure_count INTEGER DEFAULT 0,
   learned_from TEXT DEFAULT 'execution',
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  last_used_at INTEGER,
-  last_success_at INTEGER,
-  expires_at INTEGER,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  last_used_at BIGINT,
+  last_success_at BIGINT,
+  expires_at BIGINT,
   is_active INTEGER DEFAULT 1
 );
 
@@ -45,14 +45,14 @@ CREATE TABLE IF NOT EXISTS selectors (
   primary_selector TEXT NOT NULL,
   page_url_pattern TEXT,
   description TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
 );
 
 -- Selector fallbacks (multiple per selector)
 CREATE TABLE IF NOT EXISTS selector_fallbacks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   selector_id TEXT NOT NULL,
   fallback_selector TEXT NOT NULL,
   priority INTEGER DEFAULT 0,
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS error_patterns (
   recovery_strategy TEXT NOT NULL,
   context TEXT,
   page_url_pattern TEXT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
 );
 
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS site_behaviors (
   severity TEXT DEFAULT 'info',
   auto_handle INTEGER DEFAULT 0,
   details_json TEXT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
 );
 
@@ -126,8 +126,8 @@ CREATE TABLE IF NOT EXISTS page_structures (
   key_elements_json TEXT,
   forms_json TEXT,
   lists_json TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
 );
 
@@ -149,8 +149,8 @@ CREATE TABLE IF NOT EXISTS successful_flows (
   success_rate REAL DEFAULT 1.0,
   average_duration INTEGER,
   execution_count INTEGER DEFAULT 1,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
 );
 
@@ -163,12 +163,12 @@ CREATE INDEX IF NOT EXISTS idx_successful_flows_goal ON successful_flows(goal_pa
 -- ═══════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS usage_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   memory_id TEXT NOT NULL,
   action TEXT NOT NULL,
   result TEXT NOT NULL,
   context_json TEXT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
 );
 
@@ -182,11 +182,13 @@ CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON usage_logs(created_at);
 
 CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER PRIMARY KEY,
-  applied_at INTEGER NOT NULL
+  applied_at BIGINT NOT NULL
 );
 
 -- Insert initial schema version
-INSERT OR IGNORE INTO schema_version (version, applied_at) VALUES (1, strftime('%s', 'now') * 1000);
+INSERT INTO schema_version (version, applied_at)
+VALUES (1, EXTRACT(EPOCH FROM NOW())::bigint * 1000)
+ON CONFLICT DO NOTHING;
 `;
 
 // Migration scripts for future schema updates

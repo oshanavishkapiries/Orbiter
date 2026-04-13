@@ -29,221 +29,182 @@ export interface CreateMemoryInput {
 }
 
 export class MemoryRepository extends BaseRepository<MemoryRow> {
-  /**
-   * Create new memory entry
-   */
-  create(input: CreateMemoryInput): MemoryRow {
+  async create(input: CreateMemoryInput): Promise<MemoryRow> {
     const id = this.generateId('mem');
     const now = this.now();
 
-    const stmt = this.db.prepare(`
-      INSERT INTO memories (
+    await this.pool.query(
+      `INSERT INTO memories (
         id, type, domain, url_pattern, key, confidence,
         usage_count, success_count, failure_count, learned_from,
         created_at, updated_at, is_active
       ) VALUES (
-        ?, ?, ?, ?, ?, ?,
-        0, 0, 0, ?,
-        ?, ?, 1
-      )
-    `);
-
-    stmt.run(
-      id,
-      input.type,
-      input.domain,
-      input.urlPattern || null,
-      input.key,
-      input.confidence || 0.5,
-      input.learnedFrom || 'execution',
-      now,
-      now,
+        $1, $2, $3, $4, $5, $6,
+        0, 0, 0, $7,
+        $8, $9, 1
+      )`,
+      [
+        id,
+        input.type,
+        input.domain,
+        input.urlPattern || null,
+        input.key,
+        input.confidence || 0.5,
+        input.learnedFrom || 'execution',
+        now,
+        now,
+      ],
     );
 
-    return this.findById(id)!;
+    return (await this.findById(id))!;
   }
 
-  /**
-   * Find by ID
-   */
-  findById(id: string): MemoryRow | null {
-    const stmt = this.db.prepare('SELECT * FROM memories WHERE id = ?');
-    return stmt.get(id) as MemoryRow | null;
+  async findById(id: string): Promise<MemoryRow | null> {
+    const result = await this.pool.query(
+      'SELECT * FROM memories WHERE id = $1',
+      [id],
+    );
+    return (result.rows[0] as MemoryRow) || null;
   }
 
-  /**
-   * Find by domain and type
-   */
-  findByDomainAndType(domain: string, type: string): MemoryRow[] {
-    const stmt = this.db.prepare(`
-      SELECT * FROM memories 
-      WHERE domain = ? AND type = ? AND is_active = 1
-      ORDER BY confidence DESC, last_used_at DESC
-    `);
-    return stmt.all(domain, type) as MemoryRow[];
+  async findByDomainAndType(
+    domain: string,
+    type: string,
+  ): Promise<MemoryRow[]> {
+    const result = await this.pool.query(
+      `SELECT * FROM memories
+       WHERE domain = $1 AND type = $2 AND is_active = 1
+       ORDER BY confidence DESC, last_used_at DESC`,
+      [domain, type],
+    );
+    return result.rows as MemoryRow[];
   }
 
-  /**
-   * Find by domain, type, and key
-   */
-  findByKey(domain: string, type: string, key: string): MemoryRow | null {
-    const stmt = this.db.prepare(`
-      SELECT * FROM memories 
-      WHERE domain = ? AND type = ? AND key = ? AND is_active = 1
-    `);
-    return stmt.get(domain, type, key) as MemoryRow | null;
+  async findByKey(
+    domain: string,
+    type: string,
+    key: string,
+  ): Promise<MemoryRow | null> {
+    const result = await this.pool.query(
+      `SELECT * FROM memories
+       WHERE domain = $1 AND type = $2 AND key = $3 AND is_active = 1`,
+      [domain, type, key],
+    );
+    return (result.rows[0] as MemoryRow) || null;
   }
 
-  /**
-   * Search by partial key
-   */
-  searchByKey(
+  async searchByKey(
     domain: string,
     keyPattern: string,
     limit: number = 10,
-  ): MemoryRow[] {
-    const stmt = this.db.prepare(`
-      SELECT * FROM memories 
-      WHERE domain = ? AND key LIKE ? AND is_active = 1
-      ORDER BY confidence DESC
-      LIMIT ?
-    `);
-    return stmt.all(domain, `%${keyPattern}%`, limit) as MemoryRow[];
+  ): Promise<MemoryRow[]> {
+    const result = await this.pool.query(
+      `SELECT * FROM memories
+       WHERE domain = $1 AND key LIKE $2 AND is_active = 1
+       ORDER BY confidence DESC
+       LIMIT $3`,
+      [domain, `%${keyPattern}%`, limit],
+    );
+    return result.rows as MemoryRow[];
   }
 
-  /**
-   * Record successful usage
-   */
-  recordSuccess(id: string): void {
+  async recordSuccess(id: string): Promise<void> {
     const now = this.now();
-    const stmt = this.db.prepare(`
-      UPDATE memories SET
+    await this.pool.query(
+      `UPDATE memories SET
         usage_count = usage_count + 1,
         success_count = success_count + 1,
-        last_used_at = ?,
-        last_success_at = ?,
-        updated_at = ?,
-        confidence = CASE 
-          WHEN usage_count > 0 
+        last_used_at = $1,
+        last_success_at = $2,
+        updated_at = $3,
+        confidence = CASE
+          WHEN usage_count > 0
           THEN (success_count + 1.0) / (usage_count + 1.0) * 0.8 + 0.2
           ELSE 0.7
         END
-      WHERE id = ?
-    `);
-    stmt.run(now, now, now, id);
+      WHERE id = $4`,
+      [now, now, now, id],
+    );
   }
 
-  /**
-   * Record failed usage
-   */
-  recordFailure(id: string): void {
+  async recordFailure(id: string): Promise<void> {
     const now = this.now();
-    const stmt = this.db.prepare(`
-      UPDATE memories SET
+    await this.pool.query(
+      `UPDATE memories SET
         usage_count = usage_count + 1,
         failure_count = failure_count + 1,
-        last_used_at = ?,
-        updated_at = ?,
-        confidence = CASE 
-          WHEN usage_count > 0 
+        last_used_at = $1,
+        updated_at = $2,
+        confidence = CASE
+          WHEN usage_count > 0
           THEN (success_count * 1.0) / (usage_count + 1.0) * 0.8 + 0.1
           ELSE 0.3
         END
-      WHERE id = ?
-    `);
-    stmt.run(now, now, id);
+      WHERE id = $3`,
+      [now, now, id],
+    );
   }
 
-  /**
-   * Update confidence
-   */
-  updateConfidence(id: string, confidence: number): void {
-    const stmt = this.db.prepare(`
-      UPDATE memories SET confidence = ?, updated_at = ? WHERE id = ?
-    `);
-    stmt.run(confidence, this.now(), id);
+  async updateConfidence(id: string, confidence: number): Promise<void> {
+    await this.pool.query(
+      'UPDATE memories SET confidence = $1, updated_at = $2 WHERE id = $3',
+      [confidence, this.now(), id],
+    );
   }
 
-  /**
-   * Deactivate memory
-   */
-  deactivate(id: string): void {
-    const stmt = this.db.prepare(`
-      UPDATE memories SET is_active = 0, updated_at = ? WHERE id = ?
-    `);
-    stmt.run(this.now(), id);
+  async deactivate(id: string): Promise<void> {
+    await this.pool.query(
+      'UPDATE memories SET is_active = 0, updated_at = $1 WHERE id = $2',
+      [this.now(), id],
+    );
   }
 
-  /**
-   * Delete by domain
-   */
-  deleteByDomain(domain: string): number {
-    const stmt = this.db.prepare('DELETE FROM memories WHERE domain = ?');
-    const result = stmt.run(domain);
-    return result.changes;
+  async deleteByDomain(domain: string): Promise<number> {
+    const result = await this.pool.query(
+      'DELETE FROM memories WHERE domain = $1',
+      [domain],
+    );
+    return result.rowCount || 0;
   }
 
-  /**
-   * Delete all
-   */
-  deleteAll(): number {
-    const stmt = this.db.prepare('DELETE FROM memories');
-    const result = stmt.run();
-    return result.changes;
+  async deleteAll(): Promise<number> {
+    const result = await this.pool.query('DELETE FROM memories');
+    return result.rowCount || 0;
   }
 
-  /**
-   * Get stats
-   */
-  getStats(): {
+  async getStats(): Promise<{
     total: number;
     byType: Record<string, number>;
     byDomain: Record<string, number>;
     averageConfidence: number;
-  } {
-    const total = (
-      this.db
-        .prepare('SELECT COUNT(*) as count FROM memories WHERE is_active = 1')
-        .get() as any
-    ).count;
+  }> {
+    const totalResult = await this.pool.query(
+      'SELECT COUNT(*) as count FROM memories WHERE is_active = 1',
+    );
+    const total = parseInt(totalResult.rows[0].count, 10);
 
     const byType: Record<string, number> = {};
-    const typeRows = this.db
-      .prepare(
-        'SELECT type, COUNT(*) as count FROM memories WHERE is_active = 1 GROUP BY type',
-      )
-      .all() as Array<{ type: string; count: number }>;
-    for (const row of typeRows) {
-      byType[row.type] = row.count;
+    const typeRows = await this.pool.query(
+      'SELECT type, COUNT(*) as count FROM memories WHERE is_active = 1 GROUP BY type',
+    );
+    for (const row of typeRows.rows) {
+      byType[row.type] = parseInt(row.count, 10);
     }
 
     const byDomain: Record<string, number> = {};
-    const domainRows = this.db
-      .prepare(
-        `
-        SELECT domain, COUNT(*) as count FROM memories 
-        WHERE is_active = 1 GROUP BY domain ORDER BY count DESC LIMIT 20
-      `,
-      )
-      .all() as Array<{ domain: string; count: number }>;
-    for (const row of domainRows) {
-      byDomain[row.domain] = row.count;
+    const domainRows = await this.pool.query(
+      `SELECT domain, COUNT(*) as count FROM memories
+       WHERE is_active = 1 GROUP BY domain ORDER BY count DESC LIMIT 20`,
+    );
+    for (const row of domainRows.rows) {
+      byDomain[row.domain] = parseInt(row.count, 10);
     }
 
-    const avgConf =
-      (
-        this.db
-          .prepare(
-            'SELECT AVG(confidence) as avg FROM memories WHERE is_active = 1',
-          )
-          .get() as any
-      ).avg || 0;
+    const avgResult = await this.pool.query(
+      'SELECT AVG(confidence) as avg FROM memories WHERE is_active = 1',
+    );
+    const averageConfidence = parseFloat(avgResult.rows[0].avg) || 0;
 
-    return {
-      total,
-      byType,
-      byDomain,
-      averageConfidence: avgConf,
-    };
+    return { total, byType, byDomain, averageConfidence };
   }
 }

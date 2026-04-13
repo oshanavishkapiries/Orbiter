@@ -1,40 +1,26 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import { Pool, PoolClient } from 'pg';
 import { logger } from '../../cli/ui/logger.js';
-import { ensureDir } from '../../utils/fs.js';
 import { CREATE_TABLES_SQL, MIGRATIONS, SCHEMA_VERSION } from './schema.js';
 
-const DB_DIR = path.join(process.cwd(), '.orbiter');
-const DB_PATH = path.join(DB_DIR, 'memory.db');
+function getConnectionString(): string {
+  return (
+    process.env.DATABASE_URL ||
+    'postgresql://root:root@45.159.221.130:7777/root'
+  );
+}
 
 export class DatabaseConnection {
   private static instance: DatabaseConnection | null = null;
-  private db: Database.Database;
+  private pool: Pool;
+  private initialized = false;
 
   private constructor() {
-    ensureDir(DB_DIR);
-
-    this.db = new Database(DB_PATH, {
-      // Enable WAL mode for better concurrency
-      // verbose: console.log, // Uncomment for debugging
+    this.pool = new Pool({
+      connectionString: getConnectionString(),
+      ssl: false,
     });
-
-    // Enable foreign keys
-    this.db.pragma('foreign_keys = ON');
-
-    // Enable WAL mode for better performance
-    this.db.pragma('journal_mode = WAL');
-
-    // Initialize schema
-    this.initializeSchema();
-
-    logger.debug(`Database connected: ${DB_PATH}`);
   }
 
-  /**
-   * Get singleton instance
-   */
   static getInstance(): DatabaseConnection {
     if (!DatabaseConnection.instance) {
       DatabaseConnection.instance = new DatabaseConnection();
@@ -42,38 +28,35 @@ export class DatabaseConnection {
     return DatabaseConnection.instance;
   }
 
-  /**
-   * Get database instance
-   */
-  getDb(): Database.Database {
-    return this.db;
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+    await this.initializeSchema();
+    this.initialized = true;
+    logger.debug(`Database connected: ${getConnectionString()}`);
   }
 
-  /**
-   * Initialize database schema
-   */
-  private initializeSchema(): void {
+  getPool(): Pool {
+    return this.pool;
+  }
+
+  private async initializeSchema(): Promise<void> {
+    const client = await this.pool.connect();
     try {
-      // Create tables
-      this.db.exec(CREATE_TABLES_SQL);
-
-      // Check and apply migrations
-      this.applyMigrations();
-
+      await client.query(CREATE_TABLES_SQL);
+      await this.applyMigrations(client);
       logger.debug('Database schema initialized');
     } catch (error) {
       logger.error(
         `Failed to initialize database: ${(error as Error).message}`,
       );
       throw error;
+    } finally {
+      client.release();
     }
   }
 
-  /**
-   * Apply pending migrations
-   */
-  private applyMigrations(): void {
-    const currentVersion = this.getCurrentSchemaVersion();
+  private async applyMigrations(client: PoolClient): Promise<void> {
+    const currentVersion = await this.getCurrentSchemaVersion(client);
 
     for (
       let version = currentVersion + 1;
@@ -83,71 +66,60 @@ export class DatabaseConnection {
       const migration = MIGRATIONS[version];
       if (migration) {
         logger.debug(`Applying migration to version ${version}`);
-        this.db.exec(migration);
-        this.db
-          .prepare(
-            'INSERT INTO schema_version (version, applied_at) VALUES (?, ?)',
-          )
-          .run(version, Date.now());
+        await client.query(migration);
+        await client.query(
+          'INSERT INTO schema_version (version, applied_at) VALUES ($1, $2)',
+          [version, Date.now()],
+        );
       }
     }
   }
 
-  /**
-   * Get current schema version
-   */
-  private getCurrentSchemaVersion(): number {
+  private async getCurrentSchemaVersion(client: PoolClient): Promise<number> {
     try {
-      const result = this.db
-        .prepare('SELECT MAX(version) as version FROM schema_version')
-        .get() as { version: number } | undefined;
-      return result?.version || 0;
+      const result = await client.query(
+        'SELECT MAX(version) as version FROM schema_version',
+      );
+      return result.rows[0]?.version || 0;
     } catch {
       return 0;
     }
   }
 
-  /**
-   * Close database connection
-   */
-  close(): void {
-    this.db.close();
+  async close(): Promise<void> {
+    await this.pool.end();
     DatabaseConnection.instance = null;
     logger.debug('Database connection closed');
   }
 
-  /**
-   * Run in transaction
-   */
-  transaction<T>(fn: () => T): T {
-    return this.db.transaction(fn)();
+  async transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await fn(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
-  /**
-   * Backup database
-   */
-  async backup(backupPath?: string): Promise<string> {
-    const targetPath =
-      backupPath || path.join(DB_DIR, `memory-backup-${Date.now()}.db`);
-
-    await this.db.backup(targetPath);
-    logger.success(`Database backed up to: ${targetPath}`);
-
-    return targetPath;
+  async backup(_backupPath?: string): Promise<string> {
+    throw new Error(
+      'Database backup is not supported with PostgreSQL. Use pg_dump instead.',
+    );
   }
 
-  /**
-   * Get database stats
-   */
-  getStats(): {
-    path: string;
-    size: string;
+  async getStats(): Promise<{
+    host: string;
+    database: string;
     tables: Record<string, number>;
-  } {
-    const stats = fs.statSync(DB_PATH);
-    const size = this.formatBytes(stats.size);
+  }> {
+    const url = new URL(getConnectionString());
 
-    const tables: Record<string, number> = {};
     const tableNames = [
       'memories',
       'selectors',
@@ -159,26 +131,26 @@ export class DatabaseConnection {
       'usage_logs',
     ];
 
+    const tables: Record<string, number> = {};
     for (const table of tableNames) {
-      const result = this.db
-        .prepare(`SELECT COUNT(*) as count FROM ${table}`)
-        .get() as { count: number };
-      tables[table] = result.count;
+      try {
+        const result = await this.pool.query(
+          `SELECT COUNT(*) as count FROM ${table}`,
+        );
+        tables[table] = parseInt(result.rows[0].count, 10);
+      } catch {
+        tables[table] = 0;
+      }
     }
 
-    return { path: DB_PATH, size, tables };
-  }
-
-  private formatBytes(bytes: number): string {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return {
+      host: url.host,
+      database: url.pathname.slice(1),
+      tables,
+    };
   }
 }
 
-/**
- * Get database instance (convenience function)
- */
-export function getDb(): Database.Database {
-  return DatabaseConnection.getInstance().getDb();
+export function getPool(): Pool {
+  return DatabaseConnection.getInstance().getPool();
 }

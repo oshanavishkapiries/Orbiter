@@ -18,121 +18,94 @@ export class MemoryManager {
   private errorPatternRepo: ErrorPatternRepository;
 
   constructor() {
-    // Ensure database is initialized
-    DatabaseConnection.getInstance();
-
     this.memoryRepo = new MemoryRepository();
     this.selectorRepo = new SelectorRepository();
     this.errorPatternRepo = new ErrorPatternRepository();
+  }
+
+  async initialize(): Promise<void> {
+    await DatabaseConnection.getInstance().initialize();
   }
 
   // ─────────────────────────────────────────────
   // Selector Memory
   // ─────────────────────────────────────────────
 
-  /**
-   * Remember a working selector
-   */
-  rememberSelector(input: CreateSelectorInput): SelectorWithFallbacks {
+  async rememberSelector(
+    input: CreateSelectorInput,
+  ): Promise<SelectorWithFallbacks> {
     logger.debug(
       `Remembering selector: ${input.elementName} on ${input.domain}`,
     );
     return this.selectorRepo.create(input);
   }
 
-  /**
-   * Get selector for element
-   */
-  getSelector(
+  async getSelector(
     domain: string,
     elementName: string,
-  ): SelectorWithFallbacks | null {
+  ): Promise<SelectorWithFallbacks | null> {
     return this.selectorRepo.findByElement(domain, elementName);
   }
 
-  /**
-   * Get all selectors for domain
-   */
-  getDomainSelectors(domain: string): SelectorWithFallbacks[] {
+  async getDomainSelectors(domain: string): Promise<SelectorWithFallbacks[]> {
     return this.selectorRepo.findByDomain(domain);
   }
 
-  /**
-   * Search selectors
-   */
-  searchSelectors(
+  async searchSelectors(
     domain: string,
     namePattern: string,
-  ): SelectorWithFallbacks[] {
+  ): Promise<SelectorWithFallbacks[]> {
     return this.selectorRepo.search(domain, namePattern);
   }
 
-  /**
-   * Record selector success
-   */
-  recordSelectorSuccess(selectorId: string): void {
-    this.selectorRepo.recordSuccess(selectorId);
+  async recordSelectorSuccess(selectorId: string): Promise<void> {
+    return this.selectorRepo.recordSuccess(selectorId);
   }
 
-  /**
-   * Record selector failure
-   */
-  recordSelectorFailure(selectorId: string): void {
-    this.selectorRepo.recordFailure(selectorId);
+  async recordSelectorFailure(selectorId: string): Promise<void> {
+    return this.selectorRepo.recordFailure(selectorId);
   }
 
-  /**
-   * Add fallback to existing selector
-   */
-  addSelectorFallback(selectorId: string, fallback: string): void {
-    this.selectorRepo.addFallback(selectorId, fallback);
+  async addSelectorFallback(
+    selectorId: string,
+    fallback: string,
+  ): Promise<void> {
+    return this.selectorRepo.addFallback(selectorId, fallback);
   }
 
   // ─────────────────────────────────────────────
   // Error Pattern Memory
   // ─────────────────────────────────────────────
 
-  /**
-   * Remember error recovery
-   */
-  rememberErrorRecovery(
+  async rememberErrorRecovery(
     input: CreateErrorPatternInput,
-  ): ErrorPatternWithConfidence {
+  ): Promise<ErrorPatternWithConfidence> {
     logger.debug(
       `Remembering error recovery: ${input.errorType} on ${input.domain}`,
     );
     return this.errorPatternRepo.create(input);
   }
 
-  /**
-   * Get error recovery suggestion
-   */
-  getErrorRecovery(
+  async getErrorRecovery(
     domain: string,
     errorType: string,
     failedSelector?: string,
-  ): ErrorPatternWithConfidence | null {
+  ): Promise<ErrorPatternWithConfidence | null> {
     return this.errorPatternRepo.findMatch(domain, errorType, failedSelector);
   }
 
-  /**
-   * Record error recovery success
-   */
-  recordRecoverySuccess(patternId: string): void {
-    this.errorPatternRepo.recordSuccess(patternId);
+  async recordRecoverySuccess(patternId: string): Promise<void> {
+    return this.errorPatternRepo.recordSuccess(patternId);
   }
 
   // ─────────────────────────────────────────────
   // General
   // ─────────────────────────────────────────────
 
-  /**
-   * Get statistics
-   */
-  getStats() {
+  async getStats() {
     const dbConn = DatabaseConnection.getInstance();
-    const dbStats = dbConn.getStats();
-    const memoryStats = this.memoryRepo.getStats();
+    const dbStats = await dbConn.getStats();
+    const memoryStats = await this.memoryRepo.getStats();
 
     return {
       database: dbStats,
@@ -140,31 +113,19 @@ export class MemoryManager {
     };
   }
 
-  /**
-   * Clear domain
-   */
-  clearDomain(domain: string): number {
+  async clearDomain(domain: string): Promise<number> {
     return this.memoryRepo.deleteByDomain(domain);
   }
 
-  /**
-   * Clear all
-   */
-  clearAll(): number {
+  async clearAll(): Promise<number> {
     return this.memoryRepo.deleteAll();
   }
 
-  /**
-   * Backup database
-   */
   async backup(path?: string): Promise<string> {
     const dbConn = DatabaseConnection.getInstance();
     return dbConn.backup(path);
   }
 
-  /**
-   * Extract domain from URL
-   */
   static extractDomain(url: string): string {
     try {
       const parsed = new URL(url);
@@ -178,9 +139,10 @@ export class MemoryManager {
 // Singleton
 let managerInstance: MemoryManager | null = null;
 
-export function getMemoryManager(): MemoryManager {
+export async function getMemoryManager(): Promise<MemoryManager> {
   if (!managerInstance) {
     managerInstance = new MemoryManager();
+    await managerInstance.initialize();
   }
   return managerInstance;
 }

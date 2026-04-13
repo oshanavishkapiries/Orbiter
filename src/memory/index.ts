@@ -1,5 +1,5 @@
 // Database
-export { DatabaseConnection, getDb } from './database/connection.js';
+export { DatabaseConnection, getPool } from './database/connection.js';
 
 // Repositories
 export { MemoryRepository } from './database/repositories/memory-repository.js';

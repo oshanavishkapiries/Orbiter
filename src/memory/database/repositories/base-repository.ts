@@ -1,31 +1,22 @@
-import Database from 'better-sqlite3';
-import { getDb } from '../connection.js';
+import { Pool } from 'pg';
+import { getPool } from '../connection.js';
 import { generateId } from '../../../utils/id.js';
 
 export abstract class BaseRepository<T> {
-  protected db: Database.Database;
+  protected pool: Pool;
 
   constructor() {
-    this.db = getDb();
+    this.pool = getPool();
   }
 
-  /**
-   * Generate unique ID
-   */
   protected generateId(prefix: string): string {
     return generateId(prefix);
   }
 
-  /**
-   * Get current timestamp
-   */
   protected now(): number {
     return Date.now();
   }
 
-  /**
-   * Parse JSON safely
-   */
   protected parseJson<R>(json: string | null): R | null {
     if (!json) return null;
     try {
@@ -35,9 +26,6 @@ export abstract class BaseRepository<T> {
     }
   }
 
-  /**
-   * Stringify for JSON column
-   */
   protected toJson(data: any): string {
     return JSON.stringify(data);
   }

@@ -2,6 +2,9 @@ import type { OrbiterConfig } from './schema.js';
 
 export const defaults: OrbiterConfig = {
   version: 1,
+  database: {
+    url: 'postgresql://root:root@45.159.221.130:7777/root',
+  },
   llm: {
     provider: 'openrouter',
     model: 'anthropic/claude-sonnet-4',

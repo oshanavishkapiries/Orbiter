@@ -69,6 +69,10 @@ export class ConfigLoader {
   private loadEnvConfig(): Partial<OrbiterConfig> {
     const env: Partial<OrbiterConfig> = {};
 
+    if (process.env.DATABASE_URL) {
+      env.database = { url: process.env.DATABASE_URL };
+    }
+
     if (process.env.DEFAULT_MODEL) {
       env.llm = { ...env.llm, model: process.env.DEFAULT_MODEL } as any;
     }

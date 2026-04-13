@@ -1,18 +1,16 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { getMemoryManager } from '../../memory/manager.js';
-import { DatabaseConnection } from '../../memory/database/connection.js';
 import { logger } from '../ui/logger.js';
 
 export function memoryCommand() {
   const cmd = new Command('memory');
 
   cmd
-    .description('Manage Orbiter SQLite memory database')
+    .description('Manage Orbiter PostgreSQL memory database')
     .addCommand(memoryStatsCommand())
     .addCommand(memoryListCommand())
     .addCommand(memoryClearCommand())
-    .addCommand(memoryBackupCommand())
     .addCommand(memorySearchCommand());
 
   return cmd;
@@ -22,16 +20,16 @@ function memoryStatsCommand() {
   return new Command('stats')
     .description('Show memory database statistics')
     .action(async () => {
-      const memory = getMemoryManager();
-      const stats = memory.getStats();
+      const memory = await getMemoryManager();
+      const stats = await memory.getStats();
 
       console.log('\n' + chalk.bold('📊 Memory Database Statistics'));
       console.log(chalk.gray('─'.repeat(50)));
 
       // Database info
       console.log('\n' + chalk.bold('Database:'));
-      console.log(`  Path: ${chalk.gray(stats.database.path)}`);
-      console.log(`  Size: ${chalk.cyan(stats.database.size)}`);
+      console.log(`  Host:     ${chalk.gray(stats.database.host)}`);
+      console.log(`  Database: ${chalk.cyan(stats.database.database)}`);
 
       // Table counts
       console.log('\n' + chalk.bold('Tables:'));
@@ -77,7 +75,7 @@ function memoryListCommand() {
     .option('-d, --domain <domain>', 'Filter by domain')
     .option('-l, --limit <number>', 'Limit results', '20')
     .action(async (options) => {
-      const memory = getMemoryManager();
+      const memory = await getMemoryManager();
 
       if (!options.domain) {
         console.log(
@@ -86,7 +84,7 @@ function memoryListCommand() {
         return;
       }
 
-      const selectors = memory.getDomainSelectors(options.domain);
+      const selectors = await memory.getDomainSelectors(options.domain);
 
       console.log('\n' + chalk.bold(`📝 Selectors for ${options.domain}`));
       console.log(chalk.gray('─'.repeat(60)));
@@ -123,8 +121,8 @@ function memorySearchCommand() {
     .argument('<domain>', 'Domain to search')
     .argument('<query>', 'Search query')
     .action(async (domain, query) => {
-      const memory = getMemoryManager();
-      const results = memory.searchSelectors(domain, query);
+      const memory = await getMemoryManager();
+      const results = await memory.searchSelectors(domain, query);
 
       console.log(
         '\n' + chalk.bold(`🔍 Search results for "${query}" on ${domain}`),
@@ -153,7 +151,7 @@ function memoryClearCommand() {
     .option('--all', 'Clear ALL memories (use with caution)')
     .option('--yes', 'Skip confirmation')
     .action(async (options) => {
-      const memory = getMemoryManager();
+      const memory = await getMemoryManager();
 
       if (options.all) {
         if (!options.yes) {
@@ -179,29 +177,13 @@ function memoryClearCommand() {
           }
         }
 
-        const count = memory.clearAll();
+        const count = await memory.clearAll();
         logger.success(`Cleared ${count} memory entries`);
       } else if (options.domain) {
-        const count = memory.clearDomain(options.domain);
+        const count = await memory.clearDomain(options.domain);
         logger.success(`Cleared ${count} memories for ${options.domain}`);
       } else {
         console.log('Specify --all or --domain <domain>');
-      }
-    });
-}
-
-function memoryBackupCommand() {
-  return new Command('backup')
-    .description('Backup memory database')
-    .option('-o, --output <path>', 'Output path')
-    .action(async (options) => {
-      const memory = getMemoryManager();
-
-      try {
-        const backupPath = await memory.backup(options.output);
-        logger.success(`Backup created: ${backupPath}`);
-      } catch (error) {
-        logger.error(`Backup failed: ${(error as Error).message}`);
       }
     });
 }

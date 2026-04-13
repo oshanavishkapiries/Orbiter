@@ -40,15 +40,13 @@ export class ErrorPatternRepository extends BaseRepository<ErrorPatternRow> {
     this.memoryRepo = new MemoryRepository();
   }
 
-  /**
-   * Create error pattern
-   */
-  create(input: CreateErrorPatternInput): ErrorPatternWithConfidence {
+  async create(
+    input: CreateErrorPatternInput,
+  ): Promise<ErrorPatternWithConfidence> {
     const now = this.now();
 
-    // Create memory entry
     const memoryKey = `${input.errorType}:${input.failedSelector || input.failedTool || 'unknown'}`;
-    const memory = this.memoryRepo.create({
+    const memory = await this.memoryRepo.create({
       type: 'error_pattern',
       domain: input.domain,
       key: memoryKey,
@@ -56,128 +54,103 @@ export class ErrorPatternRepository extends BaseRepository<ErrorPatternRow> {
       learnedFrom: 'recovery',
     });
 
-    // Create error pattern
     const id = this.generateId('err');
 
-    const stmt = this.db.prepare(`
-      INSERT INTO error_patterns (
+    await this.pool.query(
+      `INSERT INTO error_patterns (
         id, memory_id, domain, error_type, failed_selector, failed_tool,
         working_selector, recovery_strategy, context, page_url_pattern, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      id,
-      memory.id,
-      input.domain,
-      input.errorType,
-      input.failedSelector || null,
-      input.failedTool || null,
-      input.workingSelector || null,
-      input.recoveryStrategy,
-      input.context || null,
-      input.pageUrlPattern || null,
-      now,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        id,
+        memory.id,
+        input.domain,
+        input.errorType,
+        input.failedSelector || null,
+        input.failedTool || null,
+        input.workingSelector || null,
+        input.recoveryStrategy,
+        input.context || null,
+        input.pageUrlPattern || null,
+        now,
+      ],
     );
 
-    return this.findById(id)!;
+    return (await this.findById(id))!;
   }
 
-  /**
-   * Find by ID
-   */
-  findById(id: string): ErrorPatternWithConfidence | null {
-    const pattern = this.db
-      .prepare('SELECT * FROM error_patterns WHERE id = ?')
-      .get(id) as ErrorPatternRow | null;
-
+  async findById(id: string): Promise<ErrorPatternWithConfidence | null> {
+    const result = await this.pool.query(
+      'SELECT * FROM error_patterns WHERE id = $1',
+      [id],
+    );
+    const pattern = result.rows[0] as ErrorPatternRow | undefined;
     if (!pattern) return null;
-
     return this.enrichWithMemory(pattern);
   }
 
-  /**
-   * Find matching error pattern
-   */
-  findMatch(
+  async findMatch(
     domain: string,
     errorType: string,
     failedSelector?: string,
-  ): ErrorPatternWithConfidence | null {
-    // Try exact match first
+  ): Promise<ErrorPatternWithConfidence | null> {
     if (failedSelector) {
-      const exact = this.db
-        .prepare(
-          `
-          SELECT ep.* FROM error_patterns ep
-          JOIN memories m ON ep.memory_id = m.id
-          WHERE ep.domain = ? AND ep.error_type = ? AND ep.failed_selector = ?
-            AND m.is_active = 1
-          ORDER BY m.confidence DESC
-          LIMIT 1
-        `,
-        )
-        .get(domain, errorType, failedSelector) as ErrorPatternRow | null;
-
-      if (exact) return this.enrichWithMemory(exact);
+      const exact = await this.pool.query(
+        `SELECT ep.* FROM error_patterns ep
+         JOIN memories m ON ep.memory_id = m.id
+         WHERE ep.domain = $1 AND ep.error_type = $2 AND ep.failed_selector = $3
+           AND m.is_active = 1
+         ORDER BY m.confidence DESC
+         LIMIT 1`,
+        [domain, errorType, failedSelector],
+      );
+      if (exact.rows[0]) {
+        return this.enrichWithMemory(exact.rows[0] as ErrorPatternRow);
+      }
     }
 
-    // Try error type match
-    const typeMatch = this.db
-      .prepare(
-        `
-        SELECT ep.* FROM error_patterns ep
-        JOIN memories m ON ep.memory_id = m.id
-        WHERE ep.domain = ? AND ep.error_type = ? AND m.is_active = 1
-        ORDER BY m.confidence DESC
-        LIMIT 1
-      `,
-      )
-      .get(domain, errorType) as ErrorPatternRow | null;
-
-    if (typeMatch) return this.enrichWithMemory(typeMatch);
+    const typeMatch = await this.pool.query(
+      `SELECT ep.* FROM error_patterns ep
+       JOIN memories m ON ep.memory_id = m.id
+       WHERE ep.domain = $1 AND ep.error_type = $2 AND m.is_active = 1
+       ORDER BY m.confidence DESC
+       LIMIT 1`,
+      [domain, errorType],
+    );
+    if (typeMatch.rows[0]) {
+      return this.enrichWithMemory(typeMatch.rows[0] as ErrorPatternRow);
+    }
 
     return null;
   }
 
-  /**
-   * Find all patterns for domain
-   */
-  findByDomain(domain: string): ErrorPatternWithConfidence[] {
-    const patterns = this.db
-      .prepare(
-        `
-        SELECT ep.* FROM error_patterns ep
-        JOIN memories m ON ep.memory_id = m.id
-        WHERE ep.domain = ? AND m.is_active = 1
-        ORDER BY m.confidence DESC
-      `,
-      )
-      .all(domain) as ErrorPatternRow[];
-
-    return patterns.map((p) => this.enrichWithMemory(p));
+  async findByDomain(domain: string): Promise<ErrorPatternWithConfidence[]> {
+    const result = await this.pool.query(
+      `SELECT ep.* FROM error_patterns ep
+       JOIN memories m ON ep.memory_id = m.id
+       WHERE ep.domain = $1 AND m.is_active = 1
+       ORDER BY m.confidence DESC`,
+      [domain],
+    );
+    return Promise.all(
+      (result.rows as ErrorPatternRow[]).map((p) => this.enrichWithMemory(p)),
+    );
   }
 
-  /**
-   * Record usage success
-   */
-  recordSuccess(id: string): void {
-    const pattern = this.db
-      .prepare('SELECT memory_id FROM error_patterns WHERE id = ?')
-      .get(id) as { memory_id: string } | null;
-
-    if (pattern) {
-      this.memoryRepo.recordSuccess(pattern.memory_id);
+  async recordSuccess(id: string): Promise<void> {
+    const result = await this.pool.query(
+      'SELECT memory_id FROM error_patterns WHERE id = $1',
+      [id],
+    );
+    if (result.rows[0]) {
+      await this.memoryRepo.recordSuccess(result.rows[0].memory_id);
     }
   }
 
-  /**
-   * Enrich with memory data
-   */
-  private enrichWithMemory(
+  private async enrichWithMemory(
     pattern: ErrorPatternRow,
-  ): ErrorPatternWithConfidence {
-    const memory = this.memoryRepo.findById(pattern.memory_id);
+  ): Promise<ErrorPatternWithConfidence> {
+    const memory = await this.memoryRepo.findById(pattern.memory_id);
 
     return {
       ...pattern,
