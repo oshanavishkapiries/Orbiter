@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "tsx src/index.ts",
+    "clean:runtime": "node scripts/development/clear-runtime-folders.mjs",
     "build": "tsup",
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",

@@ -7,6 +7,9 @@ import { FlowRecorder } from '../recorder/recorder.js';
 import { OutputFormatter } from '../recorder/output-formatter.js';
 import { logger } from '../cli/ui/logger.js';
 import { config } from '../config/index.js';
+import { ErrorContextBuilder } from './errors/context-builder.js';
+import { RecoveryEngine } from './errors/recovery-engine.js';
+import { ExecutionSnapshot } from './errors/types.js';
 import chalk from 'chalk';
 
 export interface ExecutionResult {
@@ -40,6 +43,7 @@ export class TaskExecutor {
   private recorder: FlowRecorder;
   private formatter: OutputFormatter;
   private extractedData: any[] = [];
+  private recoveryEngine: RecoveryEngine;
 
   constructor(
     private llm: LLMProvider,
@@ -48,6 +52,7 @@ export class TaskExecutor {
     private llmProviderName: string = 'openrouter',
     private llmModelName: string = 'unknown',
   ) {
+    this.recoveryEngine = new RecoveryEngine(llm, context);
     // Initialize conversation
     this.conversationHistory.push({
       role: 'system',
@@ -259,85 +264,164 @@ export class TaskExecutor {
       logger.bullet(`Selector: ${chalk.gray(toolCall.arguments.selector)}`);
     }
 
-    try {
-      const result = await registry.execute(
-        toolCall.name,
-        toolCall.arguments,
-        this.context,
-      );
+    let attemptNumber = 0;
+    let lastError: Error | null = null;
 
-      const duration = Date.now() - startTime;
+    // Try execution with recovery
+    while (attemptNumber < 4) {
+      attemptNumber++;
 
-      if (result.success) {
-        logger.success(
-          `${toolCall.name} completed in ${(duration / 1000).toFixed(1)}s`,
-        );
-        if (result.message) logger.bullet(result.message);
-
-        // Record success
-        this.recorder.recordSuccess(
+      try {
+        const result = await registry.execute(
           toolCall.name,
           toolCall.arguments,
-          result,
-          duration,
+          this.context,
         );
 
-        // Detect parameters
-        this.recorder.detectParameters(toolCall.arguments);
-      } else {
-        logger.fail(`${toolCall.name} failed: ${result.error}`);
+        const duration = Date.now() - startTime;
 
-        // Record failure
+        if (result.success) {
+          logger.success(
+            `${toolCall.name} completed in ${(duration / 1000).toFixed(1)}s`,
+          );
+          if (result.message) logger.bullet(result.message);
+
+          // Record success
+          this.recorder.recordSuccess(
+            toolCall.name,
+            toolCall.arguments,
+            result,
+            duration,
+            attemptNumber > 1
+              ? { wasRetry: true, retryAttempt: attemptNumber }
+              : { wasRetry: false },
+          );
+
+          this.recorder.detectParameters(toolCall.arguments);
+
+          return {
+            stepNumber,
+            toolName: toolCall.name,
+            params: toolCall.arguments,
+            result,
+            success: true,
+            duration,
+          };
+        } else {
+          // Tool returned failure (not exception)
+          throw new Error(result.error || `Tool ${toolCall.name} failed`);
+        }
+      } catch (error) {
+        lastError = error as Error;
+        logger.fail(
+          `${toolCall.name} failed (attempt ${attemptNumber}): ${lastError.message}`,
+        );
+
+        // Build error context
+        const page = this.context.getBrowserManager().getPage();
+        const contextBuilder = new ErrorContextBuilder(page);
+
+        const executionSnapshot: ExecutionSnapshot = {
+          originalGoal: this.plan.goal,
+          currentObjective: `Execute ${toolCall.name}`,
+          stepNumber,
+          totalSteps,
+          previousSteps: this.context.getLastSuccessfulSteps(5).map((s) => ({
+            step: s.step,
+            tool: s.action,
+            action: s.action,
+            result: s.result,
+          })),
+          collectedData: this.context.getState().collectedData,
+          tokensUsedSoFar: this.totalTokens,
+        };
+
+        const errorContext = await contextBuilder.build(
+          lastError,
+          toolCall.name,
+          toolCall.arguments,
+          attemptNumber,
+          executionSnapshot,
+        );
+
+        // Record failure in flow
         this.recorder.recordFailure(
           toolCall.name,
           toolCall.arguments,
           {
-            type: 'tool_error',
-            message: result.error || 'Unknown error',
+            type: errorContext.error.type,
+            message: errorContext.error.message,
             selector: toolCall.arguments.selector,
-            screenshot: result.screenshot,
+            screenshot: errorContext.browserState.screenshotPath,
           },
-          duration,
+          Date.now() - startTime,
+          { wasRetry: attemptNumber > 1, retryAttempt: attemptNumber },
         );
+
+        // Attempt recovery
+        const recovery = await this.recoveryEngine.recover(errorContext);
+
+        if (recovery.shouldAbort) {
+          logger.error(`Aborting: ${recovery.abortReason}`);
+          break;
+        }
+
+        if (recovery.success) {
+          // Recovery worked, update params for next loop
+          if (errorContext.recoveryHistory.length > 0) {
+            const lastAttempt =
+              errorContext.recoveryHistory[
+                errorContext.recoveryHistory.length - 1
+              ];
+            if (lastAttempt.action) {
+              toolCall.arguments = lastAttempt.action.params;
+            }
+          }
+
+          const duration = Date.now() - startTime;
+
+          this.recorder.addRecoveryAttempt({
+            attempt: attemptNumber,
+            strategy:
+              errorContext.recoveryHistory[
+                errorContext.recoveryHistory.length - 1
+              ]?.strategy || 'unknown',
+            newSelector: toolCall.arguments.selector,
+            result: 'success',
+            llmReasoning:
+              errorContext.recoveryHistory[
+                errorContext.recoveryHistory.length - 1
+              ]?.reasoning,
+          });
+
+          return {
+            stepNumber,
+            toolName: toolCall.name,
+            params: toolCall.arguments,
+            result: recovery.result,
+            success: true,
+            duration,
+          };
+        }
+
+        // If no more retries
+        if (attemptNumber >= 3) break;
       }
-
-      return {
-        stepNumber,
-        toolName: toolCall.name,
-        params: toolCall.arguments,
-        result,
-        success: result.success,
-        error: result.error,
-        duration,
-      };
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      const errorMsg = (error as Error).message;
-
-      logger.fail(`${toolCall.name} crashed: ${errorMsg}`);
-
-      // Record failure
-      this.recorder.recordFailure(
-        toolCall.name,
-        toolCall.arguments,
-        {
-          type: 'exception',
-          message: errorMsg,
-          selector: toolCall.arguments.selector,
-        },
-        duration,
-      );
-
-      return {
-        stepNumber,
-        toolName: toolCall.name,
-        params: toolCall.arguments,
-        result: null,
-        success: false,
-        error: errorMsg,
-        duration,
-      };
     }
+
+    // All attempts failed
+    const duration = Date.now() - startTime;
+    logger.fail(`${toolCall.name} failed after ${attemptNumber} attempts`);
+
+    return {
+      stepNumber,
+      toolName: toolCall.name,
+      params: toolCall.arguments,
+      result: null,
+      success: false,
+      error: lastError?.message || 'Unknown error',
+      duration,
+    };
   }
 
   /**
