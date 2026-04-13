@@ -1,6 +1,9 @@
+import path from 'path';
 import { ToolDefinition, ToolResult } from './types.js';
 import { ExecutionContext } from '../core/execution-context.js';
 import { logger } from '../cli/ui/logger.js';
+import { ensureDir } from '../utils/fs.js';
+import { PATHS } from '../utils/paths.js';
 
 export const screenshotTool: ToolDefinition = {
   name: 'screenshot',
@@ -34,7 +37,8 @@ export const screenshotTool: ToolDefinition = {
         if (!element) {
           throw new Error(`Element not found: ${selector}`);
         }
-        screenshotPath = `./errors/element-${Date.now()}.png`;
+        ensureDir(PATHS.errors);
+        screenshotPath = path.join(PATHS.errors, `element-${Date.now()}.png`);
         await element.screenshot({ path: screenshotPath });
       } else {
         // Screenshot page

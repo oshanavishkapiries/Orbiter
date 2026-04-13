@@ -1,8 +1,8 @@
-import path from 'path';
 import { Page } from 'playwright';
 import { logger } from '../../cli/ui/logger.js';
 import { generateErrorId } from '../../utils/id.js';
 import { ensureDir } from '../../utils/fs.js';
+import { PATHS } from '../../utils/paths.js';
 import { DomAnalyzer } from '../../browser/dom-analyzer.js';
 import { ErrorClassifier } from './classifier.js';
 import {
@@ -123,13 +123,9 @@ export class ErrorContextBuilder {
    * Take error screenshot
    */
   private async captureErrorScreenshot(errorId: string): Promise<string> {
-    const errorsDir = path.join(process.cwd(), 'errors');
-    ensureDir(errorsDir);
+    ensureDir(PATHS.errors);
 
-    const screenshotPath = path.join(
-      errorsDir,
-      `error-${errorId}-${Date.now()}.png`,
-    );
+    const screenshotPath = `${PATHS.errors}/error-${errorId}-${Date.now()}.png`;
 
     try {
       await this.page.screenshot({

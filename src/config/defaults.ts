@@ -37,18 +37,18 @@ export const defaults: OrbiterConfig = {
   },
   recording: {
     enabled: true,
-    outputDir: './flows',
+    outputDir: './data/flows',
     includeScreenshots: false,
   },
   output: {
-    dir: './output',
+    dir: './data/outputs',
     formats: ['json'],
   },
   logging: {
     level: 'info',
     file: {
       enabled: true,
-      path: './logs',
+      path: './data/logs',
       maxSize: '10mb',
       maxFiles: 10,
     },

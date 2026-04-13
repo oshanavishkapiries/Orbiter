@@ -5,6 +5,7 @@ import { config } from '../config/index.js';
 import { logger } from '../cli/ui/logger.js';
 import { generateId } from '../utils/id.js';
 import { ensureDir } from '../utils/fs.js';
+import { PATHS } from '../utils/paths.js';
 import {
   BrowserSession,
   BrowserLaunchOptions,
@@ -46,33 +47,24 @@ export class BrowserManager {
       '--disable-blink-features=AutomationControlled',
     ];
 
-    if (profilePath && fs.existsSync(profilePath)) {
-      // Launch with persistent context (user profile)
-      logger.debug(`Using browser profile: ${profilePath}`);
+    // Resolve profile path: explicit config > auto-generated default
+    const resolvedProfilePath = profilePath || PATHS.browserProfile;
+    ensureDir(resolvedProfilePath);
 
-      context = await chromium.launchPersistentContext(profilePath, {
-        headless,
-        viewport,
-        args,
-        ignoreDefaultArgs: ['--enable-automation'],
-      });
-
-      page = context.pages()[0] || (await context.newPage());
+    if (profilePath) {
+      logger.debug(`Using browser profile: ${resolvedProfilePath}`);
     } else {
-      // Launch regular browser
-      browser = await chromium.launch({
-        headless,
-        args,
-        ignoreDefaultArgs: ['--enable-automation'],
-      });
-
-      context = await browser.newContext({
-        viewport,
-        userAgent: await this.getRealisticUserAgent(),
-      });
-
-      page = await context.newPage();
+      logger.debug(`Using default browser profile: ${resolvedProfilePath}`);
     }
+
+    context = await chromium.launchPersistentContext(resolvedProfilePath, {
+      headless,
+      viewport,
+      args,
+      ignoreDefaultArgs: ['--enable-automation'],
+    });
+
+    page = context.pages()[0] || (await context.newPage());
 
     // Apply stealth measures
     if (useStealth) {
@@ -184,7 +176,7 @@ export class BrowserManager {
     const timestamp = Date.now();
     const filename = `screenshot-${timestamp}.png`;
     const screenshotPath =
-      options.path || path.join(process.cwd(), 'errors', filename);
+      options.path || path.join(PATHS.errors, filename);
 
     ensureDir(path.dirname(screenshotPath));
 

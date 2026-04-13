@@ -45,12 +45,12 @@ export const configSchema = z.object({
 
   recording: z.object({
     enabled: z.boolean().default(true),
-    outputDir: z.string().default('./flows'),
+    outputDir: z.string().default('./data/flows'),
     includeScreenshots: z.boolean().default(false),
   }),
 
   output: z.object({
-    dir: z.string().default('./output'),
+    dir: z.string().default('./data/outputs'),
     formats: z.array(z.enum(['json', 'csv'])).default(['json']),
   }),
 
@@ -58,7 +58,7 @@ export const configSchema = z.object({
     level: z.enum(['error', 'warn', 'info', 'debug', 'trace']).default('info'),
     file: z.object({
       enabled: z.boolean().default(true),
-      path: z.string().default('./logs'),
+      path: z.string().default('./data/logs'),
       maxSize: z.string().default('10mb'),
       maxFiles: z.number().default(10),
     }),

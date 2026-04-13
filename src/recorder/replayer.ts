@@ -156,7 +156,7 @@ export class FlowReplayer {
         // Screenshot on step if requested
         if (options.screenshotOnStep) {
           await this.context.getBrowserManager().screenshot({
-            path: `./screenshots/replay-step-${i + 1}.png`,
+            path: `./data/errors/replay-step-${i + 1}.png`,
           });
         }
       } catch (error) {

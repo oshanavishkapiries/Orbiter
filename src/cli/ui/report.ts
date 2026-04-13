@@ -1,7 +1,7 @@
 import fs from 'fs';
-import path from 'path';
 import { ensureDir } from '../../utils/fs.js';
 import { logger } from './logger.js';
+import { PATHS } from '../../utils/paths.js';
 
 export interface ReportData {
   // Task info
@@ -145,8 +145,8 @@ export class ReportGenerator {
    * Save report to file
    */
   save(data: ReportData, format: 'markdown' | 'json' = 'markdown'): string {
-    const reportDir = path.join(process.cwd(), 'reports');
-    ensureDir(reportDir);
+    ensureDir(PATHS.reports);
+    const reportDir = PATHS.reports;
 
     const timestamp = new Date()
       .toISOString()
@@ -160,7 +160,7 @@ export class ReportGenerator {
 
     const ext = format === 'markdown' ? 'md' : 'json';
     const filename = `report-${safeName}-${timestamp}.${ext}`;
-    const filePath = path.join(reportDir, filename);
+    const filePath = `${reportDir}/${filename}`;
 
     const content =
       format === 'markdown'

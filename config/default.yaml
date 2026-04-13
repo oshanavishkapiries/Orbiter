@@ -40,12 +40,12 @@ loop:
 # Recording Settings
 recording:
   enabled: true
-  outputDir: ./flows
+  outputDir: ./data/flows
   includeScreenshots: false
 
 # Output Settings
 output:
-  dir: ./output
+  dir: ./data/outputs
   formats:
     - json
     - csv
@@ -55,7 +55,7 @@ logging:
   level: info  # error, warn, info, debug, trace
   file:
     enabled: true
-    path: ./logs
+    path: ./data/logs
     maxSize: 10mb
     maxFiles: 10
   console:
