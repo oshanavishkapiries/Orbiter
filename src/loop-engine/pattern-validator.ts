@@ -131,7 +131,13 @@ export class PatternValidator {
 
       case 'evaluate':
         value = await el.evaluate(
-          (node: Element, code: string) => eval(code),
+          (node: Element, code: string) => {
+            const expression = new Function(
+              'node',
+              `"use strict"; return (${code});`,
+            );
+            return expression(node);
+          },
           rule.evaluateCode || 'node.textContent',
         );
         break;
