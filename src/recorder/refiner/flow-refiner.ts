@@ -1,4 +1,5 @@
 import path from 'path';
+import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import { config } from '../../config/index.js';
 import { logger } from '../../cli/ui/logger.js';
@@ -268,8 +269,7 @@ export class FlowRefiner {
    */
   private async confirmAction(question: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const readline = require('readline');
-      const rl = readline.createInterface({
+      const rl = createInterface({
         input: process.stdin,
         output: process.stdout,
       });
