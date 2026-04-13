@@ -11,6 +11,7 @@ import { extractDataTool } from './extract-data.js';
 import { hoverTool } from './hover.js';
 import { selectTool } from './select.js';
 import { evaluateTool } from './evaluate.js';
+import { detectPatternTool } from './detect-pattern.js';
 
 /**
  * Initialize and register all core tools
@@ -31,6 +32,7 @@ export function initializeTools(): void {
     extractTextTool,
     extractDataTool,
     evaluateTool,
+    detectPatternTool,
   ]);
 }
 
