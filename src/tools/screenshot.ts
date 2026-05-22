@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 import { ToolDefinition, ToolResult } from './types.js';
 import { ExecutionContext } from '../core/execution-context.js';
 import { logger } from '../cli/ui/logger.js';
@@ -45,11 +46,28 @@ export const screenshotTool: ToolDefinition = {
         screenshotPath = await browser.screenshot({ fullPage });
       }
 
-      return {
+      const result: ToolResult = {
         success: true,
         message: `Screenshot saved to ${screenshotPath}`,
         screenshot: screenshotPath,
       };
+
+      // If the active LLM supports vision, attach base64 so the executor
+      // can inject it as an actual image message (not just a file path).
+      const llm = context.getLLM?.();
+      if (llm?.supportsVision()) {
+        try {
+          const buffer = fs.readFileSync(screenshotPath);
+          const ext    = path.extname(screenshotPath).replace('.', '') || 'png';
+          const mime   = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+          result.imageBase64 = `data:${mime};base64,${buffer.toString('base64')}`;
+          logger.debug('Screenshot encoded as base64 for vision model');
+        } catch (e) {
+          logger.debug(`Base64 encoding failed: ${(e as Error).message}`);
+        }
+      }
+
+      return result;
     } catch (error) {
       logger.error(`Screenshot tool error: ${(error as Error).message}`);
       return {

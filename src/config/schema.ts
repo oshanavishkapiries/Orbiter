@@ -14,6 +14,10 @@ export const configSchema = z.object({
     model: z.string().default('anthropic/claude-sonnet-4'),
     maxTokens: z.number().default(4096),
     temperature: z.number().min(0).max(2).default(0.7),
+    // 'auto'     = detect vision support from model name
+    // 'enabled'  = always send screenshots as images (force on)
+    // 'disabled' = never send images, text-only mode
+    vision: z.enum(['auto', 'enabled', 'disabled']).default('auto'),
   }),
 
   browser: z.object({

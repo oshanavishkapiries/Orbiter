@@ -53,6 +53,10 @@ export class TaskExecutor {
     private llmModelName: string = 'unknown',
   ) {
     this.recoveryEngine = new RecoveryEngine(llm, context);
+
+    // Give the context a reference to the LLM so tools can query vision support
+    context.setLLM(llm);
+
     // Initialize conversation
     this.conversationHistory.push({
       role: 'system',
@@ -174,10 +178,32 @@ export class TaskExecutor {
               content: `Used ${toolCall.name}: ${JSON.stringify(toolCall.arguments)}`,
             });
 
-            this.conversationHistory.push({
-              role: 'user',
-              content: `Tool result: ${JSON.stringify(stepResult.result)}`,
-            });
+            // If the tool returned a base64 image and the LLM supports vision,
+            // inject the screenshot as an actual image message so the model sees it.
+            const imageBase64 = stepResult.result?.imageBase64;
+            if (imageBase64 && this.llm.supportsVision()) {
+              const textResult = { ...stepResult.result };
+              delete textResult.imageBase64;
+              this.conversationHistory.push({
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: `Tool result: ${JSON.stringify(textResult)}\n\nHere is what the page looks like right now:`,
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: { url: imageBase64, detail: 'auto' },
+                  },
+                ],
+              });
+              logger.debug('Injected screenshot image into conversation');
+            } else {
+              this.conversationHistory.push({
+                role: 'user',
+                content: `Tool result: ${JSON.stringify(stepResult.result)}`,
+              });
+            }
           }
         } else {
           this.conversationHistory.push({

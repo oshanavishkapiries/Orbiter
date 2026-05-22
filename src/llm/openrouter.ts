@@ -38,8 +38,18 @@ export class OpenRouterProvider extends BaseLLMProvider {
   }
 
   supportsFunctionCalling(): boolean {
-    // Most models on OpenRouter support function calling
     return true;
+  }
+
+  supportsVision(): boolean {
+    const cfg = config();
+
+    // Explicit override in config
+    if (cfg.llm.vision === 'enabled') return true;
+    if (cfg.llm.vision === 'disabled') return false;
+
+    // 'auto' — detect from model name
+    return isVisionModel(this.model);
   }
 
   async chat(messages: Message[], tools?: Tool[]): Promise<LLMResponse> {
@@ -49,6 +59,8 @@ export class OpenRouterProvider extends BaseLLMProvider {
 
     const payload: any = {
       model: this.model,
+      // Pass content as-is: string for text models, ContentPart[] for vision models
+      // OpenRouter's API (OpenAI-compatible) handles both formats
       messages: messages.map((m) => ({
         role: m.role,
         content: m.content,
@@ -161,4 +173,30 @@ export class OpenRouterProvider extends BaseLLMProvider {
       provider: 'openrouter',
     };
   }
+}
+
+/**
+ * Detect whether a model ID is known to support vision (image inputs).
+ * Covers the major vision-capable model families on OpenRouter.
+ */
+export function isVisionModel(modelId: string): boolean {
+  const id = modelId.toLowerCase();
+
+  // Always vision-capable
+  if (id.includes('claude')) return true;           // All Anthropic Claude models
+  if (id.includes('gemini')) return true;           // All Google Gemini models
+  if (id.includes('gpt-4o')) return true;           // OpenAI GPT-4o family
+  if (id.includes('gpt-4-vision')) return true;     // OpenAI GPT-4 Vision
+  if (id.includes('gpt-4-turbo')) return true;      // OpenAI GPT-4 Turbo (vision)
+  if (id.includes('qwen-vl')) return true;          // Qwen Vision-Language
+  if (id.includes('qwen2-vl')) return true;         // Qwen2 VL
+  if (id.includes('qwen2.5-vl')) return true;       // Qwen2.5 VL
+  if (id.includes('llava')) return true;            // LLaVA models
+  if (id.includes('pixtral')) return true;          // Mistral Pixtral
+  if (id.includes('grok-2-vision')) return true;    // xAI Grok Vision
+  if (id.includes('llama-3.2') && id.includes('vision')) return true;
+
+  // Text-only — explicitly excluded
+  // qwen3.x, llama-3.*-instruct (non-vision), mistral-*instruct, etc.
+  return false;
 }

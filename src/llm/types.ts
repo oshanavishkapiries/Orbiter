@@ -1,6 +1,12 @@
+// A single part in a multimodal message
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
+
 export interface Message {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  // string for text-only models; ContentPart[] for multimodal (vision) models
+  content: string | ContentPart[];
 }
 
 export interface Tool {
@@ -42,4 +48,5 @@ export interface LLMProvider {
   name: string;
   chat(messages: Message[], tools?: Tool[]): Promise<LLMResponse>;
   supportsFunctionCalling(): boolean;
+  supportsVision(): boolean;
 }

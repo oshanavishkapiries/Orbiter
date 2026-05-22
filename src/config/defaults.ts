@@ -10,6 +10,7 @@ export const defaults: OrbiterConfig = {
     model: 'anthropic/claude-sonnet-4',
     maxTokens: 4096,
     temperature: 0.7,
+    vision: 'auto',
   },
   browser: {
     headless: false,

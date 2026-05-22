@@ -17,4 +17,7 @@ export interface ToolResult {
   error?: string;
   message?: string;
   screenshot?: string;
+  // Set by screenshot tool when the active LLM supports vision.
+  // The executor injects this as an image_url message so the model actually sees the page.
+  imageBase64?: string;
 }

@@ -1,6 +1,7 @@
 import { BrowserManager } from '../browser/manager.js';
 import { PageUtils } from '../browser/page-utils.js';
 import { logger } from '../cli/ui/logger.js';
+import type { LLMProvider } from '../llm/types.js';
 
 export interface ExecutionState {
   currentStep: number;
@@ -24,6 +25,7 @@ export class ExecutionContext {
   private browserManager: BrowserManager;
   private pageUtils: PageUtils | null = null;
   private state: ExecutionState;
+  private llm: LLMProvider | null = null;
 
   constructor() {
     this.browserManager = new BrowserManager();
@@ -47,6 +49,17 @@ export class ExecutionContext {
     this.pageUtils = new PageUtils(page);
 
     logger.success('Execution context initialized');
+  }
+
+  /**
+   * Attach the active LLM provider so tools can query its capabilities
+   */
+  setLLM(llm: LLMProvider): void {
+    this.llm = llm;
+  }
+
+  getLLM(): LLMProvider | null {
+    return this.llm;
   }
 
   /**

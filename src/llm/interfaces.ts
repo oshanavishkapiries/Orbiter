@@ -7,6 +7,8 @@ export abstract class BaseLLMProvider implements LLMProvider {
 
   abstract supportsFunctionCalling(): boolean;
 
+  abstract supportsVision(): boolean;
+
   /**
    * Format error messages
    */
