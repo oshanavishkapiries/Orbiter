@@ -13,6 +13,7 @@ import {
   ScreenshotOptions,
 } from './types.js';
 import { StealthManager } from './stealth.js';
+import { ProfileManager } from './profile-manager.js';
 
 export class BrowserManager {
   private session: BrowserSession | null = null;
@@ -47,15 +48,17 @@ export class BrowserManager {
       '--disable-blink-features=AutomationControlled',
     ];
 
-    // Resolve profile path: explicit config > auto-generated default
-    const resolvedProfilePath = profilePath || PATHS.browserProfile;
+    // Resolve profile: name ("work") or path or undefined → absolute dir
+    const profileMgr = new ProfileManager();
+    const resolvedProfilePath = profilePath
+      ? profileMgr.resolvePath(profilePath)
+      : PATHS.browserProfile;
     ensureDir(resolvedProfilePath);
 
-    if (profilePath) {
-      logger.debug(`Using browser profile: ${resolvedProfilePath}`);
-    } else {
-      logger.debug(`Using default browser profile: ${resolvedProfilePath}`);
-    }
+    const hasSaved = profileMgr.hasSavedState(resolvedProfilePath);
+    logger.debug(
+      `Browser profile: ${resolvedProfilePath}${hasSaved ? ' (has saved sessions)' : ' (fresh)'}`,
+    );
 
     context = await chromium.launchPersistentContext(resolvedProfilePath, {
       headless,
@@ -80,7 +83,11 @@ export class BrowserManager {
       startTime: Date.now(),
     };
 
+    profileMgr.touchProfile(resolvedProfilePath);
     logger.success(`Browser launched (session: ${this.session.id})`);
+    if (hasSaved) {
+      logger.info('Loaded saved browser state — cookies and login sessions restored');
+    }
 
     return this.session;
   }

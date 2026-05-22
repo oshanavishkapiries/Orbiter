@@ -8,6 +8,7 @@ import { configCommand } from './commands/config.js';
 import { profileCommand } from './commands/profile.js';
 import { modelsCommand } from './commands/models.js';
 import { memoryCommand } from './commands/memory.js';
+import { sessionCommand } from './commands/session.js';
 
 const VERSION = '1.0.0';
 
@@ -31,6 +32,7 @@ export function createCLI() {
   program.addCommand(profileCommand());
   program.addCommand(modelsCommand());
   program.addCommand(memoryCommand());
+  program.addCommand(sessionCommand());
 
   // Help command customization
   program.configureHelp({

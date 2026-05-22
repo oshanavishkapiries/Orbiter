@@ -1,123 +1,153 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { logger } from '../cli/ui/logger.js';
-import { BrowserProfile } from './types.js';
+import { PATHS } from '../utils/paths.js';
+import { ensureDir } from '../utils/fs.js';
+
+export interface OrbiterProfile {
+  name: string;
+  path: string;
+  createdAt: number;
+  lastUsedAt?: number;
+  description?: string;
+}
+
+const PROFILES_DIR = path.join(PATHS.data, 'profiles');
+const META_FILE = 'orbiter-profile.json';
 
 export class ProfileManager {
   /**
-   * List available Chrome/Chromium profiles
+   * List all Orbiter-managed browser profiles
    */
-  async listProfiles(): Promise<BrowserProfile[]> {
-    const profiles: BrowserProfile[] = [];
-    const basePath = this.getChromeBasePath();
+  listProfiles(): OrbiterProfile[] {
+    ensureDir(PROFILES_DIR);
 
-    if (!basePath || !fs.existsSync(basePath)) {
-      logger.warn('Chrome installation not found');
-      return profiles;
-    }
+    const profiles: OrbiterProfile[] = [];
+
+    // Always include the built-in default profile
+    profiles.push(this.getDefaultProfileInfo());
 
     try {
-      // Read profile directories
-      const items = fs.readdirSync(basePath);
-
-      for (const item of items) {
-        if (item.startsWith('Profile') || item === 'Default') {
-          const profilePath = path.join(basePath, item);
-          const prefsPath = path.join(profilePath, 'Preferences');
-
-          if (fs.existsSync(prefsPath)) {
-            const prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf-8'));
-
-            profiles.push({
-              name: item,
-              path: profilePath,
-              userAgent: prefs.profile?.user_agent,
-            });
-          }
-        }
+      const entries = fs.readdirSync(PROFILES_DIR, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const profilePath = path.join(PROFILES_DIR, entry.name);
+        const meta = this.readMeta(profilePath);
+        if (meta) profiles.push(meta);
       }
-    } catch (error) {
-      logger.error(`Error reading profiles: ${(error as Error).message}`);
+    } catch (err) {
+      logger.debug(`Error reading profiles dir: ${(err as Error).message}`);
     }
 
     return profiles;
   }
 
   /**
-   * Get profile by name
+   * Create a new named profile
    */
-  async getProfile(name: string): Promise<BrowserProfile | null> {
-    const profiles = await this.listProfiles();
-    return profiles.find((p) => p.name === name) || null;
-  }
+  createProfile(name: string, description?: string): OrbiterProfile {
+    const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+    const profilePath = path.join(PROFILES_DIR, safeName);
 
-  /**
-   * Get Chrome base path based on OS
-   */
-  private getChromeBasePath(): string | null {
-    const platform = process.platform;
-    const homeDir = os.homedir();
-
-    if (platform === 'darwin') {
-      return path.join(
-        homeDir,
-        'Library',
-        'Application Support',
-        'Google',
-        'Chrome',
-      );
-    } else if (platform === 'win32') {
-      return path.join(
-        homeDir,
-        'AppData',
-        'Local',
-        'Google',
-        'Chrome',
-        'User Data',
-      );
-    } else if (platform === 'linux') {
-      return path.join(homeDir, '.config', 'google-chrome');
+    if (fs.existsSync(profilePath)) {
+      throw new Error(`Profile "${safeName}" already exists at ${profilePath}`);
     }
 
-    return null;
+    ensureDir(profilePath);
+
+    const meta: OrbiterProfile = {
+      name: safeName,
+      path: profilePath,
+      createdAt: Date.now(),
+      description,
+    };
+
+    this.writeMeta(profilePath, meta);
+    logger.success(`Profile "${safeName}" created at ${profilePath}`);
+    return meta;
   }
 
   /**
-   * Validate profile path
+   * Resolve a profile name or path to an absolute directory path.
+   * Accepts:
+   *   - "default"           → data/browser-profile (built-in)
+   *   - "work"              → data/profiles/work
+   *   - absolute/relative path → used as-is
    */
-  validateProfile(profilePath: string): boolean {
+  resolvePath(nameOrPath: string): string {
+    if (!nameOrPath || nameOrPath === 'default') {
+      return PATHS.browserProfile;
+    }
+
+    // Absolute or relative path with separators → use directly
+    if (nameOrPath.includes('/') || nameOrPath.includes('\\')) {
+      return path.resolve(nameOrPath);
+    }
+
+    // Named profile
+    const profilePath = path.join(PROFILES_DIR, nameOrPath);
     if (!fs.existsSync(profilePath)) {
-      logger.error(`Profile path does not exist: ${profilePath}`);
-      return false;
+      logger.warn(
+        `Profile "${nameOrPath}" not found — creating it automatically at ${profilePath}`,
+      );
+      this.createProfile(nameOrPath);
     }
 
-    const prefsPath = path.join(profilePath, 'Preferences');
-    if (!fs.existsSync(prefsPath)) {
-      logger.error(`Invalid profile: Preferences file not found`);
-      return false;
-    }
-
-    return true;
+    return profilePath;
   }
 
   /**
-   * Display profile info
+   * Mark a profile as just used (updates lastUsedAt in metadata)
    */
-  async displayProfiles(): Promise<void> {
-    const profiles = await this.listProfiles();
-
-    if (profiles.length === 0) {
-      console.log('\nNo Chrome profiles found.\n');
-      return;
+  touchProfile(profilePath: string): void {
+    try {
+      const meta = this.readMeta(profilePath);
+      if (meta) {
+        meta.lastUsedAt = Date.now();
+        this.writeMeta(profilePath, meta);
+      }
+    } catch {
+      // Non-fatal
     }
+  }
 
-    console.log('\nAvailable Chrome Profiles:\n');
+  /**
+   * Check whether a profile directory contains saved browser state
+   * (i.e. the user has logged into something using it before)
+   */
+  hasSavedState(profilePath: string): boolean {
+    // Playwright persistent context creates these marker files/dirs
+    return (
+      fs.existsSync(path.join(profilePath, 'Default')) ||
+      fs.existsSync(path.join(profilePath, 'Cookies'))
+    );
+  }
 
-    profiles.forEach((profile, index) => {
-      console.log(`${index + 1}. ${profile.name}`);
-      console.log(`   Path: ${profile.path}`);
-      console.log('');
-    });
+  // ─── private helpers ─────────────────────────────────────────────────────
+
+  private getDefaultProfileInfo(): OrbiterProfile {
+    const hasSaved = this.hasSavedState(PATHS.browserProfile);
+    return {
+      name: 'default',
+      path: PATHS.browserProfile,
+      createdAt: 0,
+      description: hasSaved
+        ? 'Default profile (has saved login sessions)'
+        : 'Default profile (no saved state yet)',
+    };
+  }
+
+  private readMeta(profilePath: string): OrbiterProfile | null {
+    const metaPath = path.join(profilePath, META_FILE);
+    try {
+      return JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as OrbiterProfile;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeMeta(profilePath: string, meta: OrbiterProfile): void {
+    const metaPath = path.join(profilePath, META_FILE);
+    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
   }
 }
