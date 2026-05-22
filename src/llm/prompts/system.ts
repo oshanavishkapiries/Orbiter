@@ -17,14 +17,19 @@ Use these values directly as parameters for the interaction tools.
 
 Identify elements using the values you see in the snapshot:
 
-  role + name   → the element's ARIA role and its accessible name
-                   click { role: "button", name: "Login" }
-                   click { role: "link", name: "Forgot password?" }
+  role + name   → ARIA role + the accessible name shown in the snapshot (quoted string after role)
+                   Snapshot:  - textbox "Email Address"
+                   Tool call: fill { role: "textbox", name: "Email Address", value: "..." }
 
-  placeholder   → the input hint text
-                   fill { placeholder: "you@example.com", value: "user@example.com" }
+                   Snapshot:  - button "Submit"
+                   Tool call: click { role: "button", name: "Submit" }
 
-  label         → the form field label
+  placeholder   → the /placeholder hint shown in the snapshot
+                   Snapshot:  - textbox "Search" /placeholder: "Search courses..."
+                   Tool call: fill { placeholder: "Search courses...", value: "..." }
+
+  label         → visible label text from a <label> element (NOT the accessible name)
+                   Use only when there is no role+name or placeholder match.
                    fill { label: "Password", value: "secret123" }
 
   text          → any visible text on the element
@@ -35,6 +40,10 @@ Identify elements using the values you see in the snapshot:
   selector      → CSS selector — last resort only when none of the above apply
 
 Priority order: role+name > placeholder > label > text > testId > selector
+
+IMPORTANT: Every fill/click/type call MUST include at least one locator field
+(role, name, placeholder, label, text, testId, or selector). A call with only
+{ value: "..." } will fail.
 
 ## TOOLS
 
@@ -69,6 +78,13 @@ Do NOT extract items one by one with the LLM — it wastes tokens.
 
 Many modern UIs use custom dropdowns (a button that opens a list, not a native <select>).
 For these: click to open, then snapshot to see the options, then click the option.
+
+## SPA / DYNAMIC PAGES
+
+If the snapshot after navigate shows only a logo or a single alert with no real content,
+the page is still loading. Call snapshot once to re-check, or wait briefly:
+  wait { type: "time", value: 2000 }
+Then call snapshot again before interacting.
 
 ## ERROR HANDLING
 

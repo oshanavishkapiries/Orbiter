@@ -34,6 +34,12 @@ export const navigateTool: ToolDefinition = {
       const title = await browser.getTitle();
       const page = browser.getPage();
 
+      // SPAs (Next.js, React) fire 'load' before components hydrate.
+      // A short networkidle wait lets React finish rendering before we snapshot.
+      if (waitUntil !== 'networkidle') {
+        await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
+      }
+
       let snapshot = '';
       try {
         snapshot = await (page as any).ariaSnapshot();

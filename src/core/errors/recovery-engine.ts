@@ -66,23 +66,43 @@ export class RecoveryEngine {
   }
 
   private async getLLMRecoveryPlan(errorContext: ErrorContext): Promise<RecoveryPlan | null> {
-    try {
-      const response = await this.llm.chat([
+    const RECOVERY_LLM_TIMEOUT = 15000;
+
+    const llmCall = this.llm
+      .chat([
         {
           role: 'system',
           content: 'You are a browser automation error recovery specialist. Respond only with valid JSON.',
         },
         { role: 'user', content: RecoveryPromptBuilder.build(errorContext) },
-      ]);
+      ])
+      .then((response) => {
+        const match = response.content.match(/\{[\s\S]*\}/);
+        if (!match) return null;
+        const plan = JSON.parse(match[0]) as RecoveryPlan;
+        return plan.strategy && plan.reasoning ? plan : null;
+      })
+      .catch(() => null);
 
-      const match = response.content.match(/\{[\s\S]*\}/);
-      if (!match) return null;
+    const timeout = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), RECOVERY_LLM_TIMEOUT),
+    );
 
-      const plan = JSON.parse(match[0]) as RecoveryPlan;
-      return plan.strategy && plan.reasoning ? plan : null;
-    } catch {
-      return null;
+    const plan = await Promise.race([llmCall, timeout]);
+
+    if (plan === null) {
+      // LLM timed out or failed — fall back to a safe default
+      logger.warn('Recovery LLM unavailable — using wait_and_retry fallback');
+      return {
+        strategy: 'wait_and_retry',
+        reasoning: 'Recovery analysis timed out — retrying original action after a short delay',
+        confidence: 'low',
+        shouldAbort: false,
+        waitBeforeRetry: 2000,
+      } as RecoveryPlan;
     }
+
+    return plan;
   }
 
   private async executeRecoveryAction(
