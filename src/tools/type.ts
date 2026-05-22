@@ -38,20 +38,15 @@ export const typeTool: ToolDefinition = {
       const { selector, text, clear = true, delay = 50, pressEnter = false } = params;
 
       const page = context.getBrowserManager().getPage();
+      const locator = page.locator(selector).first();
 
-      // Wait for input to be visible
-      await page.waitForSelector(selector, {
-        state: 'visible',
-        timeout: 10000,
-      });
-
-      // Clear existing text if needed
+      // locator auto-waits for attached + visible + enabled — more resilient
+      // on SPAs that rehydrate the DOM after initial load.
       if (clear) {
-        await page.fill(selector, '');
+        await locator.fill('', { timeout: 20000 });
       }
 
-      // Type with delay
-      await page.type(selector, text, { delay });
+      await locator.pressSequentially(text, { delay });
 
       if (pressEnter) {
         await page.press(selector, 'Enter');

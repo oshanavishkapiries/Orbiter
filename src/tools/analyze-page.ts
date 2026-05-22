@@ -38,7 +38,7 @@ export const analyzePageTool: ToolDefinition = {
         await injectHighlights(page, intel);
       }
 
-      const payload = formatForLLM(intel);
+      const formatted = formatForLLM(intel);
 
       logger.success(
         `Page scanned: ${intel.inputs.length} inputs, ${intel.buttons.length} buttons, ${intel.links.length} links`,
@@ -47,7 +47,16 @@ export const analyzePageTool: ToolDefinition = {
       return {
         success: true,
         message: intel.summary,
-        data: payload,
+        data: {
+          url: intel.url,
+          title: intel.title,
+          pageType: intel.pageType,
+          inputs: intel.inputs,
+          buttons: intel.buttons,
+          links: intel.links,
+          selects: intel.selects,
+          formatted, // full text for LLM consumption
+        },
       };
     } catch (error) {
       logger.error(`analyze_page failed: ${(error as Error).message}`);

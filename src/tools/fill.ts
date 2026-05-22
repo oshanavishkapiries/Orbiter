@@ -31,12 +31,15 @@ export const fillTool: ToolDefinition = {
       const { selector, value, pressEnter = false } = params;
 
       const page = context.getBrowserManager().getPage();
+      const locator = page.locator(selector).first();
 
-      await page.waitForSelector(selector, { state: 'visible', timeout: 10000 });
-      await page.fill(selector, value);
+      // locator.fill() has built-in auto-waiting (attached + visible + enabled).
+      // It is more resilient than a separate waitForSelector call, which can
+      // fail transiently on SPAs that rehydrate the DOM after initial load.
+      await locator.fill(value, { timeout: 20000 });
 
       if (pressEnter) {
-        await page.press(selector, 'Enter');
+        await locator.press('Enter');
       }
 
       return {

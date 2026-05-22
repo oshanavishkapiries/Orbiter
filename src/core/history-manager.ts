@@ -61,14 +61,19 @@ export class HistoryManager {
           result?.success
         ) {
           const data = result.data ?? result;
-          const url =
-            data?.url ?? data?.pageIntelligence?.url ?? '';
-          const title = data?.title ?? data?.pageIntelligence?.title ?? '';
+
+          // navigate: data = { url, title, pageIntelligence: string }
+          // analyze_page: data = { url, title, inputs, buttons, formatted, … }
+          const url = data?.url ?? '';
+          const title = data?.title ?? '';
           const elements =
-            data?.pageIntelligence?.elements ??
+            data?.inputs ??
             data?.pageIntelligence?.inputs ??
-            data?.elements ??
             null;
+          const fullAnalysis =
+            toolName === 'navigate'
+              ? data?.pageIntelligence
+              : data?.formatted ?? data;
 
           await this.sessionRepo.storeDomSnapshot(
             this.sessionId,
@@ -76,7 +81,7 @@ export class HistoryManager {
             url,
             title,
             elements,
-            data?.pageIntelligence ?? data,
+            fullAnalysis,
           );
         }
 
@@ -174,22 +179,27 @@ export class HistoryManager {
       case 'navigate': {
         const url = data?.url ?? params?.url ?? '?';
         const title = data?.title ?? '';
-        const intel = data?.pageIntelligence;
-        if (intel) {
-          const inputs = intel.inputs?.length ?? 0;
-          const buttons = intel.buttons?.length ?? 0;
-          const links = intel.links?.length ?? 0;
-          return `Navigated to ${url}${title ? ` ("${title}")` : ''}. Page has ${inputs} inputs, ${buttons} buttons, ${links} links. DOM snapshot saved — use recall_dom_snapshot to inspect elements.`;
-        }
-        return `Navigated to ${url}${title ? ` ("${title}")` : ''}.`;
+        // pageIntelligence is a formatted string — parse counts from result.message
+        const msg = result.message ?? '';
+        const inputMatch = msg.match(/(\d+) input/);
+        const buttonMatch = msg.match(/(\d+) button/);
+        const linkMatch = msg.match(/(\d+) link/);
+        const inputs = inputMatch ? inputMatch[1] : '?';
+        const buttons = buttonMatch ? buttonMatch[1] : '?';
+        const links = linkMatch ? linkMatch[1] : '?';
+        return `Navigated to ${url}${title ? ` ("${title}")` : ''}. Page has ${inputs} inputs, ${buttons} buttons, ${links} links. DOM snapshot saved — use recall_dom_snapshot to inspect elements.`;
       }
 
       case 'analyze_page': {
-        const inputs = data?.inputs?.length ?? 0;
-        const buttons = data?.buttons?.length ?? 0;
-        const links = data?.links?.length ?? 0;
-        const summary = result.message ?? '';
-        return `Page analyzed: ${inputs} inputs, ${buttons} buttons, ${links} links. ${summary} DOM snapshot saved — use recall_dom_snapshot to inspect full element list.`;
+        // data is now structured: { url, title, inputs, buttons, links, formatted }
+        const inputs = Array.isArray(data?.inputs) ? data.inputs.length : 0;
+        const buttons = Array.isArray(data?.buttons) ? data.buttons.length : 0;
+        const links = Array.isArray(data?.links) ? data.links.length : 0;
+        const url = data?.url ? ` at ${data.url}` : '';
+        const inputList = Array.isArray(data?.inputs) && data.inputs.length > 0
+          ? ' Inputs: ' + data.inputs.map((i: any) => `${i.selector} (${i.label})`).join(', ') + '.'
+          : '';
+        return `Page analyzed${url}: ${inputs} inputs, ${buttons} buttons, ${links} links.${inputList} DOM snapshot saved — use recall_dom_snapshot to inspect full element list.`;
       }
 
       case 'click':

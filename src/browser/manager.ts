@@ -122,14 +122,24 @@ export class BrowserManager {
     logger.bullet(`Navigating to: ${url}`);
 
     try {
-      await page.goto(url, {
-        waitUntil,
-        timeout,
-      });
-
+      await page.goto(url, { waitUntil, timeout });
       logger.success(`Navigation complete: ${page.url()}`);
     } catch (error) {
-      logger.error(`Navigation failed: ${(error as Error).message}`);
+      const msg = (error as Error).message;
+
+      // SPAs (Google Maps, YouTube, Twitter…) never reach networkidle because
+      // they continuously poll in the background. If we timed out on networkidle
+      // but the page actually loaded, treat it as success.
+      if (waitUntil === 'networkidle' && msg.includes('Timeout')) {
+        const currentUrl = page.url();
+        if (currentUrl !== 'about:blank' && !currentUrl.startsWith('chrome-error://')) {
+          logger.debug('networkidle timeout but page is loaded — continuing (SPA detected)');
+          logger.success(`Navigation complete: ${currentUrl}`);
+          return;
+        }
+      }
+
+      logger.error(`Navigation failed: ${msg}`);
       throw error;
     }
   }
