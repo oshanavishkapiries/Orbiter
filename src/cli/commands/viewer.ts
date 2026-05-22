@@ -43,8 +43,17 @@ export function viewerCommand() {
       const url = `http://localhost:${port}`;
 
       // ── Environment vars passed to Next.js ─────────────────────────
+      // Strip --localstorage-file from NODE_OPTIONS — Node.js 22+ defines a broken
+      // localStorage when this flag is set without a valid path, which crashes Next.js SSR.
+      const cleanNodeOptions = (process.env.NODE_OPTIONS ?? '')
+        .split(/\s+/)
+        .filter((f) => f && !f.startsWith('--localstorage-file'))
+        .join(' ')
+        .trim();
+
       const env: NodeJS.ProcessEnv = {
         ...process.env,
+        NODE_OPTIONS: cleanNodeOptions || undefined,
         ORBITER_DATA_DIR: dataDir,
         ORBITER_ROOT: orbiterRoot,
         PORT: String(port),

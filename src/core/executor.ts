@@ -143,17 +143,6 @@ export class TaskExecutor {
 
         // Task complete - LLM finished
         if (response.finishReason === 'stop' && !response.toolCalls) {
-          if (this.looksLikeTextualToolCall(response.content)) {
-            logger.warn(
-              'LLM returned text that looks like a tool call without using the tool API; requesting correction',
-            );
-            this.history.addAssistantText(response.content);
-            this.history.addUserText(
-              'Your previous response described a tool action in plain text but did not issue an actual tool call. Do not write "Used ...". Use the tool API now with a valid tool call for the next browser action.',
-            );
-            continue;
-          }
-
           logger.success('Task completed by LLM');
           this.history.addAssistantText(response.content);
           continueExecution = false;
@@ -200,12 +189,17 @@ export class TaskExecutor {
             }
 
             // Add to smart history — stores full result in DB, puts summary in conversation
-            this.history.addAssistantAction(toolCall.name, toolCall.arguments);
+            this.history.addAssistantAction(
+              toolCall.id,
+              toolCall.name,
+              toolCall.arguments,
+            );
             const imageBase64 =
               this.llm.supportsVision()
                 ? stepResult.result?.imageBase64
                 : undefined;
             await this.history.addToolResult(
+              toolCall.id,
               stepNumber,
               toolCall.name,
               stepResult.result,
@@ -215,11 +209,6 @@ export class TaskExecutor {
             );
 
             logger.debug(`History size: ${this.history.size()} messages`);
-
-            if (this.isInvalidToolCall(stepResult)) {
-              logger.warn('Invalid tool call rejected locally; requesting a corrected call from the LLM');
-              break;
-            }
           }
         } else {
           this.history.addAssistantText(response.content);
@@ -540,12 +529,6 @@ export class TaskExecutor {
     return phrases.some((p) => lower.includes(p));
   }
 
-  private looksLikeTextualToolCall(content: string): boolean {
-    const trimmed = content.trim();
-    if (!trimmed) return false;
-
-    return /^(used|calling|call)\s+[a-z_]+/i.test(trimmed);
-  }
 
   private isInvalidToolCall(step: ExecutionStep): boolean {
     return typeof step.error === 'string' && step.error.startsWith('INVALID_TOOL_CALL:');

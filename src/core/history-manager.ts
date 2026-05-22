@@ -20,10 +20,17 @@ export class HistoryManager {
   }
 
   /** Add the assistant's tool-use action message */
-  addAssistantAction(toolName: string, args: any): void {
+  addAssistantAction(toolCallId: string, toolName: string, args: any): void {
     this.messages.push({
       role: 'assistant',
-      content: `Used ${toolName}: ${JSON.stringify(args)}`,
+      content: '',
+      toolCalls: [
+        {
+          id: toolCallId,
+          name: toolName,
+          arguments: args,
+        },
+      ],
     });
   }
 
@@ -32,6 +39,7 @@ export class HistoryManager {
    * enters conversation history. Pass imageBase64 for vision-capable models.
    */
   async addToolResult(
+    toolCallId: string,
     stepNumber: number,
     toolName: string,
     result: any,
@@ -104,9 +112,14 @@ export class HistoryManager {
     }
 
     // Build conversation message — summary only, no raw DOM/HTML
+    this.messages.push({
+      role: 'tool',
+      toolCallId,
+      name: toolName,
+      content: summary,
+    });
+
     if (imageBase64) {
-      const textResult = { ...result };
-      delete textResult.imageBase64;
       this.messages.push({
         role: 'user',
         content: [
@@ -162,8 +175,8 @@ export class HistoryManager {
     const anchor = this.messages.slice(0, 2);
     const rest = this.messages.slice(2);
 
-    // MAX_STEP_PAIRS * 2 messages (each step = assistant + user)
-    const maxRest = MAX_STEP_PAIRS * 2;
+    // A step may produce assistant-tool-call, tool-result, and optional image/context user message.
+    const maxRest = MAX_STEP_PAIRS * 3;
     if (rest.length > maxRest) {
       this.messages = [...anchor, ...rest.slice(rest.length - maxRest)];
       logger.debug(`History trimmed to ${this.messages.length} messages`);

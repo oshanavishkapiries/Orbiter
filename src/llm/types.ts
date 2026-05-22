@@ -4,9 +4,12 @@ export type ContentPart =
   | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
 
 export interface Message {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   // string for text-only models; ContentPart[] for multimodal (vision) models
   content: string | ContentPart[];
+  toolCalls?: ToolCall[];
+  toolCallId?: string;
+  name?: string;
 }
 
 export interface Tool {

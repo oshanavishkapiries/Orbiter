@@ -99,6 +99,20 @@ export class OpenRouterProvider extends BaseLLMProvider {
       messages: messages.map((m) => ({
         role: m.role,
         content: m.content,
+        ...(m.toolCalls
+          ? {
+              tool_calls: m.toolCalls.map((toolCall) => ({
+                id: toolCall.id,
+                type: 'function',
+                function: {
+                  name: toolCall.name,
+                  arguments: JSON.stringify(toolCall.arguments),
+                },
+              })),
+            }
+          : {}),
+        ...(m.toolCallId ? { tool_call_id: m.toolCallId } : {}),
+        ...(m.name ? { name: m.name } : {}),
       })),
       temperature: cfg.llm.temperature,
       max_tokens: cfg.llm.maxTokens,
@@ -144,7 +158,10 @@ export class OpenRouterProvider extends BaseLLMProvider {
         }
 
         const result: LLMResponse = {
-          content: choice.message.content || '',
+          content:
+            typeof choice.message.content === 'string'
+              ? choice.message.content
+              : '',
           toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
           finishReason: this.mapFinishReason(choice.finish_reason),
           usage: {
