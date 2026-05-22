@@ -69,7 +69,7 @@ export class TaskExecutor {
     this.formatter = new OutputFormatter();
   }
 
-  async execute(maxSteps: number = 50, onStepComplete?: (step: number, max: number) => void): Promise<ExecutionResult> {
+  async execute(maxSteps: number = 50): Promise<ExecutionResult> {
     const cfg = config();
     const startTime = Date.now();
     const steps: ExecutionStep[] = [];
@@ -153,13 +153,9 @@ export class TaskExecutor {
             const stepResult = await this.executeToolCall(toolCall, stepNumber, maxSteps);
             steps.push(stepResult);
 
-            if (stepResult.success) {
-              onStepComplete?.(stepNumber, maxSteps);
-            }
-
             if (
               stepResult.success &&
-              (toolCall.name === 'extract_data' || toolCall.name === 'extract_text')
+              (toolCall.name === 'extract_data' || toolCall.name === 'extract_text' || toolCall.name === 'save_extracted_data')
             ) {
               const data = stepResult.result?.data;
               if (data) {

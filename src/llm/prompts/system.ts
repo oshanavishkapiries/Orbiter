@@ -12,6 +12,7 @@ IMPORTANT about browser_evaluate: its parameter for the JS code is named "functi
 ### Orbiter Data & Memory Tools
 - extract_text — extract text from elements using a CSS selector
 - extract_data — extract structured data using CSS selectors { schema: { field: "css-selector" }, containerSelector?: "css" }
+- save_extracted_data — save a pre-collected data array (from browser_evaluate) to CSV and JSON { data: [...] }
 - detect_repetitive_pattern — auto-detect and bulk-extract repeating page items
 - store_memory / recall_memory — persist data across sessions
 - recall_step_history / recall_session_data / recall_dom_snapshot — session history (NOT current page state)
@@ -47,21 +48,23 @@ Google Maps result cards: use browser_evaluate with selectors like [role=article
 
 ## DATA EXTRACTION — ALWAYS SAVE TO FILES
 
-Whenever you collect structured data (lists, tables, records), you MUST use extract_data or extract_text as the final capture step — this automatically saves results as CSV and JSON files. Never return collected data only as a text response.
+After collecting the requested data you MUST call one of these tools to save it as CSV and JSON. Never return data only as a text response.
 
-Rules:
-1. **Small / stable DOM**: use extract_data with confirmed CSS selectors
-   { schema: { name: ".place-name", rating: ".rating" }, containerSelector: ".result-card" }
-2. **Large or dynamic result sets** (SPAs, Google Maps, infinite scroll): use browser_evaluate to collect the full dataset directly from the DOM, then call extract_data with the selectors you confirmed work. If no single CSS selector covers all rows reliably, use browser_evaluate to build the full array and pass it through extract_text with selector "body" as a last resort — but always invoke one of the two extraction tools.
-3. Do NOT stop at browser_evaluate alone. After you have confirmed the data exists, call extract_data or extract_text so the files are written.
+Choose based on page structure:
 
-Example flow for a large dynamic list:
-- browser_evaluate → confirm selectors + verify count
-- extract_data { schema: { name: "[selector]", rating: "[selector]" }, containerSelector: "[row-selector]" }
+**Standard pages** (CSS selectors reliably target each field):
+  extract_data { schema: { name: ".title", rating: ".stars" }, containerSelector: ".result-item" }
+
+**SPAs and dynamic pages** (Google Maps, React apps — CSS selectors miss the data):
+  1. browser_evaluate → collect the full array from the DOM:
+     { function: "JSON.stringify(Array.from(document.querySelectorAll('...')).map(el => ({ name: ..., rating: ... })))" }
+  2. save_extracted_data { data: [ ...the exact array browser_evaluate returned... ] }
+
+NEVER call extract_data on a SPA after browser_evaluate — the same selectors that work in JS will NOT work as CSS for extract_data.
 
 ## TASK COMPLETION
 
-You are done ONLY when you have the requested data in hand AND have called extract_data or extract_text to save it. If results are not visible in the snapshot after a search, this does NOT mean the task succeeded — use browser_evaluate to find and extract the data before declaring completion.
+You are done ONLY when you have the requested data in hand AND have called extract_data, extract_text, or save_extracted_data to save it. If results are not visible in the snapshot after a search, this does NOT mean the task succeeded — use browser_evaluate to find and extract the data before declaring completion.
 
 ## RESPONSE STYLE
 

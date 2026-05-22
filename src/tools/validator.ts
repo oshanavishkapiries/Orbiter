@@ -91,6 +91,8 @@ function validateToolSpecificRules(
   params: Record<string, unknown>,
 ): ToolValidationResult {
   switch (toolName) {
+    case 'save_extracted_data':
+      return validateSaveExtractedDataParams(params);
     case 'extract_data':
       return validateExtractDataParams(params);
     case 'recall_dom_snapshot':
@@ -118,6 +120,18 @@ function validateToolSpecificRules(
     default:
       return { valid: true };
   }
+}
+
+function validateSaveExtractedDataParams(
+  params: Record<string, unknown>,
+): ToolValidationResult {
+  if (!Array.isArray(params.data)) {
+    return { valid: false, error: 'Tool "save_extracted_data" requires "data" to be an array.' };
+  }
+  if (params.data.length === 0) {
+    return { valid: false, error: 'Tool "save_extracted_data" requires a non-empty "data" array.' };
+  }
+  return { valid: true };
 }
 
 function validateExtractDataParams(

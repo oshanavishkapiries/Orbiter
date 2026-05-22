@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import { logger, spinner } from '../ui/logger.js';
-import { PlanChecklist } from '../ui/checklist.js';
 import { banners } from '../ui/banner.js';
 import { summaries, ExecutionSummary } from '../ui/summary.js';
 import { Timeline } from '../ui/timeline.js';
@@ -120,19 +119,20 @@ export function runCommand() {
         const planner = new TaskPlanner(llm);
         const plan = await planner.plan(activePrompt);
 
-        const checklist = new PlanChecklist(plan.steps);
+        console.log(chalk.blue('\nExecution Plan:'));
         if (plan.steps.length > 0) {
-          checklist.render();
+          for (const [index, step] of plan.steps.entries()) {
+            console.log(chalk.white(`  ${index + 1}. ${step}`));
+          }
         } else if (plan.reasoning.trim()) {
-          console.log(chalk.blue('\nExecution Plan:'));
           const lines = plan.reasoning.trim().split('\n').slice(0, 10);
           for (const line of lines) {
             if (line.trim()) console.log(chalk.gray(`  ${line.trim()}`));
           }
-          console.log('');
         } else {
-          console.log(chalk.gray('\n  (plan will emerge during execution)\n'));
+          console.log(chalk.gray(`  (plan will emerge during execution)`));
         }
+        console.log('');
 
         logger.bullet(`Estimated steps: ${plan.estimatedSteps}`);
         logger.bullet(`Pattern detection needed: ${plan.needsDetection ? 'Yes' : 'No'}`);
@@ -153,12 +153,7 @@ export function runCommand() {
           modelInfo.name,
         );
 
-        const result = await executor.execute(
-          parseInt(options.maxSteps),
-          (step, max) => checklist.advance(step, max),
-        );
-
-        checklist.completeAll();
+        const result = await executor.execute(parseInt(options.maxSteps));
 
         for (const step of result.steps) {
           timeline.add({
