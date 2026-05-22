@@ -1,87 +1,123 @@
-import http from 'http';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { Command } from 'commander';
 import { logger } from '../ui/logger.js';
-import { getViewerHtml } from '../viewer/template.js';
-import { DatabaseConnection } from '../../memory/database/connection.js';
-import { SessionRepository } from '../../memory/database/repositories/session-repository.js';
 
 export function viewerCommand() {
   const cmd = new Command('viewer');
 
   cmd
-    .description('Open the LLM chat viewer in your browser')
-    .option('-p, --port <number>', 'Port to listen on', '4040')
+    .description('Open the Orbiter web dashboard in your browser')
+    .option('-p, --port <number>', 'Port to run the web app on', '4040')
     .option('--no-open', 'Do not auto-open the browser')
+    .option('--production', 'Serve the pre-built app (next start) instead of dev server')
     .action(async (options) => {
       const port = parseInt(options.port, 10);
+      const webDir = path.resolve('./web');
+      const dataDir = path.resolve('./data');
+      const orbiterRoot = path.resolve('.');
 
-      let repo: SessionRepository | null = null;
-      try {
-        await DatabaseConnection.getInstance().initialize();
-        repo = new SessionRepository();
-        logger.info('Connected to database');
-      } catch {
-        logger.warn('Database unavailable — falling back to log file mode');
+      // ── Prerequisite checks ────────────────────────────────────────
+      if (!fs.existsSync(webDir)) {
+        logger.error('Web app directory not found: ./web');
+        logger.info('Make sure you are running this command from the Orbiter project root.');
+        process.exit(1);
       }
 
-      const server = http.createServer(async (req, res) => {
-        const url = new URL(req.url!, `http://localhost:${port}`);
-        const pathname = url.pathname;
+      if (!fs.existsSync(path.join(webDir, 'node_modules'))) {
+        logger.error('Web app dependencies not installed.');
+        logger.info('Run:  cd web && pnpm install');
+        process.exit(1);
+      }
 
-        try {
-          // ── CORS headers (local only) ──────────────────────────
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Cache-Control', 'no-cache');
+      // Determine dev vs production mode
+      const isBuilt = fs.existsSync(path.join(webDir, '.next', 'BUILD_ID'));
+      const useProduction = options.production && isBuilt;
 
-          // ── Routes ─────────────────────────────────────────────
+      if (options.production && !isBuilt) {
+        logger.warn('No production build found. Run "cd web && pnpm build" first. Falling back to dev mode.');
+      }
 
-          // GET / → HTML viewer
-          if (pathname === '/' || pathname === '/index.html') {
-            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-            res.end(getViewerHtml());
-            return;
+      const mode = useProduction ? 'start' : 'dev';
+      const url = `http://localhost:${port}`;
+
+      // ── Environment vars passed to Next.js ─────────────────────────
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        ORBITER_DATA_DIR: dataDir,
+        ORBITER_ROOT: orbiterRoot,
+        PORT: String(port),
+      };
+
+      // Pass DB URL if available
+      if (process.env.DATABASE_URL) {
+        env.DATABASE_URL = process.env.DATABASE_URL;
+      }
+
+      logger.info(`Starting Orbiter web dashboard (${mode} mode)…`);
+      logger.info(`URL: ${url}`);
+
+      // ── Spawn Next.js ──────────────────────────────────────────────
+      const child = spawn(
+        'npx',
+        ['next', mode, '--port', String(port)],
+        {
+          cwd: webDir,
+          env,
+          stdio: ['inherit', 'pipe', 'pipe'],
+          shell: process.platform === 'win32',
+        },
+      );
+
+      let browserOpened = false;
+
+      child.stdout?.on('data', (data: Buffer) => {
+        const text = data.toString();
+        process.stdout.write(text);
+
+        // Detect when the server is ready and open the browser
+        if (
+          !browserOpened &&
+          (text.includes('Local:') ||
+            text.includes('Ready in') ||
+            text.includes('ready started'))
+        ) {
+          browserOpened = true;
+          if (options.open !== false) {
+            setTimeout(() => openBrowser(url), 500);
           }
-
-          // GET /api/sessions → list sessions (DB or log files)
-          if (pathname === '/api/sessions') {
-            const sessions = await listSessions(repo);
-            json(res, sessions);
-            return;
-          }
-
-          // GET /api/interactions/:sessionId → LLM interactions
-          const interMatch = pathname.match(/^\/api\/interactions\/(.+)$/);
-          if (interMatch) {
-            const sessionId = decodeURIComponent(interMatch[1]);
-            const interactions = await getInteractions(repo, sessionId);
-            json(res, interactions);
-            return;
-          }
-
-          // 404
-          res.writeHead(404, { 'Content-Type': 'text/plain' });
-          res.end('Not found');
-        } catch (err) {
-          logger.debug(`Viewer request error: ${(err as Error).message}`);
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: (err as Error).message }));
+          logger.info(`Orbiter dashboard is ready at ${url}`);
+          logger.info('Press Ctrl-C to stop.');
         }
       });
 
-      server.listen(port, '127.0.0.1', () => {
-        const url = `http://localhost:${port}`;
-        logger.info(`Orbiter Viewer running at ${url}`);
-        logger.info('Press Ctrl-C to stop');
+      child.stderr?.on('data', (data: Buffer) => {
+        process.stderr.write(data);
+      });
 
-        if (options.open !== false) {
-          openBrowser(url);
+      child.on('error', (err) => {
+        logger.error(`Failed to start web app: ${err.message}`);
+        logger.info(
+          'Make sure Node.js and pnpm are installed and you have run "cd web && pnpm install".',
+        );
+        process.exit(1);
+      });
+
+      child.on('close', (code) => {
+        if (code !== 0 && code !== null) {
+          logger.error(`Web app exited with code ${code}`);
         }
+        process.exit(code ?? 0);
       });
 
       process.on('SIGINT', () => {
-        server.close();
+        child.kill('SIGINT');
+        process.exit(0);
+      });
+
+      process.on('SIGTERM', () => {
+        child.kill('SIGTERM');
         process.exit(0);
       });
     });
@@ -89,89 +125,14 @@ export function viewerCommand() {
   return cmd;
 }
 
-// ── Data helpers ──────────────────────────────────────────────
-
-async function listSessions(repo: SessionRepository | null) {
-  if (repo) {
-    try {
-      return await repo.listSessions(100);
-    } catch { /* fall through to file-based */ }
-  }
-
-  // Fallback: read JSONL log files
-  const logDir = path.resolve('./data/logs');
-  if (!fs.existsSync(logDir)) return [];
-
-  const files = fs.readdirSync(logDir).filter((f) => f.startsWith('llm-chat-') && f.endsWith('.jsonl'));
-  return files.map((f) => {
-    const sessionId = f.replace('llm-chat-', '').replace('.jsonl', '');
-    const stat = fs.statSync(path.join(logDir, f));
-    return {
-      id: sessionId,
-      goal: sessionId,
-      model: null,
-      provider: null,
-      status: 'completed',
-      createdAt: stat.birthtimeMs,
-    };
-  }).sort((a, b) => b.createdAt - a.createdAt);
-}
-
-async function getInteractions(repo: SessionRepository | null, sessionId: string) {
-  if (repo) {
-    try {
-      return await repo.getLLMInteractions(sessionId);
-    } catch { /* fall through */ }
-  }
-
-  // Fallback: read JSONL file
-  const logDir = path.resolve('./data/logs');
-  const candidates = [
-    path.join(logDir, `llm-chat-${sessionId}.jsonl`),
-    path.join(logDir, `${sessionId}.jsonl`),
-  ];
-
-  for (const filePath of candidates) {
-    if (fs.existsSync(filePath)) {
-      const lines = fs.readFileSync(filePath, 'utf-8').trim().split('\n').filter(Boolean);
-      return lines.map((line) => {
-        try {
-          const entry = JSON.parse(line);
-          return {
-            id: entry.callIndex,
-            sessionId: entry.sessionId,
-            callIndex: entry.callIndex,
-            fullMessages: entry.messages ?? [],
-            responseContent: entry.response?.content ?? null,
-            toolCalls: entry.response?.toolCalls ?? null,
-            finishReason: entry.response?.finishReason ?? null,
-            promptTokens: entry.response?.usage?.promptTokens ?? 0,
-            completionTokens: entry.response?.usage?.completionTokens ?? 0,
-            totalTokens: entry.response?.usage?.totalTokens ?? 0,
-            durationMs: entry.durationMs ?? 0,
-            timestamp: entry.timestamp ?? 0,
-          };
-        } catch {
-          return null;
-        }
-      }).filter(Boolean);
-    }
-  }
-
-  return [];
-}
-
-function json(res: http.ServerResponse, data: any) {
-  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(data));
-}
-
 function openBrowser(url: string) {
   const { platform } = process;
   const cmd =
-    platform === 'win32' ? `start "" "${url}"` :
-    platform === 'darwin' ? `open "${url}"` :
-    `xdg-open "${url}"`;
+    platform === 'win32'
+      ? `start "" "${url}"`
+      : platform === 'darwin'
+      ? `open "${url}"`
+      : `xdg-open "${url}"`;
 
   import('child_process').then(({ exec }) => exec(cmd)).catch(() => {});
 }

@@ -17,13 +17,15 @@ Complete reference for every command, flag, and workflow.
    - [orbiter memory](#orbiter-memory)
    - [orbiter models](#orbiter-models)
    - [orbiter config](#orbiter-config)
-4. [Configuration File](#4-configuration-file)
-5. [How the AI Brain Works](#5-how-the-ai-brain-works)
-6. [Browser Persistence & Profiles](#6-browser-persistence--profiles)
-7. [Flow Recording & Replay](#7-flow-recording--replay)
-8. [Session Memory & Database](#8-session-memory--database)
-9. [Common Workflows](#9-common-workflows)
-10. [Troubleshooting](#10-troubleshooting)
+   - [orbiter viewer](#orbiter-viewer)
+4. [Web Dashboard](#4-web-dashboard)
+5. [Configuration File](#5-configuration-file)
+6. [How the AI Brain Works](#6-how-the-ai-brain-works)
+7. [Browser Persistence & Profiles](#7-browser-persistence--profiles)
+8. [Flow Recording & Replay](#8-flow-recording--replay)
+9. [Session Memory & Database](#9-session-memory--database)
+10. [Common Workflows](#10-common-workflows)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -599,7 +601,127 @@ orbiter config --init
 
 ---
 
-## 4. Configuration File
+### `orbiter viewer`
+
+**Open the full-featured web dashboard in your browser.** Replaces the old single-page chat viewer with a complete React/Next.js application for managing sessions, monitoring live runs, launching new tasks, and exploring memory.
+
+```
+orbiter viewer [options]
+```
+
+#### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `-p, --port <number>` | `4040` | Port for the web app |
+| `--no-open` | auto-open | Do not auto-open the browser |
+| `--production` | dev mode | Serve the pre-built app (`next start`) instead of the dev server |
+
+#### Setup (first time only)
+
+```bash
+# Install web app dependencies
+cd web && pnpm install
+
+# Return to project root and launch
+cd ..
+orbiter viewer
+```
+
+#### Examples
+
+```bash
+# Open dashboard (default port 4040)
+orbiter viewer
+
+# Use a different port
+orbiter viewer --port 3000
+
+# Launch without opening browser
+orbiter viewer --no-open
+
+# Serve optimised production build (faster startup)
+orbiter viewer --production
+```
+
+The dashboard connects automatically to your PostgreSQL database (via `DATABASE_URL`) and the `data/` directory. It gracefully falls back to JSONL log files if the database is unavailable.
+
+---
+
+## 4. Web Dashboard
+
+The web dashboard is a full-featured Next.js application located in `web/`. Launch it with `orbiter viewer`.
+
+### Pages
+
+| Page | URL | Description |
+|---|---|---|
+| Dashboard | `/` | Stats overview, recent sessions, quick-launch button |
+| Live Monitor | `/live` | Real-time view of the currently running session (auto-polls every 2s) |
+| Sessions | `/sessions` | Full searchable/filterable session table |
+| Session Detail | `/sessions/:id` | Per-session tabs: Steps · LLM Chat · Extracted Data |
+| New Run | `/run` | Web form to launch `orbiter run` and stream output live |
+| Flows | `/flows` | Browse `.raw.json` and `.flow.json` files from `data/flows/` |
+| Memory | `/memory` | View learned CSS selectors and patterns per domain |
+
+### Session Detail tabs
+
+| Tab | What it shows |
+|---|---|
+| **Steps** | Timeline of every tool call — tool badge, duration, success/fail indicator, result summary |
+| **LLM Chat** | Expandable list of every LLM turn — messages sent, tool calls made, token counts, duration |
+| **Data** | All structured data extracted during the session (JSON viewer) |
+
+### Live Monitor
+
+The Live Monitor page polls the database every 2 seconds while a session is `running`. It shows:
+
+- The active session goal and ID
+- Elapsed time and step count
+- A live progress bar (out of the 50-step max)
+- The latest step with its tool and result summary
+- Full step history in reverse order
+
+If no session is running, it shows a prompt to start a new run.
+
+### New Run (web form)
+
+The `/run` page provides a browser-based interface to start automation tasks:
+
+1. Enter your prompt in the text area
+2. Expand **Options** to choose model, browser profile, headless mode, max steps, and prompt enhancement
+3. Click **Launch Run** — the output streams live in the console panel below
+4. Links to the Live Monitor and Sessions list appear when the run finishes
+
+> **Note:** Runs launched from the web form always target the same machine running the `orbiter viewer` server. The browser automation happens server-side, not in your browser.
+
+### First-time setup
+
+```bash
+# 1. Install web app dependencies (once)
+cd web
+pnpm install
+cd ..
+
+# 2. Launch the dashboard
+orbiter viewer
+# → opens http://localhost:4040 automatically
+```
+
+### Build for production
+
+```bash
+cd web
+pnpm build
+cd ..
+
+# Serve the optimised build
+orbiter viewer --production
+```
+
+---
+
+## 5. Configuration File
 
 Orbiter looks for a `config.yml` or `config.yaml` in the project root. If not found, it uses built-in defaults.
 
@@ -651,7 +773,7 @@ logging:
 
 ---
 
-## 5. How the AI Brain Works
+## 6. How the AI Brain Works
 
 Understanding the execution loop helps you write better prompts and debug failures.
 
@@ -716,7 +838,7 @@ Execution Loop (up to --max-steps iterations)
 
 ---
 
-## 6. Browser Persistence & Profiles
+## 7. Browser Persistence & Profiles
 
 Orbiter uses **Playwright persistent contexts**, which work exactly like a normal browser profile — cookies, localStorage, IndexedDB, and session tokens are all saved to disk and restored on the next run.
 
@@ -763,7 +885,7 @@ orbiter run "Review work PRs" --profile github-work
 
 ---
 
-## 7. Flow Recording & Replay
+## 8. Flow Recording & Replay
 
 Every `orbiter run` automatically records what it did into a `.raw.json` flow file (unless `--no-record` is passed). This lets you replay the same task later without any LLM cost.
 
@@ -811,7 +933,7 @@ data/
 
 ---
 
-## 8. Session Memory & Database
+## 9. Session Memory & Database
 
 Orbiter stores two kinds of memory in PostgreSQL:
 
@@ -855,7 +977,7 @@ orbiter memory clear --domain example.com   # forget a specific site
 
 ---
 
-## 9. Common Workflows
+## 10. Common Workflows
 
 ### Scrape a website once
 
@@ -925,7 +1047,7 @@ orbiter run "Extract all pricing plans from pricing.example.com" \
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 ### "OpenRouter API key not found"
 
