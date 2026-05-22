@@ -10,8 +10,8 @@ export const waitTool: ToolDefinition = {
     properties: {
       type: {
         type: 'string',
-        description: 'Type of wait',
-        enum: ['selector', 'time', 'networkidle'],
+        description: 'Type of wait: "selector" waits for a CSS selector to appear, "time" waits a fixed duration, "load" waits for the page load event to fire.',
+        enum: ['selector', 'time', 'load'],
       },
       selector: {
         type: 'string',
@@ -50,11 +50,11 @@ export const waitTool: ToolDefinition = {
           success: true,
           message: `Waited for ${duration}ms`,
         };
-      } else if (type === 'networkidle') {
-        await page.waitForLoadState('networkidle', { timeout });
+      } else if (type === 'load') {
+        await page.waitForLoadState('load', { timeout });
         return {
           success: true,
-          message: 'Network is idle',
+          message: 'Page load event fired',
         };
       }
 

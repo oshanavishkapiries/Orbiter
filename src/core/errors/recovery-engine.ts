@@ -224,7 +224,7 @@ export class RecoveryEngine {
         case 'refresh_and_retry': {
           logger.info('Refreshing page...');
           const page = this.context.getBrowserManager().getPage();
-          await page.reload({ waitUntil: 'networkidle' });
+          await page.reload({ waitUntil: 'load' });
           await page.waitForTimeout(2000);
 
           if (plan.action) {

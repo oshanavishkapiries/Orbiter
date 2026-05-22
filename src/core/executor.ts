@@ -26,6 +26,8 @@ export interface ExecutionResult {
     failedSteps: number;
     duration: number;
     tokensUsed: number;
+    inputTokens: number;
+    outputTokens: number;
   };
   error?: string;
 }
@@ -41,8 +43,10 @@ export interface ExecutionStep {
 }
 
 export class TaskExecutor {
-  private history: HistoryManager;
+  private history!: HistoryManager;
   private totalTokens = 0;
+  private totalInputTokens = 0;
+  private totalOutputTokens = 0;
   private recorder: FlowRecorder;
   private formatter: OutputFormatter;
   private extractedData: any[] = [];
@@ -59,10 +63,6 @@ export class TaskExecutor {
   ) {
     this.recoveryEngine = new RecoveryEngine(llm, context);
     context.setLLM(llm);
-
-    // History manager initialized without session (session attached async in execute())
-    this.history = new HistoryManager(SYSTEM_PROMPT, plan.goal, null, null);
-
     this.recorder = new FlowRecorder(plan.goal, llmProviderName, llmModelName);
     this.formatter = new OutputFormatter();
   }
@@ -86,7 +86,6 @@ export class TaskExecutor {
         this.llmProviderName,
       );
       this.context.setSession(this.sessionRepo, this.sessionId);
-      // Re-create history manager now that we have a session
       this.history = new HistoryManager(
         SYSTEM_PROMPT,
         this.plan.goal,
@@ -126,6 +125,8 @@ export class TaskExecutor {
 
         // Track tokens
         this.totalTokens += response.usage.totalTokens;
+        this.totalInputTokens += response.usage.promptTokens;
+        this.totalOutputTokens += response.usage.completionTokens;
         this.recorder.updateTokenUsage(response.usage.totalTokens);
 
         // Update page context for recorder
@@ -259,6 +260,8 @@ export class TaskExecutor {
         failedSteps,
         duration,
         tokensUsed: this.totalTokens,
+        inputTokens: this.totalInputTokens,
+        outputTokens: this.totalOutputTokens,
       },
     };
 
@@ -507,8 +510,12 @@ export class TaskExecutor {
     console.log(`  Duration: ${(result.summary.duration / 1000).toFixed(1)}s`);
     console.log(`  Tokens: ${result.summary.tokensUsed.toLocaleString()}`);
 
-    const cost = ((result.summary.tokensUsed / 1_000_000) * 3).toFixed(4);
-    console.log(`  Cost: $${cost} 💰`);
+    const caps = (this.llm as any).getCapabilities?.();
+    const cost = caps
+      ? ((result.summary.inputTokens / 1_000_000) * caps.inputPricePerMToken +
+         (result.summary.outputTokens / 1_000_000) * caps.outputPricePerMToken).toFixed(4)
+      : ((result.summary.tokensUsed / 1_000_000) * 3).toFixed(4);
+    console.log(`  Cost: $${cost}`);
 
     if (result.outputFiles && result.outputFiles.length > 0) {
       console.log('\n' + chalk.bold('Output files:'));

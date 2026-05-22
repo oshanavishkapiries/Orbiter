@@ -1,12 +1,16 @@
 import { Pool, PoolClient } from 'pg';
 import { logger } from '../../cli/ui/logger.js';
 import { CREATE_TABLES_SQL, MIGRATIONS, SCHEMA_VERSION } from './schema.js';
+import { config } from '../../config/index.js';
 
 function getConnectionString(): string {
-  return (
-    process.env.DATABASE_URL ||
-    'postgresql://root:root@45.159.221.130:7777/root'
-  );
+  const url = process.env.DATABASE_URL || config().database.url;
+  if (!url) {
+    throw new Error(
+      'DATABASE_URL is not set. Add it to your .env file to enable session memory.',
+    );
+  }
+  return url;
 }
 
 export class DatabaseConnection {

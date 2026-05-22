@@ -58,8 +58,8 @@ export class TaskPlanner {
    * Estimate number of steps from LLM response
    */
   private estimateSteps(content: string): number {
-    // Look for numbered steps in response
-    const matches = content.match(/\d+\./g);
+    // Look for numbered list items anchored at line start (e.g. "1. Navigate...")
+    const matches = content.match(/^\d+\./gm);
     if (matches) {
       return matches.length;
     }

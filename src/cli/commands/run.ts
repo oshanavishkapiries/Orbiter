@@ -40,6 +40,20 @@ export function runCommand() {
       const context = new ExecutionContext();
       const errors: string[] = [];
 
+      // Wire --no-record into config so executor picks it up
+      if (options.record === false) {
+        config().recording.enabled = false;
+      }
+
+      // Graceful shutdown on Ctrl-C / SIGTERM
+      const onSignal = async () => {
+        logger.warn('\nInterrupt received, shutting down...');
+        await context.cleanup();
+        process.exit(0);
+      };
+      process.once('SIGINT', onSignal);
+      process.once('SIGTERM', onSignal);
+
       timeline.add({
         type: 'start',
         message: 'Execution started',
@@ -169,6 +183,12 @@ export function runCommand() {
         });
 
         // Summary
+        const caps = (llm as any).getCapabilities?.();
+        const estimatedCost = caps
+          ? (result.summary.inputTokens / 1_000_000) * caps.inputPricePerMToken +
+            (result.summary.outputTokens / 1_000_000) * caps.outputPricePerMToken
+          : (result.summary.tokensUsed / 1_000_000) * 3;
+
         const summaryData: ExecutionSummary = {
           success: result.success,
           totalSteps: result.summary.totalSteps,
@@ -176,7 +196,7 @@ export function runCommand() {
           failedSteps: result.summary.failedSteps,
           duration: result.summary.duration,
           tokensUsed: result.summary.tokensUsed,
-          estimatedCost: (result.summary.tokensUsed / 1_000_000) * 3,
+          estimatedCost,
           flowPath: result.flowPath,
           outputFiles: result.outputFiles,
         };
@@ -208,7 +228,7 @@ export function runCommand() {
               }),
             ),
             tokensUsed: result.summary.tokensUsed,
-            estimatedCost: (result.summary.tokensUsed / 1_000_000) * 3,
+            estimatedCost,
             flowPath: result.flowPath,
             outputFiles: result.outputFiles,
             errors,
@@ -236,6 +256,8 @@ export function runCommand() {
 
         process.exit(1);
       } finally {
+        process.removeListener('SIGINT', onSignal);
+        process.removeListener('SIGTERM', onSignal);
         await context.cleanup();
       }
     });

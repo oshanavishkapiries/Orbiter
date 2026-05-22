@@ -140,16 +140,17 @@ export class ErrorClassifier {
         allText.includes('slow down'),
 
       hasModal:
-        allText.includes('[role="dialog"]') ||
-        allText.includes('.modal') ||
-        allText.includes('#modal') ||
-        allText.includes('dialog'),
+        allText.includes('"role":"dialog"') ||
+        allText.includes('aria-modal') ||
+        allText.includes('"dialog"') ||
+        allText.includes('modal'),
 
       hasOverlay:
         allText.includes('overlay') ||
         allText.includes('popup') ||
-        allText.includes('cookie-banner') ||
-        allText.includes('cookie-consent'),
+        allText.includes('cookie') ||
+        allText.includes('consent') ||
+        allText.includes('banner'),
     };
   }
 }

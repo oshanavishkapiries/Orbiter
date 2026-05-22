@@ -53,7 +53,10 @@ export const extractTextTool: ToolDefinition = {
         // Extract from single element
         const element = await page.$(selector);
         if (!element) {
-          throw new Error(`Element not found: ${selector}`);
+          return {
+            success: false,
+            error: `Element not found: ${selector}`,
+          };
         }
 
         let value: string | null;

@@ -29,16 +29,17 @@ export const extractDataTool: ToolDefinition = {
 
       if (containerSelector) {
         // Extract from multiple containers
-        const containers = await page.$$(containerSelector);
+        const containers = await page.locator(containerSelector).all();
         const results: any[] = [];
 
         for (const container of containers) {
           const item: any = {};
 
           for (const [field, selector] of Object.entries(schema)) {
-            const element = await container.$(selector as string);
-            if (element) {
-              const text = await element.textContent();
+            const locator = container.locator(selector as string).first();
+            const count = await locator.count();
+            if (count > 0) {
+              const text = await locator.textContent();
               item[field] = text?.trim() || '';
             } else {
               item[field] = null;
@@ -46,6 +47,17 @@ export const extractDataTool: ToolDefinition = {
           }
 
           results.push(item);
+        }
+
+        // Warn if all values across all items are null
+        const allNull =
+          results.length > 0 &&
+          results.every((item) => Object.values(item).every((v) => v === null));
+        if (allNull) {
+          return {
+            success: false,
+            error: `No data extracted — all selectors returned null. Verify the schema selectors match the page structure.`,
+          };
         }
 
         return {
@@ -58,13 +70,23 @@ export const extractDataTool: ToolDefinition = {
         const result: any = {};
 
         for (const [field, selector] of Object.entries(schema)) {
-          const element = await page.$(selector as string);
-          if (element) {
-            const text = await element.textContent();
+          const locator = page.locator(selector as string).first();
+          const count = await locator.count();
+          if (count > 0) {
+            const text = await locator.textContent();
             result[field] = text?.trim() || '';
           } else {
             result[field] = null;
           }
+        }
+
+        // Warn if all values are null
+        const allNull = Object.values(result).every((v) => v === null);
+        if (allNull) {
+          return {
+            success: false,
+            error: `No data extracted — all selectors returned null. Verify the schema selectors match the page structure.`,
+          };
         }
 
         return {

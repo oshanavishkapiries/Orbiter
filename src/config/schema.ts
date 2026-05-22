@@ -4,7 +4,7 @@ export const configSchema = z.object({
   version: z.number().default(1),
 
   database: z.object({
-    url: z.string().default('postgresql://root:root@45.159.221.130:7777/root'),
+    url: z.string().default(''),
   }),
 
   llm: z.object({

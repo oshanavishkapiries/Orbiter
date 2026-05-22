@@ -18,10 +18,15 @@ import { recallStepHistoryTool } from './recall-step-history.js';
 import { recallDomSnapshotTool } from './recall-dom-snapshot.js';
 import { recallSessionDataTool } from './recall-session-data.js';
 
+let _initialized = false;
+
 /**
  * Initialize and register all core tools
  */
 export function initializeTools(): void {
+  if (_initialized) return;
+  _initialized = true;
+
   const registry = getToolRegistry();
 
   registry.registerAll([

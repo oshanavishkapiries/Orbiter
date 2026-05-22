@@ -115,60 +115,79 @@ export class OpenRouterProvider extends BaseLLMProvider {
       payload.tool_choice = 'auto';
     }
 
-    try {
-      logger.debug(
-        `Sending request to OpenRouter (${messages.length} messages, ${tools?.length || 0} tools)`,
-      );
+    const MAX_RETRIES = 3;
+    let lastError: any;
 
-      const response = await this.client.post('/chat/completions', payload);
-
-      const choice = response.data.choices[0];
-      const usage = response.data.usage;
-
-      // Parse tool calls if present
-      const toolCalls: ToolCall[] = [];
-      if (choice.message.tool_calls) {
-        for (const tc of choice.message.tool_calls) {
-          toolCalls.push({
-            id: tc.id,
-            name: tc.function.name,
-            arguments: JSON.parse(tc.function.arguments),
-          });
-        }
-      }
-
-      const result: LLMResponse = {
-        content: choice.message.content || '',
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-        finishReason: this.mapFinishReason(choice.finish_reason),
-        usage: {
-          promptTokens: usage.prompt_tokens,
-          completionTokens: usage.completion_tokens,
-          totalTokens: usage.total_tokens,
-        },
-      };
-
-      logger.debug(
-        `LLM response received (tokens: ${result.usage.totalTokens}, tool_calls: ${toolCalls.length})`,
-      );
-
-      return result;
-    } catch (error: any) {
-      const errorMsg = this.formatError(error);
-      logger.error(`OpenRouter API error: ${errorMsg}`);
-
-      if (error.response?.status === 401) {
-        throw new Error('Invalid OpenRouter API key');
-      } else if (error.response?.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
-      } else if (error.response?.status === 402) {
-        throw new Error(
-          'Insufficient credits. Please add credits to your OpenRouter account.',
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        logger.debug(
+          `Sending request to OpenRouter (${messages.length} messages, ${tools?.length || 0} tools, attempt ${attempt})`,
         );
-      }
 
-      throw new Error(`OpenRouter API error: ${errorMsg}`);
+        const response = await this.client.post('/chat/completions', payload);
+
+        const choice = response.data.choices[0];
+        const usage = response.data.usage;
+
+        // Parse tool calls if present
+        const toolCalls: ToolCall[] = [];
+        if (choice.message.tool_calls) {
+          for (const tc of choice.message.tool_calls) {
+            toolCalls.push({
+              id: tc.id,
+              name: tc.function.name,
+              arguments: JSON.parse(tc.function.arguments),
+            });
+          }
+        }
+
+        const result: LLMResponse = {
+          content: choice.message.content || '',
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          finishReason: this.mapFinishReason(choice.finish_reason),
+          usage: {
+            promptTokens: usage.prompt_tokens,
+            completionTokens: usage.completion_tokens,
+            totalTokens: usage.total_tokens,
+          },
+        };
+
+        logger.debug(
+          `LLM response received (tokens: ${result.usage.totalTokens}, tool_calls: ${toolCalls.length})`,
+        );
+
+        return result;
+      } catch (error: any) {
+        lastError = error;
+        const status = error.response?.status;
+
+        // Retry on transient server errors and rate limits
+        if (attempt < MAX_RETRIES && (status === 429 || (status >= 500 && status < 600))) {
+          const delayMs = Math.pow(2, attempt) * 1000;
+          logger.warn(`OpenRouter API ${status}, retrying in ${delayMs / 1000}s (attempt ${attempt}/${MAX_RETRIES})...`);
+          await new Promise((r) => setTimeout(r, delayMs));
+          continue;
+        }
+
+        break;
+      }
     }
+
+    const errorMsg = this.formatError(lastError);
+    logger.error(`OpenRouter API error: ${errorMsg}`);
+    const status = lastError?.response?.status;
+
+    if (status === 401) {
+      throw new Error('Invalid OpenRouter API key');
+    } else if (status === 429) {
+      throw new Error('Rate limit exceeded. Please try again later.');
+    } else if (status === 402) {
+      throw new Error(
+        'Insufficient credits. Please add credits to your OpenRouter account.',
+      );
+    }
+
+    throw new Error(`OpenRouter API error: ${errorMsg}`);
   }
 
   private mapFinishReason(reason: string): LLMResponse['finishReason'] {
@@ -182,6 +201,10 @@ export class OpenRouterProvider extends BaseLLMProvider {
       default:
         return 'error';
     }
+  }
+
+  getCapabilities(): ModelCapabilities | null {
+    return this.capabilities;
   }
 
   /**
