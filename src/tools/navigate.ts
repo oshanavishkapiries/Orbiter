@@ -1,27 +1,24 @@
 import { ToolDefinition, ToolResult } from './types.js';
 import { ExecutionContext } from '../core/execution-context.js';
 import { logger } from '../cli/ui/logger.js';
-import { scanPage, injectHighlights, formatForLLM } from '../browser/page-intelligence.js';
 
 export const navigateTool: ToolDefinition = {
   name: 'navigate',
   description:
-    'Navigate to a URL. Automatically scans the page after loading and returns all interactive elements with their exact selectors. ' +
-    'Use waitUntil="load" (default) for most sites. For SPAs like Google Maps, YouTube, or Twitter use "domcontentloaded" — they never reach networkidle.',
+    'Navigate to a URL. Returns an accessibility snapshot of the loaded page so you immediately ' +
+    'know what elements are available — no need to call snapshot separately after navigate.',
   parameters: {
     type: 'object',
     properties: {
       url: {
         type: 'string',
-        description:
-          'The URL to navigate to (must include http:// or https://)',
+        description: 'The URL to navigate to (must include http:// or https://)',
       },
       waitUntil: {
         type: 'string',
         description:
-          'When to consider navigation complete. "load" (default) works for most sites. ' +
-          '"domcontentloaded" is faster and required for SPAs (Google Maps, YouTube, Twitter). ' +
-          '"networkidle" is rarely needed and will timeout on SPAs.',
+          '"load" (default) for most sites. "domcontentloaded" for SPAs (Google Maps, YouTube, Twitter). ' +
+          '"networkidle" for pages that do async rendering before stabilising.',
         enum: ['load', 'domcontentloaded', 'networkidle'],
       },
     },
@@ -37,27 +34,23 @@ export const navigateTool: ToolDefinition = {
       const title = await browser.getTitle();
       const page = browser.getPage();
 
-      // Auto-scan page after navigation so LLM immediately has real selectors
-      logger.bullet('Auto-scanning page after navigation...');
-      const intel = await scanPage(page);
-      await injectHighlights(page, intel);
-      const pagePayload = formatForLLM(intel);
+      let snapshot = '';
+      try {
+        snapshot = await (page as any).ariaSnapshot();
+      } catch {
+        snapshot = '(accessibility tree unavailable)';
+      }
+
+      logger.success(`Navigated to ${url}`);
 
       return {
         success: true,
-        message: `Navigated to ${url}. ${intel.summary}`,
-        data: {
-          url: browser.getUrl(),
-          title,
-          pageIntelligence: pagePayload,
-        },
+        message: `Navigated to "${title || url}"`,
+        data: { url: browser.getUrl(), title, snapshot },
       };
     } catch (error) {
-      logger.error(`Navigate tool error: ${(error as Error).message}`);
-      return {
-        success: false,
-        error: (error as Error).message,
-      };
+      logger.error(`Navigate error: ${(error as Error).message}`);
+      return { success: false, error: (error as Error).message };
     }
   },
 };

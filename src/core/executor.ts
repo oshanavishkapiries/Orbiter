@@ -299,10 +299,6 @@ export class TaskExecutor {
     );
     logger.bullet(`Tool: ${chalk.cyan(toolCall.name)}`);
 
-    if (toolCall.arguments.selector) {
-      logger.bullet(`Selector: ${chalk.gray(toolCall.arguments.selector)}`);
-    }
-
     if (!validation.valid) {
       const duration = Date.now() - startTime;
       const result = {
@@ -390,16 +386,13 @@ export class TaskExecutor {
 
         const executionSnapshot: ExecutionSnapshot = {
           originalGoal: this.plan.goal,
-          currentObjective: `Execute ${toolCall.name}`,
           stepNumber,
           totalSteps,
           previousSteps: this.context.getLastSuccessfulSteps(5).map((s) => ({
             step: s.step,
             tool: s.action,
-            action: s.action,
             result: s.result,
           })),
-          collectedData: this.context.getState().collectedData,
           tokensUsedSoFar: this.totalTokens,
         };
 

@@ -1,67 +1,53 @@
 import { ToolDefinition, ToolResult } from './types.js';
 import { ExecutionContext } from '../core/execution-context.js';
+import { resolveLocator, specDescription, LOCATOR_PARAMS, LocatorSpec } from '../browser/locator.js';
 import { logger } from '../cli/ui/logger.js';
 
 export const typeTool: ToolDefinition = {
   name: 'type',
-  description: 'Type text into an input field or textarea.',
+  description:
+    'Type text character-by-character into a field — use when the site listens to keystrokes ' +
+    '(autocomplete, live search, rich text editors). For plain inputs prefer fill which is faster.',
   parameters: {
     type: 'object',
     properties: {
-      selector: {
-        type: 'string',
-        description: 'CSS selector of the input element',
-      },
+      ...LOCATOR_PARAMS,
       text: {
         type: 'string',
-        description: 'Text to type',
-      },
-      clear: {
-        type: 'boolean',
-        description: 'Clear existing text before typing (default: true)',
+        description: 'The text to type',
       },
       delay: {
         type: 'number',
-        description:
-          'Delay between key presses in ms (makes typing human-like)',
+        description: 'Delay between keystrokes in ms (default: 50)',
       },
       pressEnter: {
         type: 'boolean',
-        description:
-          'Press Enter after typing. Preferred for search boxes and forms — more reliable than clicking submit buttons.',
+        description: 'Press Enter after typing (default: false)',
       },
     },
-    required: ['selector', 'text'],
+    required: ['text'],
   },
   execute: async (params, context: ExecutionContext): Promise<ToolResult> => {
     try {
-      const { selector, text, clear = true, delay = 50, pressEnter = false } = params;
-
+      const { text, delay = 50, pressEnter = false, ...spec } = params as LocatorSpec & {
+        text: string;
+        delay?: number;
+        pressEnter?: boolean;
+      };
       const page = context.getBrowserManager().getPage();
-      const locator = page.locator(selector).first();
+      const locator = resolveLocator(page, spec).first();
 
-      // locator auto-waits for attached + visible + enabled — more resilient
-      // on SPAs that rehydrate the DOM after initial load.
-      if (clear) {
-        await locator.fill('', { timeout: 20000 });
-      }
-
+      await locator.fill('', { timeout: 20000 });
       await locator.pressSequentially(text, { delay });
+      if (pressEnter) await locator.press('Enter');
 
-      if (pressEnter) {
-        await page.press(selector, 'Enter');
-      }
-
+      logger.success(`Typed into ${specDescription(spec)}`);
       return {
         success: true,
-        message: `Typed "${text}" into ${selector}${pressEnter ? ' and pressed Enter' : ''}`,
+        message: `Typed "${text}" into ${specDescription(spec)}${pressEnter ? ' and pressed Enter' : ''}`,
       };
     } catch (error) {
-      logger.error(`Type tool error: ${(error as Error).message}`);
-      return {
-        success: false,
-        error: (error as Error).message,
-      };
+      return { success: false, error: (error as Error).message };
     }
   },
 };

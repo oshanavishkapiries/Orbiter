@@ -1,50 +1,37 @@
 import { ToolDefinition, ToolResult } from './types.js';
 import { ExecutionContext } from '../core/execution-context.js';
+import { resolveLocator, specDescription, LOCATOR_PARAMS, LocatorSpec } from '../browser/locator.js';
 import { logger } from '../cli/ui/logger.js';
 
 export const hoverTool: ToolDefinition = {
   name: 'hover',
-  description: 'Hover over an element (useful for revealing dropdown menus).',
+  description: 'Hover over an element — useful for revealing dropdown menus or tooltips.',
   parameters: {
     type: 'object',
     properties: {
-      selector: {
-        type: 'string',
-        description: 'CSS selector of element to hover over',
-      },
+      ...LOCATOR_PARAMS,
       waitAfter: {
         type: 'number',
-        description: 'Milliseconds to wait after hovering',
+        description: 'Milliseconds to wait after hovering (default: 500)',
       },
     },
-    required: ['selector'],
+    required: [],
   },
   execute: async (params, context: ExecutionContext): Promise<ToolResult> => {
     try {
-      const { selector, waitAfter = 500 } = params;
-
+      const { waitAfter = 500, ...spec } = params as LocatorSpec & { waitAfter?: number };
       const page = context.getBrowserManager().getPage();
+      const locator = resolveLocator(page, spec).first();
 
-      await page.waitForSelector(selector, {
-        state: 'visible',
-        timeout: 10000,
-      });
-      await page.hover(selector);
+      await locator.waitFor({ state: 'visible', timeout: 10000 });
+      await locator.hover();
 
-      if (waitAfter > 0) {
-        await page.waitForTimeout(waitAfter);
-      }
+      if (waitAfter > 0) await page.waitForTimeout(waitAfter);
 
-      return {
-        success: true,
-        message: `Hovered over ${selector}`,
-      };
+      logger.success(`Hovered ${specDescription(spec)}`);
+      return { success: true, message: `Hovered over ${specDescription(spec)}` };
     } catch (error) {
-      logger.error(`Hover tool error: ${(error as Error).message}`);
-      return {
-        success: false,
-        error: (error as Error).message,
-      };
+      return { success: false, error: (error as Error).message };
     }
   },
 };

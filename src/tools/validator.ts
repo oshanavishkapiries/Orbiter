@@ -119,15 +119,6 @@ function validateToolSpecificRules(
 function validateWaitParams(
   params: Record<string, unknown>,
 ): ToolValidationResult {
-  if (params.type === 'selector') {
-    if (!isNonEmptyString(params.selector)) {
-      return {
-        valid: false,
-        error: 'Tool "wait" requires a non-empty "selector" when type="selector".',
-      };
-    }
-  }
-
   if (params.type === 'time') {
     if (typeof params.duration !== 'number' || params.duration <= 0) {
       return {
