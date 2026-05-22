@@ -10,6 +10,12 @@ export abstract class BaseLLMProvider implements LLMProvider {
   abstract supportsVision(): boolean;
 
   /**
+   * Fetch model capabilities from the provider API and cache them.
+   * Call once before execution starts. Falls back gracefully if unavailable.
+   */
+  abstract loadCapabilities(): Promise<void>;
+
+  /**
    * Format error messages
    */
   protected formatError(error: any): string {

@@ -62,7 +62,14 @@ export function runCommand() {
           provider: config().llm.provider,
         };
 
-        sp.succeed(`Ready (${modelInfo.provider}/${modelInfo.name})`);
+        // Fetch live model capabilities from OpenRouter (vision support, modality, etc.)
+        sp.text('Checking model capabilities...');
+        await llm.loadCapabilities();
+
+        const visionEnabled = llm.supportsVision();
+        sp.succeed(
+          `Ready (${modelInfo.provider}/${modelInfo.name}) vision=${visionEnabled ? 'on' : 'off'}`,
+        );
 
         timeline.add({
           type: 'step',

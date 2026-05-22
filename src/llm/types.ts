@@ -49,4 +49,5 @@ export interface LLMProvider {
   chat(messages: Message[], tools?: Tool[]): Promise<LLMResponse>;
   supportsFunctionCalling(): boolean;
   supportsVision(): boolean;
+  loadCapabilities(): Promise<void>;
 }

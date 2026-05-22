@@ -3,12 +3,15 @@ import { config } from '../config/index.js';
 import { logger } from '../cli/ui/logger.js';
 import { BaseLLMProvider } from './interfaces.js';
 import { Message, Tool, LLMResponse, ToolCall } from './types.js';
+import { fetchModelCapabilities, ModelCapabilities } from './model-capabilities.js';
 
 export class OpenRouterProvider extends BaseLLMProvider {
   name = 'openrouter';
   private client: AxiosInstance;
   private model: string;
   private apiKey: string;
+  // Populated by loadCapabilities(); null means "not yet fetched"
+  private capabilities: ModelCapabilities | null = null;
 
   constructor(apiKey?: string, model?: string) {
     super();
@@ -38,18 +41,48 @@ export class OpenRouterProvider extends BaseLLMProvider {
   }
 
   supportsFunctionCalling(): boolean {
-    return true;
+    return this.capabilities?.supportsFunctions ?? true;
   }
 
   supportsVision(): boolean {
     const cfg = config();
 
-    // Explicit override in config
+    // Explicit config override always wins
     if (cfg.llm.vision === 'enabled') return true;
     if (cfg.llm.vision === 'disabled') return false;
 
-    // 'auto' — detect from model name
+    // 'auto': use live API result if available, else fall back to name matching
+    if (this.capabilities !== null) {
+      return this.capabilities.supportsVision;
+    }
+
+    // Fallback: capabilities not yet loaded — use name-based heuristic
+    logger.debug('Model capabilities not loaded yet, using name-based detection');
     return isVisionModel(this.model);
+  }
+
+  /**
+   * Fetch model capabilities from OpenRouter and cache them.
+   * Safe to call multiple times — only one API call is made per model.
+   */
+  async loadCapabilities(): Promise<void> {
+    const cfg = config();
+    if (cfg.llm.vision === 'enabled' || cfg.llm.vision === 'disabled') {
+      // No need to hit the API if user forced a value
+      return;
+    }
+
+    const caps = await fetchModelCapabilities(this.apiKey, this.model);
+    if (caps) {
+      this.capabilities = caps;
+      logger.debug(
+        `[${this.model}] vision=${caps.supportsVision} modality="${caps.modality}" context=${caps.contextLength}`,
+      );
+    } else {
+      logger.debug(
+        `Could not load capabilities for "${this.model}" from API — using name-based fallback`,
+      );
+    }
   }
 
   async chat(messages: Message[], tools?: Tool[]): Promise<LLMResponse> {
