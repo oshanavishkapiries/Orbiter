@@ -1,6 +1,7 @@
 import { getToolRegistry } from './registry.js';
 import { navigateTool } from './navigate.js';
 import { snapshotTool } from './snapshot.js';
+import { runCodeTool } from './run-code.js';
 import { clickTool } from './click.js';
 import { typeTool } from './type.js';
 import { fillTool } from './fill.js';
@@ -26,6 +27,7 @@ export function initializeTools(): void {
   getToolRegistry().registerAll([
     navigateTool,
     snapshotTool,
+    runCodeTool,
     clickTool,
     typeTool,
     fillTool,

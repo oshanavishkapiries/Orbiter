@@ -91,8 +91,17 @@ export class RecoveryEngine {
     const plan = await Promise.race([llmCall, timeout]);
 
     if (plan === null) {
-      // LLM timed out or failed — fall back to a safe default
-      logger.warn('Recovery LLM unavailable — using wait_and_retry fallback');
+      // LLM timed out or failed — pick a context-aware fallback
+      logger.warn('Recovery LLM unavailable — using context-aware fallback');
+      const flags = errorContext.browserState.pageFlags;
+      if (flags.hasModal || flags.hasOverlay) {
+        return {
+          strategy: 'dismiss_overlay',
+          reasoning: 'Recovery LLM unavailable — a modal/overlay is open, dismissing it before retry',
+          confidence: 'low',
+          shouldAbort: false,
+        } as RecoveryPlan;
+      }
       return {
         strategy: 'wait_and_retry',
         reasoning: 'Recovery analysis timed out — retrying original action after a short delay',

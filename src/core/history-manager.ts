@@ -171,6 +171,11 @@ export class HistoryManager {
         return `Extracted ${items.length} item(s). Fields: [${fields}]. Full dataset saved — use recall_session_data.`;
       }
 
+      case 'run_code': {
+        const preview = JSON.stringify(data ?? result.message ?? '').slice(0, 300);
+        return `run_code result: ${preview}`;
+      }
+
       case 'evaluate_js': {
         const preview = JSON.stringify(data ?? result.message ?? '').slice(0, 200);
         return `JavaScript result: ${preview}`;
