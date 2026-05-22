@@ -7,6 +7,7 @@ import { ReportGenerator, ReportData, ReportStep } from '../ui/report.js';
 import { ExecutionContext } from '../../core/execution-context.js';
 import { TaskPlanner } from '../../core/planner.js';
 import { TaskExecutor } from '../../core/executor.js';
+import { PromptEnhancer } from '../../core/prompt-enhancer.js';
 import { LLMFactory } from '../../llm/factory.js';
 import { initializeTools } from '../../tools/index.js';
 import { config } from '../../config/index.js';
@@ -29,6 +30,7 @@ export function runCommand() {
       'Report format: markdown or json',
       'markdown',
     )
+    .option('-e, --enhance', 'Enhance the prompt with AI before execution')
     .action(async (prompt, options) => {
       // Banner
       console.log(banners.run(prompt));
@@ -77,11 +79,42 @@ export function runCommand() {
           message: 'Initialization complete',
         });
 
+        // Prompt enhancement phase (optional)
+        let activePrompt = prompt;
+
+        if (options.enhance) {
+          logger.phase('PROMPT ENHANCEMENT PHASE');
+
+          const enhanceSp = spinner('Enhancing prompt...').start();
+          const enhancer = new PromptEnhancer(llm);
+          const enhanceResult = await enhancer.enhance(prompt);
+          enhanceSp.succeed(`Prompt enhanced (${enhanceResult.tokensUsed} tokens)`);
+
+          console.log(chalk.gray('\n  Original: ') + chalk.dim(enhanceResult.original));
+          console.log(
+            chalk.cyan('\n  Enhanced:\n') +
+            chalk.white(
+              enhanceResult.enhanced
+                .split('\n')
+                .map((line) => `  ${line}`)
+                .join('\n'),
+            ) + '\n',
+          );
+
+          activePrompt = enhanceResult.enhanced;
+
+          timeline.add({
+            type: 'step',
+            status: 'success',
+            message: 'Prompt enhanced',
+          });
+        }
+
         // Planning phase
         logger.phase('PLANNING PHASE');
 
         const planner = new TaskPlanner(llm);
-        const plan = await planner.plan(prompt);
+        const plan = await planner.plan(activePrompt);
 
         console.log(chalk.blue('\nLLM Analysis:'));
         console.log(chalk.gray(plan.reasoning.slice(0, 200) + '...'));
@@ -155,8 +188,8 @@ export function runCommand() {
           const reportGen = new ReportGenerator();
 
           const reportData: ReportData = {
-            taskName: prompt.slice(0, 50),
-            goal: prompt,
+            taskName: activePrompt.slice(0, 50),
+            goal: activePrompt,
             startTime,
             endTime,
             success: result.success,
