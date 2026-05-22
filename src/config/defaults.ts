@@ -20,7 +20,8 @@ export const defaults: OrbiterConfig = {
       height: 720,
     },
     profilePath: null,
-    stealth: true,
+    executablePath: null,
+    channel: null,
   },
   execution: {
     maxRetries: 3,

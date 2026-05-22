@@ -1,4 +1,4 @@
-import { LLMProvider, ToolCall } from '../llm/types.js';
+import { LLMProvider, Tool, ToolCall } from '../llm/types.js';
 import { getToolRegistry } from '../tools/registry.js';
 import { ExecutionContext } from './execution-context.js';
 import { TaskPlan } from './planner.js';
@@ -69,14 +69,15 @@ export class TaskExecutor {
     this.formatter = new OutputFormatter();
   }
 
-  /**
-   * Execute the planned task
-   */
   async execute(maxSteps: number = 50): Promise<ExecutionResult> {
     const cfg = config();
     const startTime = Date.now();
     const steps: ExecutionStep[] = [];
     const registry = getToolRegistry();
+    const mcpClient = this.context.getMcpClient();
+
+    // Merge MCP tools + custom tools for the LLM
+    const allTools: Tool[] = [...mcpClient.getTools(), ...registry.getToolsForLLM()];
 
     // Initialize session memory (non-fatal if DB unavailable)
     try {
@@ -102,7 +103,6 @@ export class TaskExecutor {
       ChatLogger.getInstance().startSession(null, null);
     }
 
-    // Start recording
     if (cfg.recording.enabled) {
       this.recorder.start();
     }
@@ -116,32 +116,25 @@ export class TaskExecutor {
     while (continueExecution && stepNumber < maxSteps) {
       stepNumber++;
 
-      logger.step(
-        stepNumber,
-        maxSteps,
-        'thinking',
-        'LLM deciding next action...',
-      );
+      logger.step(stepNumber, maxSteps, 'thinking', 'LLM deciding next action...');
 
       try {
-        const tools = registry.getToolsForLLM();
-        const response = await this.llm.chat(this.history.getMessages(), tools);
+        const response = await this.llm.chat(this.history.getMessages(), allTools);
 
-        // Track tokens
         this.totalTokens += response.usage.totalTokens;
         this.totalInputTokens += response.usage.promptTokens;
         this.totalOutputTokens += response.usage.completionTokens;
         this.recorder.updateTokenUsage(response.usage.totalTokens);
 
         // Update page context for recorder
-        if (this.context.getBrowserManager().isLaunched()) {
-          const browser = this.context.getBrowserManager();
-          const url = browser.getUrl();
-          const title = await browser.getTitle().catch(() => '');
-          this.recorder.updatePageContext(url, title);
+        try {
+          const url = await mcpClient.getCurrentUrl();
+          const title = await mcpClient.getTitle();
+          if (url) this.recorder.updatePageContext(url, title);
+        } catch {
+          // no page navigated yet
         }
 
-        // Task complete - LLM finished
         if (response.finishReason === 'stop' && !response.toolCalls) {
           logger.success('Task completed by LLM');
           this.history.addAssistantText(response.content);
@@ -149,21 +142,14 @@ export class TaskExecutor {
           break;
         }
 
-        // Execute tool calls
         if (response.toolCalls && response.toolCalls.length > 0) {
           for (const toolCall of response.toolCalls) {
-            const stepResult = await this.executeToolCall(
-              toolCall,
-              stepNumber,
-              maxSteps,
-            );
+            const stepResult = await this.executeToolCall(toolCall, stepNumber, maxSteps);
             steps.push(stepResult);
 
-            // Collect extracted data (in-memory for output formatter)
             if (
               stepResult.success &&
-              (toolCall.name === 'extract_data' ||
-                toolCall.name === 'extract_text')
+              (toolCall.name === 'extract_data' || toolCall.name === 'extract_text')
             ) {
               const data = stepResult.result?.data;
               if (data) {
@@ -188,16 +174,10 @@ export class TaskExecutor {
               break;
             }
 
-            // Add to smart history — stores full result in DB, puts summary in conversation
-            this.history.addAssistantAction(
-              toolCall.id,
-              toolCall.name,
-              toolCall.arguments,
-            );
-            const imageBase64 =
-              this.llm.supportsVision()
-                ? stepResult.result?.imageBase64
-                : undefined;
+            this.history.addAssistantAction(toolCall.id, toolCall.name, toolCall.arguments);
+            const imageBase64 = this.llm.supportsVision()
+              ? stepResult.result?.imageBase64
+              : undefined;
             await this.history.addToolResult(
               toolCall.id,
               stepNumber,
@@ -212,7 +192,6 @@ export class TaskExecutor {
           }
         } else {
           this.history.addAssistantText(response.content);
-
           if (this.isTaskComplete(response.content)) {
             continueExecution = false;
           }
@@ -223,7 +202,6 @@ export class TaskExecutor {
       }
     }
 
-    // Close session in DB
     if (this.sessionRepo && this.sessionId) {
       const failed = steps.filter((s) => !s.success).length;
       await this.sessionRepo
@@ -231,24 +209,18 @@ export class TaskExecutor {
         .catch(() => {});
     }
 
-    // Stop recording
     this.recorder.stop();
 
-    // Save flow
     let flowPath: string | undefined;
     if (cfg.recording.enabled) {
       flowPath = await this.recorder.save();
     }
 
-    // Save extracted data
     const outputFiles: string[] = [];
     if (this.extractedData.length > 0) {
-      const filename = this.formatter.generateFilename(
-        this.recorder.getFlowName(),
-      );
+      const filename = this.formatter.generateFilename(this.recorder.getFlowName());
       const files = this.formatter.saveAll(this.extractedData, filename);
       outputFiles.push(...files);
-
       if (flowPath) {
         this.recorder.setExtractedDataFile(files[0] || '');
       }
@@ -275,73 +247,58 @@ export class TaskExecutor {
     };
 
     this.displaySummary(result);
-
     return result;
   }
 
-  /**
-   * Execute a single tool call with recording
-   */
   private async executeToolCall(
     toolCall: ToolCall,
     stepNumber: number,
     totalSteps: number,
   ): Promise<ExecutionStep> {
     const startTime = Date.now();
+    const mcpClient = this.context.getMcpClient();
     const registry = getToolRegistry();
-    const validation = validateToolCall(toolCall.name, toolCall.arguments);
+    const isMcp = mcpClient.isMcpTool(toolCall.name);
 
-    logger.step(
-      stepNumber,
-      totalSteps,
-      toolCall.name,
-      `Executing ${toolCall.name}...`,
-    );
+    logger.step(stepNumber, totalSteps, toolCall.name, `Executing ${toolCall.name}...`);
     logger.bullet(`Tool: ${chalk.cyan(toolCall.name)}`);
 
-    if (!validation.valid) {
-      const duration = Date.now() - startTime;
-      const result = {
-        success: false,
-        error: `INVALID_TOOL_CALL: ${validation.error}`,
-      };
-
-      logger.fail(`${toolCall.name} rejected: ${validation.error}`);
-
-      return {
-        stepNumber,
-        toolName: toolCall.name,
-        params: toolCall.arguments,
-        result,
-        success: false,
-        error: result.error,
-        duration,
-      };
+    // Only validate custom tools — MCP tools are validated server-side
+    if (!isMcp) {
+      const validation = validateToolCall(toolCall.name, toolCall.arguments);
+      if (!validation.valid) {
+        const duration = Date.now() - startTime;
+        const errorMsg = `INVALID_TOOL_CALL: ${validation.error}`;
+        logger.fail(`${toolCall.name} rejected: ${validation.error}`);
+        return {
+          stepNumber,
+          toolName: toolCall.name,
+          params: toolCall.arguments,
+          result: { success: false, error: errorMsg },
+          success: false,
+          error: errorMsg,
+          duration,
+        };
+      }
     }
 
     let attemptNumber = 0;
     let lastError: Error | null = null;
 
-    // Try execution with recovery
     while (attemptNumber < 4) {
       attemptNumber++;
 
       try {
-        const result = await registry.execute(
-          toolCall.name,
-          toolCall.arguments,
-          this.context,
-        );
+        const result = isMcp
+          ? await mcpClient.callTool(toolCall.name, toolCall.arguments)
+          : await registry.execute(toolCall.name, toolCall.arguments, this.context);
 
         const duration = Date.now() - startTime;
 
         if (result.success) {
-          logger.success(
-            `${toolCall.name} completed in ${(duration / 1000).toFixed(1)}s`,
-          );
+          logger.success(`${toolCall.name} completed in ${(duration / 1000).toFixed(1)}s`);
           if (result.message) logger.bullet(result.message);
 
-          // Record success
           this.recorder.recordSuccess(
             toolCall.name,
             toolCall.arguments,
@@ -351,7 +308,6 @@ export class TaskExecutor {
               ? { wasRetry: true, retryAttempt: attemptNumber }
               : { wasRetry: false },
           );
-
           this.recorder.detectParameters(toolCall.arguments);
 
           return {
@@ -363,27 +319,19 @@ export class TaskExecutor {
             duration,
           };
         } else {
-          // Tool returned failure (not exception)
           throw new Error(result.error || `Tool ${toolCall.name} failed`);
         }
       } catch (error) {
         lastError = error as Error;
 
         if (this.isInvalidToolCallError(lastError)) {
-          logger.fail(
-            `${toolCall.name} rejected locally: ${lastError.message}`,
-          );
+          logger.fail(`${toolCall.name} rejected locally: ${lastError.message}`);
           break;
         }
 
-        logger.fail(
-          `${toolCall.name} failed (attempt ${attemptNumber}): ${lastError.message}`,
-        );
+        logger.fail(`${toolCall.name} failed (attempt ${attemptNumber}): ${lastError.message}`);
 
-        // Build error context
-        const page = this.context.getBrowserManager().getPage();
-        const contextBuilder = new ErrorContextBuilder(page);
-
+        const contextBuilder = new ErrorContextBuilder(mcpClient);
         const executionSnapshot: ExecutionSnapshot = {
           originalGoal: this.plan.goal,
           stepNumber,
@@ -404,7 +352,6 @@ export class TaskExecutor {
           executionSnapshot,
         );
 
-        // Record failure in flow
         this.recorder.recordFailure(
           toolCall.name,
           toolCall.arguments,
@@ -418,7 +365,6 @@ export class TaskExecutor {
           { wasRetry: attemptNumber > 1, retryAttempt: attemptNumber },
         );
 
-        // Attempt recovery
         const recovery = await this.recoveryEngine.recover(errorContext);
 
         if (recovery.shouldAbort) {
@@ -427,31 +373,20 @@ export class TaskExecutor {
         }
 
         if (recovery.success) {
-          // Recovery worked, update params for next loop
           if (errorContext.recoveryHistory.length > 0) {
-            const lastAttempt =
-              errorContext.recoveryHistory[
-                errorContext.recoveryHistory.length - 1
-              ];
+            const lastAttempt = errorContext.recoveryHistory[errorContext.recoveryHistory.length - 1];
             if (lastAttempt.action) {
               toolCall.arguments = lastAttempt.action.params;
             }
           }
 
           const duration = Date.now() - startTime;
-
           this.recorder.addRecoveryAttempt({
             attempt: attemptNumber,
-            strategy:
-              errorContext.recoveryHistory[
-                errorContext.recoveryHistory.length - 1
-              ]?.strategy || 'unknown',
+            strategy: errorContext.recoveryHistory[errorContext.recoveryHistory.length - 1]?.strategy || 'unknown',
             newSelector: toolCall.arguments.selector,
             result: 'success',
-            llmReasoning:
-              errorContext.recoveryHistory[
-                errorContext.recoveryHistory.length - 1
-              ]?.reasoning,
+            llmReasoning: errorContext.recoveryHistory[errorContext.recoveryHistory.length - 1]?.reasoning,
           });
 
           return {
@@ -465,18 +400,14 @@ export class TaskExecutor {
         }
 
         if (recovery.error && this.isInvalidRecoveryPlan(recovery.error)) {
-          lastError = new Error(
-            `INVALID_TOOL_CALL: ${recovery.error}`,
-          );
+          lastError = new Error(`INVALID_TOOL_CALL: ${recovery.error}`);
           break;
         }
 
-        // If no more retries
         if (attemptNumber >= 3) break;
       }
     }
 
-    // All attempts failed
     const duration = Date.now() - startTime;
     logger.fail(`${toolCall.name} failed after ${attemptNumber} attempts`);
 
@@ -491,37 +422,22 @@ export class TaskExecutor {
     };
   }
 
-  /**
-   * Check critical failure
-   */
   private isCriticalFailure(step: ExecutionStep): boolean {
     if (this.isInvalidToolCall(step)) return false;
-    if (step.toolName === 'navigate' && !step.success) return true;
+    if (step.toolName === 'browser_navigate' && !step.success) return true;
 
     const recentSteps = this.context.getState().history.slice(-3);
-    const recentFailures = recentSteps.filter(
-      (s) => s.result === 'failed',
-    ).length;
+    const recentFailures = recentSteps.filter((s) => s.result === 'failed').length;
     if (recentFailures >= 3) return true;
 
     return false;
   }
 
-  /**
-   * Check if task complete
-   */
   private isTaskComplete(content: string): boolean {
-    const phrases = [
-      'task complete',
-      'task is complete',
-      'finished',
-      'done',
-      'successfully completed',
-    ];
+    const phrases = ['task complete', 'task is complete', 'finished', 'done', 'successfully completed'];
     const lower = content.toLowerCase();
     return phrases.some((p) => lower.includes(p));
   }
-
 
   private isInvalidToolCall(step: ExecutionStep): boolean {
     return typeof step.error === 'string' && step.error.startsWith('INVALID_TOOL_CALL:');
@@ -535,30 +451,21 @@ export class TaskExecutor {
     return typeof reason === 'string' && reason.startsWith('INVALID_RECOVERY_PLAN:');
   }
 
-  /**
-   * Display execution summary
-   */
   private displaySummary(result: ExecutionResult): void {
     console.log('\n' + chalk.cyan('━'.repeat(60)) + '\n');
 
     if (result.success) {
       console.log(chalk.green.bold('✅ EXECUTION COMPLETE') + '\n');
     } else {
-      console.log(
-        chalk.yellow.bold('⚠️  EXECUTION COMPLETE WITH ERRORS') + '\n',
-      );
+      console.log(chalk.yellow.bold('⚠️  EXECUTION COMPLETE WITH ERRORS') + '\n');
     }
 
     console.log(chalk.bold('Summary:'));
     console.log(`  Total steps: ${result.summary.totalSteps}`);
-    console.log(
-      `  ${chalk.green('✓')} Successful: ${result.summary.successfulSteps}`,
-    );
-
+    console.log(`  ${chalk.green('✓')} Successful: ${result.summary.successfulSteps}`);
     if (result.summary.failedSteps > 0) {
       console.log(`  ${chalk.red('✖')} Failed: ${result.summary.failedSteps}`);
     }
-
     console.log(`  Duration: ${(result.summary.duration / 1000).toFixed(1)}s`);
     console.log(`  Tokens: ${result.summary.tokensUsed.toLocaleString()}`);
 
@@ -588,9 +495,6 @@ export class TaskExecutor {
     console.log('');
   }
 
-  /**
-   * Get recorder stats
-   */
   getRecorderStats() {
     return this.recorder.getStats();
   }

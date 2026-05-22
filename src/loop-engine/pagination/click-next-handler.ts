@@ -1,19 +1,15 @@
-import { Page } from 'playwright';
 import { ClickNextPagination } from '../types.js';
 import { logger } from '../../cli/ui/logger.js';
+import type { McpClient } from '../../mcp/client.js';
 
 export class ClickNextPaginationHandler {
   private currentPage = 1;
 
   constructor(
-    private page: Page,
+    private mcpClient: McpClient,
     private config: ClickNextPagination,
   ) {}
 
-  /**
-   * Click next page button
-   * Returns true if navigated, false if no more pages
-   */
   async next(): Promise<boolean> {
     const maxPages = this.config.maxPages || 100;
     const waitTime = this.config.waitAfterClick || 2000;
@@ -24,41 +20,34 @@ export class ClickNextPaginationHandler {
     }
 
     try {
-      // Find next button
-      const nextButton = await this.page.$(this.config.nextButtonSelector);
+      const buttonInfo: { exists: boolean; disabled: boolean } = await this.mcpClient.evaluate(`
+        (() => {
+          const btn = document.querySelector(${JSON.stringify(this.config.nextButtonSelector)});
+          if (!btn) return { exists: false, disabled: false };
+          const disabledClass = ${JSON.stringify(this.config.disabledClass || '')};
+          const isDisabled = (disabledClass && btn.classList.contains(disabledClass)) ||
+                             btn.getAttribute('aria-disabled') === 'true' ||
+                             btn.disabled === true;
+          return { exists: true, disabled: isDisabled };
+        })()
+      `);
 
-      if (!nextButton) {
+      if (!buttonInfo.exists) {
         logger.debug('Next button not found, no more pages');
         return false;
       }
 
-      // Check if disabled
-      if (this.config.disabledClass) {
-        const isDisabled = await nextButton.evaluate(
-          (el: Element, cls: string) => el.classList.contains(cls),
-          this.config.disabledClass,
-        );
-
-        if (isDisabled) {
-          logger.debug('Next button is disabled, last page reached');
-          return false;
-        }
-      }
-
-      // Check aria-disabled
-      const ariaDisabled = await nextButton.getAttribute('aria-disabled');
-      if (ariaDisabled === 'true') {
-        logger.debug('Next button aria-disabled, last page reached');
+      if (buttonInfo.disabled) {
+        logger.debug('Next button is disabled, last page reached');
         return false;
       }
 
-      // Click next
-      await nextButton.click();
+      await this.mcpClient.callTool('browser_click', {
+        element: this.config.nextButtonSelector,
+      });
       this.currentPage++;
 
-      // Wait for page to load
-      await this.page.waitForLoadState('networkidle', { timeout: 10000 });
-      await this.page.waitForTimeout(waitTime);
+      await this.mcpClient.callTool('browser_wait_for', { time: waitTime });
 
       logger.debug(`Navigated to page ${this.currentPage}`);
       return true;

@@ -4,7 +4,7 @@ import { LoopExecutor } from '../loop-engine/executor.js';
 import { OutputFormatter } from '../recorder/output-formatter.js';
 import { generateId } from '../utils/id.js';
 import { logger } from '../cli/ui/logger.js';
-import { LoopTask, DetectedPattern } from '../loop-engine/types.js';
+import { LoopTask } from '../loop-engine/types.js';
 import chalk from 'chalk';
 
 export const detectPatternTool: ToolDefinition = {
@@ -37,8 +37,7 @@ HOW TO USE:
     properties: {
       taskName: {
         type: 'string',
-        description:
-          'Descriptive name for this extraction task (e.g., "Google Maps Hotels")',
+        description: 'Descriptive name for this extraction task (e.g., "Google Maps Hotels")',
       },
       itemSelector: {
         type: 'string',
@@ -46,8 +45,7 @@ HOW TO USE:
       },
       containerSelector: {
         type: 'string',
-        description:
-          'CSS selector of the container holding all items (optional)',
+        description: 'CSS selector of the container holding all items (optional)',
       },
       extractSchema: {
         type: 'object',
@@ -121,32 +119,23 @@ For url-based: { "urlTemplate": "https://site.com/page/{{PAGE}}", "startPage": 1
     console.log('\n' + chalk.cyan.bold('🔍 PATTERN DETECTED'));
     console.log(chalk.gray('─'.repeat(50)));
     console.log(chalk.gray(`  Item selector: ${params.itemSelector}`));
-    console.log(
-      chalk.gray(`  Fields: ${Object.keys(params.extractSchema).join(', ')}`),
-    );
+    console.log(chalk.gray(`  Fields: ${Object.keys(params.extractSchema).join(', ')}`));
     console.log(chalk.gray(`  Pagination: ${params.paginationType}`));
     console.log(chalk.gray(`  Confidence: ${params.confidence}`));
     console.log(chalk.gray(`  Reasoning: ${params.reasoning}`));
     console.log('');
 
     try {
-      const page = context.getBrowserManager().getPage();
+      const mcpClient = context.getMcpClient();
 
-      // Build pagination config
       let paginationConfig: any = { type: params.paginationType || 'none' };
-
       if (params.hasPagination && params.paginationConfig) {
-        paginationConfig = {
-          type: params.paginationType,
-          ...params.paginationConfig,
-        };
+        paginationConfig = { type: params.paginationType, ...params.paginationConfig };
       }
 
-      // Build loop task
       const loopTask: LoopTask = {
         id: generateId('loop'),
         name: params.taskName,
-
         pattern: {
           containerSelector: params.containerSelector,
           itemSelector: params.itemSelector,
@@ -154,7 +143,6 @@ For url-based: { "urlTemplate": "https://site.com/page/{{PAGE}}", "startPage": 1
           pagination: paginationConfig,
           detailAction: params.hasDetailPages ? params.detailAction : undefined,
         },
-
         control: {
           maxItems: params.maxItems,
           delayBetween: [800, 1500],
@@ -163,20 +151,14 @@ For url-based: { "urlTemplate": "https://site.com/page/{{PAGE}}", "startPage": 1
         },
       };
 
-      // Execute loop
-      const executor = new LoopExecutor(page);
+      const executor = new LoopExecutor(mcpClient);
       const result = await executor.execute(loopTask);
 
-      // Save output files
       const outputFiles: string[] = [];
-
       if (result.successfulItems > 0) {
         const formatter = new OutputFormatter();
         const filename = formatter.generateFilename(params.taskName);
-        const files = formatter.saveAll(
-          result.items.map((item) => item.data),
-          filename,
-        );
+        const files = formatter.saveAll(result.items.map((item) => item.data), filename);
         outputFiles.push(...files);
       }
 
@@ -190,16 +172,13 @@ For url-based: { "urlTemplate": "https://site.com/page/{{PAGE}}", "startPage": 1
           outputFiles,
           llmCallsUsed: 0,
           estimatedSavings: result.estimatedSavings,
-          items: result.items.slice(0, 5), // Return first 5 as sample
+          items: result.items.slice(0, 5),
         },
         error: result.success ? undefined : result.errors[0],
       };
     } catch (error) {
       logger.error(`Loop Engine error: ${(error as Error).message}`);
-      return {
-        success: false,
-        error: (error as Error).message,
-      };
+      return { success: false, error: (error as Error).message };
     }
   },
 };

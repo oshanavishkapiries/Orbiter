@@ -1,20 +1,16 @@
-import { Page } from 'playwright';
 import { ScrollPagination } from '../types.js';
 import { logger } from '../../cli/ui/logger.js';
+import type { McpClient } from '../../mcp/client.js';
 
 export class ScrollPaginationHandler {
   private scrollCount = 0;
   private lastItemCount = 0;
 
   constructor(
-    private page: Page,
+    private mcpClient: McpClient,
     private config: ScrollPagination,
   ) {}
 
-  /**
-   * Scroll to load more items
-   * Returns true if more items loaded, false if no more
-   */
   async next(currentItemCount: number): Promise<boolean> {
     const maxScrolls = this.config.maxScrolls || 20;
     const waitTime = this.config.waitAfterScroll || 1500;
@@ -24,50 +20,40 @@ export class ScrollPaginationHandler {
       return false;
     }
 
-    // Check end condition
     if (this.config.endCondition) {
-      const endElement = await this.page.$(this.config.endCondition);
-      if (endElement) {
+      const found: boolean = await this.mcpClient
+        .evaluate(`!!document.querySelector(${JSON.stringify(this.config.endCondition)})`)
+        .catch(() => false);
+      if (found) {
         logger.debug(`End condition found: ${this.config.endCondition}`);
         return false;
       }
     }
 
-    // Perform scroll
     if (this.config.container) {
-      // Scroll inside container
-      await this.page.evaluate((containerSelector: string) => {
-        const container = document.querySelector(containerSelector);
-        if (container) {
-          container.scrollTop = container.scrollHeight;
-        }
-      }, this.config.container);
+      await this.mcpClient.evaluate(`
+        (() => {
+          const container = document.querySelector(${JSON.stringify(this.config.container)});
+          if (container) container.scrollTop = container.scrollHeight;
+        })()
+      `);
     } else {
-      // Scroll page
-      await this.page.evaluate(() => {
-        window.scrollTo({
-          top: document.body.scrollHeight,
-          behavior: 'smooth',
-        });
+      await this.mcpClient.callTool('browser_scroll', {
+        direction: 'down',
+        coordinate: [760, 400],
       });
     }
 
     this.scrollCount++;
+    await this.mcpClient.delay(waitTime);
 
-    // Wait for content to load
-    await this.page.waitForTimeout(waitTime);
-
-    // Check if new items loaded
     if (currentItemCount === this.lastItemCount) {
       logger.debug('No new items after scroll, stopping');
       return false;
     }
 
     this.lastItemCount = currentItemCount;
-
-    logger.debug(
-      `Scrolled ${this.scrollCount} times, items: ${currentItemCount}`,
-    );
+    logger.debug(`Scrolled ${this.scrollCount} times, items: ${currentItemCount}`);
     return true;
   }
 

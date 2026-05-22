@@ -1,19 +1,10 @@
-import { Page } from 'playwright';
 import { logger } from '../cli/ui/logger.js';
-import {
-  DetectedPattern,
-  ExtractSchema,
-  ExtractionRule,
-  ExtractedItem,
-} from './types.js';
+import { DetectedPattern, ExtractSchema, ExtractionRule } from './types.js';
+import type { McpClient } from '../mcp/client.js';
 
 export class PatternValidator {
-  constructor(private page: Page) {}
+  constructor(private mcpClient: McpClient) {}
 
-  /**
-   * Validate pattern on first item
-   * Make sure selectors actually work
-   */
   async validate(pattern: DetectedPattern): Promise<{
     valid: boolean;
     itemCount: number;
@@ -22,10 +13,11 @@ export class PatternValidator {
   }> {
     const errors: string[] = [];
 
-    // Check item selector
-    const items = await this.page.$$(pattern.itemSelector);
+    const itemCount: number = await this.mcpClient
+      .evaluate(`document.querySelectorAll(${JSON.stringify(pattern.itemSelector)}).length`)
+      .catch(() => 0);
 
-    if (items.length === 0) {
+    if (itemCount === 0) {
       return {
         valid: false,
         itemCount: 0,
@@ -34,21 +26,15 @@ export class PatternValidator {
       };
     }
 
-    logger.debug(`Pattern validation: found ${items.length} items`);
+    logger.debug(`Pattern validation: found ${itemCount} items`);
 
-    // Test extraction on first item
     let sampleData: Record<string, any> | null = null;
-
     try {
-      sampleData = await this.extractFromElement(
-        items[0],
-        pattern.extractSchema,
-      );
+      sampleData = await this.extractItemAtIndex(0, pattern.itemSelector, pattern.extractSchema);
     } catch (error) {
       errors.push(`Extraction test failed: ${(error as Error).message}`);
     }
 
-    // Warn about empty fields
     if (sampleData) {
       for (const [field, value] of Object.entries(sampleData)) {
         if (!value) {
@@ -59,109 +45,110 @@ export class PatternValidator {
 
     return {
       valid: errors.filter((e) => !e.startsWith('Warning')).length === 0,
-      itemCount: items.length,
+      itemCount,
       sampleData,
       errors,
     };
   }
 
-  /**
-   * Extract data from a single element using schema
-   */
-  async extractFromElement(
-    element: any,
+  async extractItemAtIndex(
+    index: number,
+    itemSelector: string,
     schema: ExtractSchema,
   ): Promise<Record<string, any>> {
-    const result: Record<string, any> = {};
+    const schemaScript = this.buildSchemaScript(schema);
+    const expression = `
+      (() => {
+        const items = document.querySelectorAll(${JSON.stringify(itemSelector)});
+        const el = items[${index}];
+        if (!el) return null;
+        ${schemaScript}
+        return extractFromEl(el);
+      })()
+    `;
 
-    for (const [field, rule] of Object.entries(schema)) {
-      try {
-        if (typeof rule === 'string') {
-          // Simple selector → get text
-          const el = await element.$(rule);
-          if (el) {
-            const text = await el.textContent();
-            result[field] = text?.trim() || null;
-          } else {
-            result[field] = null;
-          }
-        } else {
-          // Complex rule
-          result[field] = await this.extractWithRule(element, rule);
-        }
-      } catch (error) {
-        result[field] = null;
-        logger.debug(
-          `Field "${field}" extraction error: ${(error as Error).message}`,
-        );
-      }
-    }
-
-    return result;
+    const result = await this.mcpClient.evaluate(expression);
+    return (result as Record<string, any>) ?? {};
   }
 
-  /**
-   * Extract using complex rule
-   */
-  private async extractWithRule(
-    element: any,
-    rule: ExtractionRule,
-  ): Promise<any> {
-    const el = await element.$(rule.selector);
+  async extractAllItems(itemSelector: string, schema: ExtractSchema): Promise<Record<string, any>[]> {
+    const schemaScript = this.buildSchemaScript(schema);
+    const expression = `
+      (() => {
+        const items = Array.from(document.querySelectorAll(${JSON.stringify(itemSelector)}));
+        ${schemaScript}
+        return items.map(el => extractFromEl(el));
+      })()
+    `;
 
-    if (!el) {
-      return rule.fallback || null;
-    }
+    const result = await this.mcpClient.evaluate(expression);
+    return Array.isArray(result) ? result : [];
+  }
 
-    let value: any;
-
-    switch (rule.method) {
-      case 'text':
-        value = await el.textContent();
-        value = value?.trim() || null;
-        break;
-
-      case 'attribute':
-        value = await el.getAttribute(rule.attribute || 'href');
-        break;
-
-      case 'html':
-        value = await el.innerHTML();
-        break;
-
-      case 'evaluate':
-        value = await el.evaluate((node: Element, code: string) => {
-          const expression = new Function(
-            'node',
-            `"use strict"; return (${code});`,
-          );
-          return expression(node);
-        }, rule.evaluateCode || 'node.textContent');
-        break;
-
-      default:
-        value = await el.textContent();
-        value = value?.trim() || null;
-    }
-
-    // Apply transform
-    if (value && rule.transform) {
-      switch (rule.transform) {
-        case 'trim':
-          value = String(value).trim();
-          break;
-        case 'lowercase':
-          value = String(value).toLowerCase();
-          break;
-        case 'uppercase':
-          value = String(value).toUpperCase();
-          break;
-        case 'number':
-          value = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
-          break;
+  private buildSchemaScript(schema: ExtractSchema): string {
+    const schemaEntries = Object.entries(schema).map(([field, rule]) => {
+      const fieldJson = JSON.stringify(field);
+      if (typeof rule === 'string') {
+        return `
+          {
+            const found = el.querySelector(${JSON.stringify(rule)});
+            result[${fieldJson}] = found ? (found.textContent || '').trim() || null : null;
+          }
+        `;
       }
-    }
 
-    return value ?? rule.fallback ?? null;
+      const r = rule as ExtractionRule;
+      const selectorJson = JSON.stringify(r.selector);
+      const fallbackJson = JSON.stringify(r.fallback ?? null);
+
+      let extractCode: string;
+      switch (r.method) {
+        case 'attribute':
+          extractCode = `found.getAttribute(${JSON.stringify(r.attribute || 'href')})`;
+          break;
+        case 'html':
+          extractCode = `found.innerHTML`;
+          break;
+        case 'evaluate':
+          extractCode = `(() => { try { return (${r.evaluateCode || 'node.textContent'}); } catch { return null; } }).call(found)`;
+          break;
+        default:
+          extractCode = `(found.textContent || '').trim() || null`;
+      }
+
+      const transformCode = r.transform
+        ? `
+          if (value !== null && value !== undefined) {
+            ${r.transform === 'trim' ? 'value = String(value).trim();' : ''}
+            ${r.transform === 'lowercase' ? 'value = String(value).toLowerCase();' : ''}
+            ${r.transform === 'uppercase' ? 'value = String(value).toUpperCase();' : ''}
+            ${r.transform === 'number' ? 'value = parseFloat(String(value).replace(/[^0-9.-]/g, ""));' : ''}
+          }
+        `
+        : '';
+
+      return `
+        {
+          const found = el.querySelector(${selectorJson});
+          if (!found) {
+            result[${fieldJson}] = ${fallbackJson};
+          } else {
+            let value = ${extractCode};
+            ${transformCode}
+            result[${fieldJson}] = value ?? ${fallbackJson};
+          }
+        }
+      `;
+    });
+
+    return `
+      function extractFromEl(el) {
+        const result = {};
+        try {
+          ${schemaEntries.join('\n')}
+        } catch(e) {}
+        return result;
+      }
+    `;
   }
 }

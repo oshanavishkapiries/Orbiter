@@ -46,6 +46,8 @@
     "vitest": "^4.1.2"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@playwright/mcp": "^0.0.75",
     "axios": "^1.14.0",
     "boxen": "^8.0.1",
     "chalk": "^5.6.2",

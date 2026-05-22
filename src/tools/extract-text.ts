@@ -4,13 +4,13 @@ import { logger } from '../cli/ui/logger.js';
 
 export const extractTextTool: ToolDefinition = {
   name: 'extract_text',
-  description: 'Extract text content from an element or multiple elements.',
+  description: 'Extract text content or an attribute from one or all matching elements.',
   parameters: {
     type: 'object',
     properties: {
       selector: {
         type: 'string',
-        description: 'CSS selector of element(s) to extract text from',
+        description: 'CSS selector of element(s) to extract from',
       },
       multiple: {
         type: 'boolean',
@@ -18,7 +18,7 @@ export const extractTextTool: ToolDefinition = {
       },
       attribute: {
         type: 'string',
-        description: 'Extract attribute instead of text (e.g., "href", "src")',
+        description: 'Extract attribute instead of text content (e.g., "href", "src")',
       },
     },
     required: ['selector'],
@@ -26,58 +26,40 @@ export const extractTextTool: ToolDefinition = {
   execute: async (params, context: ExecutionContext): Promise<ToolResult> => {
     try {
       const { selector, multiple = false, attribute } = params;
-
-      const page = context.getBrowserManager().getPage();
+      const mcpClient = context.getMcpClient();
 
       if (multiple) {
-        // Extract from all matching elements
-        const elements = await page.$$(selector);
-        const results: string[] = [];
+        const expression = attribute
+          ? `Array.from(document.querySelectorAll(${JSON.stringify(selector)})).map(el => el.getAttribute(${JSON.stringify(attribute)})).filter(Boolean)`
+          : `Array.from(document.querySelectorAll(${JSON.stringify(selector)})).map(el => (el.textContent || '').trim()).filter(Boolean)`;
 
-        for (const el of elements) {
-          if (attribute) {
-            const value = await el.getAttribute(attribute);
-            if (value) results.push(value);
-          } else {
-            const text = await el.textContent();
-            if (text) results.push(text.trim());
-          }
-        }
+        const results = await mcpClient.evaluate(expression);
 
         return {
           success: true,
-          message: `Extracted text from ${results.length} elements`,
+          message: `Extracted ${Array.isArray(results) ? results.length : 0} values`,
           data: results,
         };
       } else {
-        // Extract from single element
-        const element = await page.$(selector);
-        if (!element) {
-          return {
-            success: false,
-            error: `Element not found: ${selector}`,
-          };
-        }
+        const expression = attribute
+          ? `document.querySelector(${JSON.stringify(selector)})?.getAttribute(${JSON.stringify(attribute)}) ?? null`
+          : `(document.querySelector(${JSON.stringify(selector)})?.textContent || '').trim() || null`;
 
-        let value: string | null;
-        if (attribute) {
-          value = await element.getAttribute(attribute);
-        } else {
-          value = await element.textContent();
+        const value = await mcpClient.evaluate(expression);
+
+        if (value === null || value === undefined) {
+          return { success: false, error: `Element not found: ${selector}` };
         }
 
         return {
           success: true,
           message: `Extracted ${attribute || 'text'} from ${selector}`,
-          data: value?.trim() || '',
+          data: value,
         };
       }
     } catch (error) {
       logger.error(`Extract text tool error: ${(error as Error).message}`);
-      return {
-        success: false,
-        error: (error as Error).message,
-      };
+      return { success: false, error: (error as Error).message };
     }
   },
 };

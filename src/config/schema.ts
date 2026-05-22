@@ -28,7 +28,8 @@ export const configSchema = z.object({
       height: z.number().default(720),
     }),
     profilePath: z.string().nullable().default(null),
-    stealth: z.boolean().default(true),
+    executablePath: z.string().nullable().default(null),
+    channel: z.enum(['chromium', 'chrome', 'msedge', 'firefox', 'webkit']).nullable().default(null),
   }),
 
   execution: z.object({
