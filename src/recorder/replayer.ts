@@ -120,10 +120,7 @@ export class FlowReplayer {
         const result = await this.executeStep(step, params);
         stepsExecuted++;
 
-        if (
-          (step.tool === 'extract_data' || step.tool === 'extract_text') &&
-          result?.data
-        ) {
+        if (step.tool === 'save_extracted_data' && result?.data) {
           if (Array.isArray(result.data)) {
             extractedData.push(...result.data);
           } else {

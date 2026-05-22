@@ -64,7 +64,7 @@ export class HistoryManager {
           );
         }
 
-        if ((toolName === 'extract_data' || toolName === 'extract_text') && result?.success && result?.data) {
+        if (toolName === 'save_extracted_data' && result?.success && result?.data) {
           await this.sessionRepo.storeCollectedData(this.sessionId, stepNumber, toolName, result.data);
         }
       } catch (err) {
@@ -159,16 +159,10 @@ export class HistoryManager {
       case 'screenshot':
         return `Screenshot captured. ${result.message ?? ''}`.trim();
 
-      case 'extract_text': {
-        const text = typeof data === 'string' ? data : (data?.text ?? '');
-        const preview = text.slice(0, 150).replace(/\s+/g, ' ');
-        return `Extracted ${text.length} chars. Preview: "${preview}${text.length > 150 ? '...' : ''}". Full data saved — use recall_session_data to retrieve.`;
-      }
-
-      case 'extract_data': {
+      case 'save_extracted_data': {
         const items = Array.isArray(data) ? data : [data];
         const fields = items[0] ? Object.keys(items[0]).join(', ') : '?';
-        return `Extracted ${items.length} item(s). Fields: [${fields}]. Full dataset saved — use recall_session_data.`;
+        return `Saved ${items.length} record(s). Fields: [${fields}]. Full dataset queued for CSV/JSON export.`;
       }
 
       case 'run_code': {
@@ -180,9 +174,6 @@ export class HistoryManager {
         const preview = JSON.stringify(data ?? result.message ?? '').slice(0, 200);
         return `JavaScript result: ${preview}`;
       }
-
-      case 'detect_repetitive_pattern':
-        return `Pattern detection complete. ${result.message ?? ''}`.trim();
 
       // Recall tools — return their content directly so the LLM can read it
       case 'recall_dom_snapshot':

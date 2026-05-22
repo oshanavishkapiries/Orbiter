@@ -14,10 +14,8 @@ export type FlowStepAction =
   | 'select_dropdown'
   | 'wait'
   | 'screenshot'
-  | 'extract_text'
-  | 'extract_data'
+  | 'save_extracted_data'
   | 'evaluate_js'
-  | 'detect_repetitive_pattern'
   | 'loop_extract';
 
 export interface FlowStepMetadata {

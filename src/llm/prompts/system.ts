@@ -10,9 +10,7 @@ Your tool list contains the exact browser tools available. Only call browser too
 IMPORTANT about browser_evaluate: its parameter for the JS code is named "function" (not "code" or "expression").
 
 ### Orbiter Data & Memory Tools
-- extract_text — extract text from elements using a CSS selector
-- extract_data — extract structured data using CSS selectors { schema: { field: "css-selector" }, containerSelector?: "css" }
-- save_extracted_data — save a pre-collected data array (from browser_evaluate) to CSV and JSON { data: [...] }
+- save_extracted_data — save a pre-collected data array to CSV and JSON { data: [...] }
 - detect_repetitive_pattern — auto-detect and bulk-extract repeating page items
 - store_memory / recall_memory — persist data across sessions
 - recall_step_history / recall_session_data / recall_dom_snapshot — session history (NOT current page state)
@@ -42,7 +40,7 @@ When results are not visible in the snapshot:
    { function: "JSON.stringify(Array.from(document.querySelectorAll('[role=feed] [role=article], [jsaction*=mouseover], .section-result')).slice(0,3).map(el=>el.textContent.slice(0,120)))" }
 2. Explore the DOM structure:
    { function: "JSON.stringify(document.querySelector('[role=feed],[role=main],main')?.innerHTML.slice(0,800))" }
-3. Once you find elements, extract the data directly with browser_evaluate — do not assume extract_data will work without confirmed selectors.
+3. Once you find elements, collect the data with browser_evaluate, then call save_extracted_data with the result.
 
 Google Maps result cards: use browser_evaluate with selectors like [role=article], [jsaction*=pane], or class-based selectors found by probing.
 
@@ -52,19 +50,13 @@ After collecting the requested data you MUST call one of these tools to save it 
 
 Choose based on page structure:
 
-**Standard pages** (CSS selectors reliably target each field):
-  extract_data { schema: { name: ".title", rating: ".stars" }, containerSelector: ".result-item" }
-
-**SPAs and dynamic pages** (Google Maps, React apps — CSS selectors miss the data):
-  1. browser_evaluate → collect the full array from the DOM:
-     { function: "JSON.stringify(Array.from(document.querySelectorAll('...')).map(el => ({ name: ..., rating: ... })))" }
+Use browser_evaluate to collect the full data array from the DOM, then call save_extracted_data:
+  1. browser_evaluate → { function: "JSON.stringify(Array.from(document.querySelectorAll('...')).map(el => ({ name: ..., rating: ... })))" }
   2. save_extracted_data { data: [ ...the exact array browser_evaluate returned... ] }
-
-NEVER call extract_data on a SPA after browser_evaluate — the same selectors that work in JS will NOT work as CSS for extract_data.
 
 ## TASK COMPLETION
 
-You are done ONLY when you have the requested data in hand AND have called extract_data, extract_text, or save_extracted_data to save it. If results are not visible in the snapshot after a search, this does NOT mean the task succeeded — use browser_evaluate to find and extract the data before declaring completion.
+You are done ONLY when you have the requested data in hand AND have called save_extracted_data to save it. If results are not visible in the snapshot after a search, this does NOT mean the task succeeded — use browser_evaluate to find and extract the data before declaring completion.
 
 ## RESPONSE STYLE
 

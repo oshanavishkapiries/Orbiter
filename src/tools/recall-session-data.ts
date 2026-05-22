@@ -4,7 +4,7 @@ import { ExecutionContext } from '../core/execution-context.js';
 export const recallSessionDataTool: ToolDefinition = {
   name: 'recall_session_data',
   description:
-    'Retrieve all structured data extracted during this session (from extract_data and extract_text calls). ' +
+    'Retrieve all structured data saved during this session (from save_extracted_data calls). ' +
     'Use this when you need to review, verify, or continue working with data that was collected in earlier steps. ' +
     'Returns all collected records grouped by the step they were extracted in.',
   parameters: {

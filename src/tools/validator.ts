@@ -93,8 +93,6 @@ function validateToolSpecificRules(
   switch (toolName) {
     case 'save_extracted_data':
       return validateSaveExtractedDataParams(params);
-    case 'extract_data':
-      return validateExtractDataParams(params);
     case 'recall_dom_snapshot':
       return validatePositiveIntegerField(toolName, 'step_number', params);
     case 'recall_step_history': {
@@ -134,45 +132,6 @@ function validateSaveExtractedDataParams(
   return { valid: true };
 }
 
-function validateExtractDataParams(
-  params: Record<string, unknown>,
-): ToolValidationResult {
-  if (!isPlainObject(params.schema)) {
-    return {
-      valid: false,
-      error: 'Tool "extract_data" requires "schema" to be an object.',
-    };
-  }
-
-  const entries = Object.entries(params.schema);
-  if (entries.length === 0) {
-    return {
-      valid: false,
-      error: 'Tool "extract_data" requires a non-empty "schema" object.',
-    };
-  }
-
-  for (const [field, selector] of entries) {
-    if (!isNonEmptyString(selector)) {
-      return {
-        valid: false,
-        error: `Tool "extract_data" schema field "${field}" must map to a non-empty selector string.`,
-      };
-    }
-  }
-
-  if (
-    params.containerSelector !== undefined &&
-    !isNonEmptyString(params.containerSelector)
-  ) {
-    return {
-      valid: false,
-      error: 'Tool "extract_data" field "containerSelector" must be a non-empty string when provided.',
-    };
-  }
-
-  return { valid: true };
-}
 
 function validatePositiveIntegerField(
   toolName: string,
