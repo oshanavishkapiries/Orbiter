@@ -600,6 +600,19 @@ orbiter run "my task" --model openai/gpt-4o
 orbiter run "my task" --model google/gemini-pro
 ```
 
+OpenCode Go examples:
+
+```bash
+# List OpenCode Go models (built binary)
+orbiter models -p opencode-go
+
+# List OpenCode Go models in local dev mode
+pnpm dev models -p opencode-go
+
+# Run with an explicit OpenCode Go model
+orbiter run "Open github.com and search for playwright" --model kimi-k2.6
+```
+
 ---
 
 ### `orbiter config`
@@ -1083,6 +1096,22 @@ echo "OPENROUTER_API_KEY=sk-or-your-key" >> .env
 echo "LLM_PROVIDER=opencode-go" > .env
 echo "OPENCODE_GO_API_KEY=your_key_here" >> .env
 ```
+
+### "opencode-go API error: ... exceeded your current quota"
+
+If you see an upstream provider quota message (for example Alibaba token-limit), the request reached OpenCode Go successfully, but the selected routed model/provider is out of quota.
+
+```bash
+# 1) Confirm available OpenCode Go models
+orbiter models -p opencode-go
+
+# 2) Retry with a specific model from that list
+orbiter run "your task" --model kimi-k2.6
+orbiter run "your task" --model glm-5.1
+```
+
+If one model fails and another works, it is a model-route/provider quota issue.
+If all models fail, check OpenCode Go usage/billing limits and enable fallback balance in your OpenCode Go dashboard.
 
 ### "Cannot connect to database"
 
