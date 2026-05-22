@@ -1,5 +1,6 @@
 import { getToolRegistry } from './registry.js';
 import { saveExtractedDataTool } from './save-extracted-data.js';
+import { bulkExtractTool } from './bulk-extract.js';
 import { recallStepHistoryTool } from './recall-step-history.js';
 import { recallDomSnapshotTool } from './recall-dom-snapshot.js';
 import { recallSessionDataTool } from './recall-session-data.js';
@@ -14,6 +15,7 @@ export function initializeTools(): void {
 
   getToolRegistry().registerAll([
     saveExtractedDataTool,
+    bulkExtractTool,
     recallStepHistoryTool,
     recallDomSnapshotTool,
     recallSessionDataTool,

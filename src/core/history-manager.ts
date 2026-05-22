@@ -165,6 +165,12 @@ export class HistoryManager {
         return `Saved ${items.length} record(s). Fields: [${fields}]. Full dataset queued for CSV/JSON export.`;
       }
 
+      case 'bulk_extract': {
+        const items = Array.isArray(data) ? data : [data];
+        const fields = items[0] ? Object.keys(items[0]).join(', ') : '?';
+        return `bulk_extract collected ${items.length} record(s) across pages. Fields: [${fields}]. Full dataset queued for CSV/JSON export.`;
+      }
+
       case 'run_code': {
         const preview = JSON.stringify(data ?? result.message ?? '').slice(0, 300);
         return `run_code result: ${preview}`;

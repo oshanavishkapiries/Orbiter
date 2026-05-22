@@ -20,7 +20,8 @@ export class ErrorClassifier {
       msg.includes('no data extracted') ||
       msg.includes('selectors returned null') ||
       msg.includes('matched the containerselector') ||
-      msg.includes('matched the selector')
+      msg.includes('matched the selector') ||
+      msg.includes('extractfn returned no items')
     ) {
       return { type: 'selector_mismatch', severity: 'low' };
     }

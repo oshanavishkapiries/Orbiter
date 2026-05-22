@@ -15,6 +15,7 @@ export type FlowStepAction =
   | 'wait'
   | 'screenshot'
   | 'save_extracted_data'
+  | 'bulk_extract'
   | 'evaluate_js'
   | 'loop_extract';
 

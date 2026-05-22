@@ -153,7 +153,7 @@ export class TaskExecutor {
             const stepResult = await this.executeToolCall(toolCall, stepNumber, maxSteps);
             steps.push(stepResult);
 
-            if (stepResult.success && toolCall.name === 'save_extracted_data') {
+            if (stepResult.success && (toolCall.name === 'save_extracted_data' || toolCall.name === 'bulk_extract')) {
               const data = stepResult.result?.data;
               if (data) {
                 if (Array.isArray(data)) {

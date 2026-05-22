@@ -32,9 +32,10 @@ export class RecoveryEngine {
       return { success: false, shouldAbort: true, abortReason: 'Critical error — stopping' };
     }
     if (errorContext.error.type === 'selector_mismatch') {
-      // Wrong CSS selectors — retrying same params won't help; let LLM re-probe the DOM
+      // Wrong selectors — retrying same params won't help; signal retry-loop to break
+      // so the LLM can re-probe the DOM and try a different approach.
       this.displayErrorContext(errorContext);
-      return { success: false, shouldAbort: false, error: errorContext.error.message };
+      return { success: false, shouldAbort: false, error: `INVALID_RECOVERY_PLAN: ${errorContext.error.message}` };
     }
 
     logger.info('Analyzing error for recovery...');

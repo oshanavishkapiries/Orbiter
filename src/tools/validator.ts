@@ -91,6 +91,8 @@ function validateToolSpecificRules(
   params: Record<string, unknown>,
 ): ToolValidationResult {
   switch (toolName) {
+    case 'bulk_extract':
+      return validateBulkExtractParams(params);
     case 'save_extracted_data':
       return validateSaveExtractedDataParams(params);
     case 'recall_dom_snapshot':
@@ -118,6 +120,28 @@ function validateToolSpecificRules(
     default:
       return { valid: true };
   }
+}
+
+function validateBulkExtractParams(
+  params: Record<string, unknown>,
+): ToolValidationResult {
+  if (!isNonEmptyString(params.extractFn)) {
+    return { valid: false, error: 'Tool "bulk_extract" requires "extractFn" to be a non-empty string.' };
+  }
+  if (!isPlainObject(params.pagination)) {
+    return { valid: false, error: 'Tool "bulk_extract" requires "pagination" to be an object.' };
+  }
+  const { type } = params.pagination as Record<string, unknown>;
+  if (type !== 'click_next' && type !== 'url_page' && type !== 'infinite_scroll') {
+    return { valid: false, error: 'Tool "bulk_extract" pagination.type must be "click_next", "url_page", or "infinite_scroll".' };
+  }
+  if (type === 'click_next' && !isNonEmptyString((params.pagination as any).selector)) {
+    return { valid: false, error: 'Tool "bulk_extract" pagination.selector is required for type "click_next".' };
+  }
+  if (type === 'url_page' && !isNonEmptyString((params.pagination as any).urlTemplate)) {
+    return { valid: false, error: 'Tool "bulk_extract" pagination.urlTemplate is required for type "url_page".' };
+  }
+  return { valid: true };
 }
 
 function validateSaveExtractedDataParams(
