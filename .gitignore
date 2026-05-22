@@ -1,8 +1,10 @@
 # Dependencies
 node_modules/
+web/node_modules/
 
 # Build
 dist/
+web/.next/
 
 # Environment
 .env
