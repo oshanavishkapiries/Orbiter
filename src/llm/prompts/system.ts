@@ -30,6 +30,22 @@ Example workflow:
 3. fill/click/type → use EXACT selectors from analyze_page output
 4. analyze_page → call again if the page changed significantly after a click
 
+## CRITICAL RULE: ALWAYS PROBE SELECTORS BEFORE BULK EXTRACTION
+
+NEVER call detect_repetitive_pattern with guessed selectors.
+CSS selectors are site-specific and change frequently. Training data is unreliable.
+
+MANDATORY workflow before every detect_repetitive_pattern call:
+  1. Call probe_selectors with itemSelector + your initial schema
+  2. Read probeResults — any field showing null means the selector is WRONG
+  3. Read suggestions and domDiscovery to discover the REAL selectors
+  4. Call probe_selectors again with fixed schema
+  5. Repeat until ALL fields show real values (no nulls)
+  6. ONLY THEN call detect_repetitive_pattern
+
+If you skip probe_selectors and call detect_repetitive_pattern directly,
+you will extract thousands of null values — completely wasted effort.
+
 ## CRITICAL RULE: USE LOOP ENGINE FOR REPETITIVE DATA
 
 When you see a page with multiple similar items (products, hotels,

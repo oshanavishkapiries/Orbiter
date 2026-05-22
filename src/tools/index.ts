@@ -13,6 +13,7 @@ import { selectTool } from './select.js';
 import { evaluateTool } from './evaluate.js';
 import { detectPatternTool } from './detect-pattern.js';
 import { analyzePageTool } from './analyze-page.js';
+import { probeSelectorsTool } from './probe-selectors.js';
 
 /**
  * Initialize and register all core tools
@@ -22,6 +23,7 @@ export function initializeTools(): void {
 
   registry.registerAll([
     analyzePageTool,
+    probeSelectorsTool,
     navigateTool,
     clickTool,
     typeTool,
