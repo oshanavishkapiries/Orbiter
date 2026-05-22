@@ -4,17 +4,15 @@ import { ExecutionContext } from '../core/execution-context.js';
 export const recallDomSnapshotTool: ToolDefinition = {
   name: 'recall_dom_snapshot',
   description:
-    'Retrieve the full DOM analysis and interactive element list from a previous step. ' +
-    'Use this when you need to see the actual CSS selectors, inputs, buttons, or links ' +
-    'from a page that was analyzed earlier, without re-navigating or re-running analyze_page. ' +
-    'Omit step_number to get the most recent DOM snapshot.',
+    'Retrieve the accessibility snapshot saved from a previous navigate or snapshot call. ' +
+    'Useful when history has been trimmed and you need to re-examine the page structure ' +
+    'without navigating again. Omit step_number to get the most recent snapshot.',
   parameters: {
     type: 'object',
     properties: {
       step_number: {
         type: 'number',
-        description:
-          'The step number whose DOM snapshot you want. Omit for the latest snapshot.',
+        description: 'The step number to retrieve. Omit for the latest.',
       },
     },
     required: [],
@@ -24,32 +22,24 @@ export const recallDomSnapshotTool: ToolDefinition = {
     const sessionId = context.getSessionId();
 
     if (!repo || !sessionId) {
+      return { success: false, error: 'Session memory not available.' };
+    }
+
+    const snap = await repo.getDomSnapshot(sessionId, params.step_number);
+    if (!snap) {
       return {
         success: false,
-        error: 'Session memory not available. Database may not be connected.',
+        error: `No snapshot found. Run navigate or snapshot first.`,
       };
     }
 
-    const snapshot = await repo.getDomSnapshot(sessionId, params.step_number);
-
-    if (!snapshot) {
-      const which = params.step_number ? `step ${params.step_number}` : 'any step';
-      return {
-        success: false,
-        error: `No DOM snapshot found for ${which}. Run navigate or analyze_page first.`,
-      };
-    }
+    const content = snap.fullAnalysis ?? snap.interactiveElements ?? '(no content)';
+    const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
 
     return {
       success: true,
-      message: `DOM snapshot from step ${snapshot.stepNumber} — ${snapshot.url}`,
-      data: {
-        step: snapshot.stepNumber,
-        url: snapshot.url,
-        title: snapshot.title,
-        interactiveElements: snapshot.interactiveElements,
-        fullAnalysis: snapshot.fullAnalysis,
-      },
+      message: `Snapshot from step ${snap.stepNumber} — ${snap.url}\n\n${contentStr}`,
+      data: { step: snap.stepNumber, url: snap.url, title: snap.title },
     };
   },
 };

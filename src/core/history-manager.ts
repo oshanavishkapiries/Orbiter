@@ -19,25 +19,14 @@ export class HistoryManager {
     this.messages.push({ role: 'user', content: `Please accomplish this task: ${goal}` });
   }
 
-  /** Add the assistant's tool-use action message */
   addAssistantAction(toolCallId: string, toolName: string, args: any): void {
     this.messages.push({
       role: 'assistant',
       content: '',
-      toolCalls: [
-        {
-          id: toolCallId,
-          name: toolName,
-          arguments: args,
-        },
-      ],
+      toolCalls: [{ id: toolCallId, name: toolName, arguments: args }],
     });
   }
 
-  /**
-   * Add a tool result. Full result goes to DB; only a semantic summary
-   * enters conversation history. Pass imageBase64 for vision-capable models.
-   */
   async addToolResult(
     toolCallId: string,
     stepNumber: number,
@@ -49,7 +38,6 @@ export class HistoryManager {
   ): Promise<void> {
     const summary = this.summarize(toolName, result, params);
 
-    // Persist full result to DB (fire and don't block on failure)
     if (this.sessionRepo && this.sessionId) {
       try {
         await this.sessionRepo.storeStep(
@@ -63,119 +51,64 @@ export class HistoryManager {
           duration,
         );
 
-        // Store DOM snapshot for navigate / analyze_page
-        if (
-          (toolName === 'navigate' || toolName === 'analyze_page') &&
-          result?.success
-        ) {
-          const data = result.data ?? result;
-
-          // navigate: data = { url, title, pageIntelligence: string }
-          // analyze_page: data = { url, title, inputs, buttons, formatted, … }
-          const url = data?.url ?? '';
-          const title = data?.title ?? '';
-          const elements =
-            data?.inputs ??
-            data?.pageIntelligence?.inputs ??
-            null;
-          const fullAnalysis =
-            toolName === 'navigate'
-              ? data?.pageIntelligence
-              : data?.formatted ?? data;
-
+        // Persist ariaSnapshot from navigate and snapshot tools
+        if ((toolName === 'navigate' || toolName === 'snapshot') && result?.success) {
+          const data = result.data ?? {};
           await this.sessionRepo.storeDomSnapshot(
             this.sessionId,
             stepNumber,
-            url,
-            title,
-            elements,
-            fullAnalysis,
+            data.url ?? '',
+            data.title ?? '',
+            undefined,
+            data.snapshot ?? null,
           );
         }
 
-        // Store collected data for extract tools
-        if (
-          (toolName === 'extract_data' || toolName === 'extract_text') &&
-          result?.success &&
-          result?.data
-        ) {
-          await this.sessionRepo.storeCollectedData(
-            this.sessionId,
-            stepNumber,
-            toolName,
-            result.data,
-          );
+        if ((toolName === 'extract_data' || toolName === 'extract_text') && result?.success && result?.data) {
+          await this.sessionRepo.storeCollectedData(this.sessionId, stepNumber, toolName, result.data);
         }
       } catch (err) {
         logger.debug(`Session DB write failed (non-fatal): ${(err as Error).message}`);
       }
     }
 
-    // Build conversation message — summary only, no raw DOM/HTML
-    this.messages.push({
-      role: 'tool',
-      toolCallId,
-      name: toolName,
-      content: summary,
-    });
+    this.messages.push({ role: 'tool', toolCallId, name: toolName, content: summary });
 
     if (imageBase64) {
       this.messages.push({
         role: 'user',
         content: [
-          {
-            type: 'text',
-            text: `Tool result: ${summary}\n\nHere is what the page looks like right now:`,
-          },
-          {
-            type: 'image_url',
-            image_url: { url: imageBase64, detail: 'auto' },
-          },
+          { type: 'text', text: `Tool result: ${summary}\n\nCurrent page:` },
+          { type: 'image_url', image_url: { url: imageBase64, detail: 'auto' } },
         ],
       });
-      logger.debug('Injected screenshot image into conversation');
     } else {
-      this.messages.push({
-        role: 'user',
-        content: `Tool result: ${summary}`,
-      });
+      this.messages.push({ role: 'user', content: `Tool result: ${summary}` });
     }
 
     this.trim();
   }
 
-  /** Add a plain assistant text message (no tool call) */
   addAssistantText(content: string): void {
     this.messages.push({ role: 'assistant', content });
   }
 
-  /** Add a user correction/instruction message back into the conversation */
   addUserText(content: string): void {
     this.messages.push({ role: 'user', content });
     this.trim();
   }
 
-  /** Current conversation array to send to LLM */
   getMessages(): Message[] {
     return this.messages;
   }
 
-  /** Total message count (for debugging) */
   size(): number {
     return this.messages.length;
   }
 
-  // ─── Private ────────────────────────────────────────────────
-
-  /**
-   * Keep system + goal anchored. Trim oldest step-pairs when over budget.
-   * anchor = messages[0..1], tail = rolling window of last N pairs.
-   */
   private trim(): void {
     const anchor = this.messages.slice(0, 2);
     const rest = this.messages.slice(2);
-
-    // A step may produce assistant-tool-call, tool-result, and optional image/context user message.
     const maxRest = MAX_STEP_PAIRS * 3;
     if (rest.length > maxRest) {
       this.messages = [...anchor, ...rest.slice(rest.length - maxRest)];
@@ -184,8 +117,9 @@ export class HistoryManager {
   }
 
   /**
-   * Create a short, semantic summary of a tool result.
-   * This is what the LLM sees in conversation — no raw DOM, no big blobs.
+   * What the LLM sees for each tool result.
+   * For page-observation tools (navigate, snapshot) we include the full ARIA tree
+   * so the LLM can immediately read roles/names without an extra round-trip.
    */
   private summarize(toolName: string, result: any, params: any): string {
     if (!result?.success) {
@@ -197,85 +131,57 @@ export class HistoryManager {
     switch (toolName) {
       case 'navigate': {
         const url = data?.url ?? params?.url ?? '?';
-        const title = data?.title ?? '';
-        // pageIntelligence is a formatted string — parse counts from result.message
-        const msg = result.message ?? '';
-        const inputMatch = msg.match(/(\d+) input/);
-        const buttonMatch = msg.match(/(\d+) button/);
-        const linkMatch = msg.match(/(\d+) link/);
-        const inputs = inputMatch ? inputMatch[1] : '?';
-        const buttons = buttonMatch ? buttonMatch[1] : '?';
-        const links = linkMatch ? linkMatch[1] : '?';
-        return `Navigated to ${url}${title ? ` ("${title}")` : ''}. Page has ${inputs} inputs, ${buttons} buttons, ${links} links. DOM snapshot saved — use recall_dom_snapshot to inspect elements.`;
+        const title = data?.title ? ` ("${data.title}")` : '';
+        const snap = data?.snapshot ? `\n\nPage accessibility snapshot:\n${data.snapshot}` : '';
+        return `Navigated to ${url}${title}.${snap}`;
       }
 
-      case 'analyze_page': {
-        // data is now structured: { url, title, inputs, buttons, links, formatted }
-        const inputs = Array.isArray(data?.inputs) ? data.inputs.length : 0;
-        const buttons = Array.isArray(data?.buttons) ? data.buttons.length : 0;
-        const links = Array.isArray(data?.links) ? data.links.length : 0;
-        const url = data?.url ? ` at ${data.url}` : '';
-        const inputList = Array.isArray(data?.inputs) && data.inputs.length > 0
-          ? ' Inputs: ' + data.inputs.map((i: any) => `${i.selector} (${i.label})`).join(', ') + '.'
-          : '';
-        return `Page analyzed${url}: ${inputs} inputs, ${buttons} buttons, ${links} links.${inputList} DOM snapshot saved — use recall_dom_snapshot to inspect full element list.`;
+      case 'snapshot': {
+        const url = data?.url ?? '?';
+        const title = data?.title ? ` "${data.title}"` : '';
+        const snap = data?.snapshot ? `\n\n${data.snapshot}` : ' (no snapshot available)';
+        return `Snapshot of${title} — ${url}:${snap}`;
       }
 
       case 'click':
-        return `Clicked "${params?.selector ?? '?'}". ${result.message ?? 'Success.'}`;
-
       case 'fill':
-        return `Filled "${params?.selector ?? '?'}" with value. ${result.message ?? 'Success.'}`;
-
       case 'type':
-        return `Typed into "${params?.selector ?? '?'}". ${result.message ?? 'Success.'}`;
+      case 'hover':
+      case 'select_dropdown':
+        return result.message ?? `${toolName} completed.`;
 
       case 'scroll':
-        return `Scrolled ${params?.direction ?? ''} by ${params?.amount ?? '?'}px. ${result.message ?? 'Success.'}`;
-
-      case 'hover':
-        return `Hovered over "${params?.selector ?? '?'}". ${result.message ?? 'Success.'}`;
-
-      case 'select':
-      case 'select_dropdown':
-        return `Selected "${params?.value ?? '?'}" in "${params?.selector ?? '?'}". ${result.message ?? 'Success.'}`;
+        return `Scrolled ${params?.direction ?? ''} by ${params?.amount ?? '?'}px. ${result.message ?? ''}`.trim();
 
       case 'wait':
-        return `Wait complete. ${result.message ?? 'Success.'}`;
+        return result.message ?? 'Wait complete.';
 
       case 'screenshot':
-        return `Screenshot captured. ${result.message ?? ''}`;
+        return `Screenshot captured. ${result.message ?? ''}`.trim();
 
       case 'extract_text': {
-        const text = typeof data === 'string' ? data : data?.text ?? '';
-        const preview = text.slice(0, 120).replace(/\s+/g, ' ');
-        return `Extracted ${text.length} chars of text. Preview: "${preview}${text.length > 120 ? '...' : ''}". Full data saved — use recall_session_data.`;
+        const text = typeof data === 'string' ? data : (data?.text ?? '');
+        const preview = text.slice(0, 150).replace(/\s+/g, ' ');
+        return `Extracted ${text.length} chars. Preview: "${preview}${text.length > 150 ? '...' : ''}". Full data saved — use recall_session_data to retrieve.`;
       }
 
       case 'extract_data': {
         const items = Array.isArray(data) ? data : [data];
         const fields = items[0] ? Object.keys(items[0]).join(', ') : '?';
-        return `Extracted ${items.length} item(s). Fields: [${fields}]. Full dataset saved — use recall_session_data to retrieve.`;
+        return `Extracted ${items.length} item(s). Fields: [${fields}]. Full dataset saved — use recall_session_data.`;
       }
 
       case 'evaluate_js': {
-        const preview = JSON.stringify(data ?? result.message ?? '').slice(0, 100);
-        return `JavaScript evaluated. Result: ${preview}`;
-      }
-
-      case 'probe_selectors': {
-        const probeResults = data?.probeResults ?? {};
-        const total = Object.keys(probeResults).length;
-        const valid = Object.values(probeResults).filter((v) => v !== null).length;
-        return `Probed ${total} selectors: ${valid} valid, ${total - valid} null. ${result.message ?? ''}`;
+        const preview = JSON.stringify(data ?? result.message ?? '').slice(0, 200);
+        return `JavaScript result: ${preview}`;
       }
 
       case 'detect_repetitive_pattern':
-        return `Pattern detected. ${result.message ?? ''} Loop engine configured.`;
+        return `Pattern detection complete. ${result.message ?? ''}`.trim();
 
-      // Recall tools — already return formatted text, pass through
-      case 'recall_step_history':
+      // Recall tools — return their content directly so the LLM can read it
       case 'recall_dom_snapshot':
+      case 'recall_step_history':
       case 'recall_session_data':
         return result.message ?? 'Recall complete.';
 

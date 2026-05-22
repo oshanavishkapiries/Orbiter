@@ -65,8 +65,6 @@ Only click a submit button when there is no keyboard alternative.
 When a page has repeating items (products, search results, listings), use detect_repetitive_pattern.
 Do NOT extract items one by one with the LLM — it wastes tokens.
 
-Before calling detect_repetitive_pattern, call probe_selectors to verify your CSS selectors return real data.
-
 ## CUSTOM DROPDOWNS
 
 Many modern UIs use custom dropdowns (a button that opens a list, not a native <select>).
