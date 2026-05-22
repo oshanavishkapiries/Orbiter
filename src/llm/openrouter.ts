@@ -1,44 +1,33 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '../config/index.js';
 import { logger } from '../cli/ui/logger.js';
-import { BaseLLMProvider } from './interfaces.js';
-import { Message, Tool, LLMResponse, ToolCall } from './types.js';
+import { OpenAICompatibleProvider } from './openai-compatible.js';
 import { fetchModelCapabilities, ModelCapabilities } from './model-capabilities.js';
-import { ChatLogger } from './chat-logger.js';
 
-export class OpenRouterProvider extends BaseLLMProvider {
+export class OpenRouterProvider extends OpenAICompatibleProvider {
   name = 'openrouter';
-  private client: AxiosInstance;
-  private model: string;
-  private apiKey: string;
   // Populated by loadCapabilities(); null means "not yet fetched"
   private capabilities: ModelCapabilities | null = null;
 
   constructor(apiKey?: string, model?: string) {
-    super();
-
     const cfg = config();
-    this.apiKey = apiKey || process.env.OPENROUTER_API_KEY || '';
-    this.model = model || cfg.llm.model;
+    const resolvedApiKey = apiKey || process.env.OPENROUTER_API_KEY || '';
+    const resolvedModel = model || cfg.llm.model;
 
-    if (!this.apiKey) {
+    if (!resolvedApiKey) {
       throw new Error(
         'OpenRouter API key not found. Set OPENROUTER_API_KEY environment variable.',
       );
     }
 
-    this.client = axios.create({
+    super({
+      providerName: 'openrouter',
+      model: resolvedModel,
+      apiKey: resolvedApiKey,
       baseURL: 'https://openrouter.ai/api/v1',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'HTTP-Referer': 'https://github.com/orbiter-ai',
-        'X-Title': 'Orbiter Browser Automation',
-        'Content-Type': 'application/json',
-      },
-      timeout: 60000,
+      referer: 'https://github.com/orbiter-ai',
+      title: 'Orbiter Browser Automation',
     });
-
-    logger.debug(`OpenRouter provider initialized (model: ${this.model})`);
   }
 
   supportsFunctionCalling(): boolean {
@@ -86,155 +75,6 @@ export class OpenRouterProvider extends BaseLLMProvider {
     }
   }
 
-  async chat(messages: Message[], tools?: Tool[]): Promise<LLMResponse> {
-    this.validateTools(tools);
-
-    const cfg = config();
-    const callStart = Date.now();
-
-    const payload: any = {
-      model: this.model,
-      // Pass content as-is: string for text models, ContentPart[] for vision models
-      // OpenRouter's API (OpenAI-compatible) handles both formats
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        ...(m.toolCalls
-          ? {
-              tool_calls: m.toolCalls.map((toolCall) => ({
-                id: toolCall.id,
-                type: 'function',
-                function: {
-                  name: toolCall.name,
-                  arguments: JSON.stringify(toolCall.arguments),
-                },
-              })),
-            }
-          : {}),
-        ...(m.toolCallId ? { tool_call_id: m.toolCallId } : {}),
-        ...(m.name ? { name: m.name } : {}),
-      })),
-      temperature: cfg.llm.temperature,
-      max_tokens: cfg.llm.maxTokens,
-    };
-
-    // Add tools if provided
-    if (tools && tools.length > 0) {
-      payload.tools = tools.map((tool) => ({
-        type: 'function',
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      }));
-      payload.tool_choice = 'auto';
-    }
-
-    const MAX_RETRIES = 3;
-    let lastError: any;
-
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        logger.debug(
-          `Sending request to OpenRouter (${messages.length} messages, ${tools?.length || 0} tools, attempt ${attempt})`,
-        );
-
-        const response = await this.client.post('/chat/completions', payload);
-
-        const choice = response.data.choices[0];
-        const usage = response.data.usage;
-
-        // Parse tool calls if present
-        const toolCalls: ToolCall[] = [];
-        if (choice.message.tool_calls) {
-          for (const tc of choice.message.tool_calls) {
-            toolCalls.push({
-              id: tc.id,
-              name: tc.function.name,
-              arguments: JSON.parse(tc.function.arguments),
-            });
-          }
-        }
-
-        const result: LLMResponse = {
-          content:
-            typeof choice.message.content === 'string'
-              ? choice.message.content
-              : '',
-          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-          finishReason: this.mapFinishReason(choice.finish_reason),
-          usage: {
-            promptTokens: usage.prompt_tokens,
-            completionTokens: usage.completion_tokens,
-            totalTokens: usage.total_tokens,
-          },
-        };
-
-        logger.debug(
-          `LLM response received (tokens: ${result.usage.totalTokens}, tool_calls: ${toolCalls.length})`,
-        );
-
-        // Log full conversation turn to file + DB
-        const durationMs = Date.now() - callStart;
-        ChatLogger.getInstance().log(
-          messages,
-          {
-            content: result.content,
-            toolCalls: result.toolCalls,
-            finishReason: result.finishReason,
-            usage: result.usage,
-          },
-          durationMs,
-        ).catch(() => {}); // fire-and-forget, never blocks the LLM response
-
-        return result;
-      } catch (error: any) {
-        lastError = error;
-        const status = error.response?.status;
-
-        // Retry on transient server errors and rate limits
-        if (attempt < MAX_RETRIES && (status === 429 || (status >= 500 && status < 600))) {
-          const delayMs = Math.pow(2, attempt) * 1000;
-          logger.warn(`OpenRouter API ${status}, retrying in ${delayMs / 1000}s (attempt ${attempt}/${MAX_RETRIES})...`);
-          await new Promise((r) => setTimeout(r, delayMs));
-          continue;
-        }
-
-        break;
-      }
-    }
-
-    const errorMsg = this.formatError(lastError);
-    logger.error(`OpenRouter API error: ${errorMsg}`);
-    const status = lastError?.response?.status;
-
-    if (status === 401) {
-      throw new Error('Invalid OpenRouter API key');
-    } else if (status === 429) {
-      throw new Error('Rate limit exceeded. Please try again later.');
-    } else if (status === 402) {
-      throw new Error(
-        'Insufficient credits. Please add credits to your OpenRouter account.',
-      );
-    }
-
-    throw new Error(`OpenRouter API error: ${errorMsg}`);
-  }
-
-  private mapFinishReason(reason: string): LLMResponse['finishReason'] {
-    switch (reason) {
-      case 'stop':
-        return 'stop';
-      case 'tool_calls':
-        return 'tool_calls';
-      case 'length':
-        return 'length';
-      default:
-        return 'error';
-    }
-  }
-
   getCapabilities(): ModelCapabilities | null {
     return this.capabilities;
   }
@@ -255,11 +95,16 @@ export class OpenRouterProvider extends BaseLLMProvider {
   /**
    * Get model info
    */
-  getModelInfo(): { name: string; provider: string } {
-    return {
-      name: this.model,
-      provider: 'openrouter',
-    };
+  protected override mapProviderError(error: any): Error {
+    const status = error?.response?.status;
+    if (status === 402) {
+      logger.error(`OpenRouter API error: ${this.formatError(error)}`);
+      return new Error(
+        'Insufficient credits. Please add credits to your OpenRouter account.',
+      );
+    }
+
+    return super.mapProviderError(error);
   }
 }
 

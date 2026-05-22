@@ -31,6 +31,7 @@ export function runCommand() {
       'markdown',
     )
     .option('-e, --enhance', 'Enhance the prompt with AI before execution')
+    .option('--no-enhance', 'Disable prompt enhancement for this run')
     .action(async (prompt, options) => {
       // Banner
       console.log(banners.run(prompt));
@@ -39,6 +40,10 @@ export function runCommand() {
       const timeline = new Timeline();
       const context = new ExecutionContext();
       const errors: string[] = [];
+      const shouldEnhance =
+        typeof options.enhance === 'boolean'
+          ? options.enhance
+          : config().promptEnhancer.enabled;
 
       // Wire --no-record into config so executor picks it up
       if (options.record === false) {
@@ -96,7 +101,7 @@ export function runCommand() {
         // Prompt enhancement phase (optional)
         let activePrompt = prompt;
 
-        if (options.enhance) {
+        if (shouldEnhance) {
           logger.phase('PROMPT ENHANCEMENT PHASE');
 
           const enhanceSp = spinner('Enhancing prompt...').start();
@@ -130,8 +135,14 @@ export function runCommand() {
         const planner = new TaskPlanner(llm);
         const plan = await planner.plan(activePrompt);
 
-        console.log(chalk.blue('\nLLM Analysis:'));
-        console.log(chalk.gray(plan.reasoning.slice(0, 200) + '...'));
+        console.log(chalk.blue('\nExecution Plan:'));
+        if (plan.steps.length > 0) {
+          for (const [index, step] of plan.steps.entries()) {
+            console.log(chalk.white(`  ${index + 1}. ${step}`));
+          }
+        } else {
+          console.log(chalk.gray(`  ${plan.reasoning.slice(0, 200)}...`));
+        }
         console.log('');
 
         logger.bullet(`Estimated steps: ${plan.estimatedSteps}`);
@@ -250,7 +261,9 @@ export function runCommand() {
 
         if (err.message.includes('API key')) {
           console.log(
-            chalk.yellow('\nTip: Set OPENROUTER_API_KEY in your .env file'),
+            chalk.yellow(
+              '\nTip: Set LLM_PROVIDER and the matching API key in your .env file',
+            ),
           );
         }
 

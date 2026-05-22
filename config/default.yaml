@@ -3,8 +3,8 @@ version: 1
 
 # LLM Settings
 llm:
-  provider: openrouter
-  model: anthropic/claude-sonnet-4
+  provider: openrouter  # openrouter | opencode-go
+  model: anthropic/claude-sonnet-4  # ex: anthropic/claude-sonnet-4 or kimi-k2.6
   maxTokens: 4096
   temperature: 0.7
 
@@ -28,6 +28,10 @@ execution:
   retryDelay: 1000
   screenshotOnError: true
   screenshotOnStep: false
+
+# Prompt Enhancement Settings
+promptEnhancer:
+  enabled: true
 
 # Loop Engine Settings
 loop:

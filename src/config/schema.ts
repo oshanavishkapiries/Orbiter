@@ -9,7 +9,7 @@ export const configSchema = z.object({
 
   llm: z.object({
     provider: z
-      .enum(['openrouter', 'openai', 'anthropic'])
+      .enum(['openrouter', 'opencode-go', 'openai', 'anthropic'])
       .default('openrouter'),
     model: z.string().default('anthropic/claude-sonnet-4'),
     maxTokens: z.number().default(4096),
@@ -36,6 +36,10 @@ export const configSchema = z.object({
     retryDelay: z.number().default(1000),
     screenshotOnError: z.boolean().default(true),
     screenshotOnStep: z.boolean().default(false),
+  }),
+
+  promptEnhancer: z.object({
+    enabled: z.boolean().default(false),
   }),
 
   loop: z.object({

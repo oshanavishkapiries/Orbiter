@@ -77,6 +77,10 @@ export class ConfigLoader {
       env.llm = { ...env.llm, model: process.env.DEFAULT_MODEL } as any;
     }
 
+    if (process.env.LLM_PROVIDER) {
+      env.llm = { ...env.llm, provider: process.env.LLM_PROVIDER as any } as any;
+    }
+
     if (process.env.BROWSER_HEADLESS) {
       env.browser = {
         ...env.browser,

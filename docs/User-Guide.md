@@ -35,8 +35,14 @@ Complete reference for every command, flag, and workflow.
 # Install dependencies
 pnpm install
 
-# Set your OpenRouter API key
-echo "OPENROUTER_API_KEY=your_key_here" > .env
+# Configure your LLM provider
+# Option A: OpenRouter
+echo "LLM_PROVIDER=openrouter" > .env
+echo "OPENROUTER_API_KEY=your_key_here" >> .env
+
+# Option B: OpenCode Go
+# echo "LLM_PROVIDER=opencode-go" > .env
+# echo "OPENCODE_GO_API_KEY=your_key_here" >> .env
 
 # Run your first task
 npx orbiter run "Go to google.com and search for AI news"
@@ -56,13 +62,26 @@ That's it. Orbiter opens a browser, figures out the steps, and executes them.
 | pnpm | 10+ |
 | PostgreSQL | Any (for memory features) |
 
+Supported LLM providers:
+- `openrouter`
+- `opencode-go`
+
 ### Environment Variables
 
 Create a `.env` file in the project root:
 
 ```env
-# Required
+# Required for OpenRouter
 OPENROUTER_API_KEY=sk-or-...
+
+# Required for OpenCode Go
+OPENCODE_GO_API_KEY=oc_...
+
+# Optional provider selection
+LLM_PROVIDER=openrouter
+
+# Optional model override
+DEFAULT_MODEL=anthropic/claude-sonnet-4
 
 # Optional — override the default PostgreSQL connection
 DATABASE_URL=postgresql://user:password@host:5432/dbname
@@ -106,7 +125,8 @@ orbiter run <prompt> [options]
 | `--max-steps <n>` | `50` | Maximum number of tool calls before giving up |
 | `--report` | off | Generate a markdown/JSON execution report after the run |
 | `--report-format <fmt>` | `markdown` | Report format: `markdown` or `json` |
-| `-e, --enhance` | off | Run the prompt through an AI enhancer before execution |
+| `-e, --enhance` | config default | Run the prompt through an AI enhancer before execution |
+| `--no-enhance` | config default | Disable prompt enhancement for this run |
 
 #### Examples
 
@@ -560,7 +580,7 @@ orbiter memory clear --all --yes
 
 ### `orbiter models`
 
-List available LLM models on OpenRouter.
+List available LLM models for the configured provider.
 
 ```bash
 orbiter models
@@ -568,7 +588,7 @@ orbiter models
 
 | Flag | Description |
 |---|---|
-| `-p, --provider <name>` | Filter by provider (`openrouter`, `openai`, `anthropic`) |
+| `-p, --provider <name>` | Filter by provider (`openrouter`, `opencode-go`, `openai`, `anthropic`) |
 
 Use the model ID shown here with the `-m` flag in `orbiter run`:
 
@@ -729,7 +749,7 @@ Orbiter looks for a `config.yml` or `config.yaml` in the project root. If not fo
 # config.yml
 
 llm:
-  provider: openrouter
+  provider: openrouter               # openrouter | opencode-go
   model: anthropic/claude-sonnet-4   # model used for all runs
   maxTokens: 4096
   temperature: 0.7
@@ -746,6 +766,9 @@ browser:
 execution:
   maxRetries: 3                       # retry failed steps up to 3x
   screenshotOnError: true             # auto screenshot on failure
+
+promptEnhancer:
+  enabled: false                      # turn prompt enhancement on by default
 
 recording:
   enabled: true                       # save flows after every run
@@ -1049,11 +1072,16 @@ orbiter run "Extract all pricing plans from pricing.example.com" \
 
 ## 11. Troubleshooting
 
-### "OpenRouter API key not found"
+### "API key not found"
 
 ```bash
-# Add to .env
+# OpenRouter
+echo "LLM_PROVIDER=openrouter" > .env
 echo "OPENROUTER_API_KEY=sk-or-your-key" >> .env
+
+# OpenCode Go
+echo "LLM_PROVIDER=opencode-go" > .env
+echo "OPENCODE_GO_API_KEY=your_key_here" >> .env
 ```
 
 ### "Cannot connect to database"

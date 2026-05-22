@@ -1,6 +1,7 @@
 import { config } from '../config/index.js';
 import { LLMProvider } from './types.js';
 import { OpenRouterProvider } from './openrouter.js';
+import { OpenCodeGoProvider } from './opencode-go.js';
 
 export class LLMFactory {
   static create(providerName?: string, model?: string): LLMProvider {
@@ -10,6 +11,9 @@ export class LLMFactory {
     switch (provider) {
       case 'openrouter':
         return new OpenRouterProvider(undefined, model);
+
+      case 'opencode-go':
+        return new OpenCodeGoProvider(undefined, model);
 
       // Future providers
       case 'openai':

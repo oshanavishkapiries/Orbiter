@@ -28,6 +28,9 @@ export const defaults: OrbiterConfig = {
     screenshotOnError: true,
     screenshotOnStep: false,
   },
+  promptEnhancer: {
+    enabled: false,
+  },
   loop: {
     defaultDelay: {
       min: 800,

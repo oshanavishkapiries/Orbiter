@@ -7,6 +7,7 @@ export interface TaskPlan {
   goal: string;
   estimatedSteps: number;
   reasoning: string;
+  steps: string[];
   needsDetection?: boolean;
 }
 
@@ -35,12 +36,14 @@ export class TaskPlanner {
 
     try {
       const response = await this.llm.chat(messages, tools);
+      const steps = this.extractSteps(response.content);
 
       // Parse plan from response
       const plan: TaskPlan = {
         goal: userGoal,
-        estimatedSteps: this.estimateSteps(response.content),
+        estimatedSteps: steps.length > 0 ? steps.length : this.estimateSteps(response.content),
         reasoning: response.content,
+        steps,
         needsDetection: this.detectPatternNeed(userGoal),
       };
 
@@ -81,6 +84,15 @@ export class TaskPlanner {
     }
 
     return Math.max(count, 3); // Minimum 3 steps
+  }
+
+  /**
+   * Extract numbered execution steps from the planner response.
+   */
+  private extractSteps(content: string): string[] {
+    const matches = content.matchAll(/^\s*\d+\.\s+(.+)$/gm);
+    const steps = Array.from(matches, (match) => match[1].trim()).filter(Boolean);
+    return steps;
   }
 
   /**

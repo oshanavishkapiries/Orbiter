@@ -10,13 +10,13 @@ export function modelsCommand() {
     .description('List available LLM models')
     .option(
       '-p, --provider <provider>',
-      'Filter by provider (openrouter, openai, anthropic)',
+      'Filter by provider (openrouter, opencode-go, openai, anthropic)',
     )
     .action(async (options) => {
       try {
         console.log('\n' + chalk.bold('Available LLM Models') + '\n');
 
-        const provider = LLMFactory.create();
+        const provider = LLMFactory.create(options.provider);
 
         if (provider.name === 'openrouter') {
           const models = await (provider as any).getModels();
@@ -50,6 +50,30 @@ export function modelsCommand() {
 
           console.log(
             chalk.gray('Visit https://openrouter.ai/models for full list'),
+          );
+        } else if (provider.name === 'opencode-go') {
+          const models = await (provider as any).getModels();
+
+          console.log(
+            chalk.gray(`Found ${models.length} models on OpenCode Go\n`),
+          );
+
+          for (const model of models) {
+            const id = model.id || model.name || model.model || 'unknown';
+            console.log(`  ${chalk.cyan(id)}`);
+            if (model.name && model.name !== id) {
+              console.log(`    ${chalk.gray(model.name)}`);
+            }
+            if (model.context_length) {
+              console.log(
+                `    Context: ${chalk.yellow(model.context_length.toLocaleString())}`,
+              );
+            }
+            console.log('');
+          }
+
+          console.log(
+            chalk.gray('Visit https://dev.opencode.ai/docs/go/ for the supported model list'),
           );
         } else {
           console.log(
