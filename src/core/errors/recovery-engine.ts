@@ -9,6 +9,7 @@ import {
   RecoveryAttemptRecord,
   RecoveryStrategy,
 } from './types.js';
+import { validateToolCall } from '../../tools/validator.js';
 import chalk from 'chalk';
 import boxen from 'boxen';
 
@@ -28,6 +29,7 @@ export class RecoveryEngine {
     result?: any;
     shouldAbort: boolean;
     abortReason?: string;
+    error?: string;
   }> {
     // Check if we should even try to recover
     if (this.shouldSkipRecovery(errorContext)) {
@@ -35,6 +37,7 @@ export class RecoveryEngine {
         success: false,
         shouldAbort: true,
         abortReason: this.getSkipReason(errorContext),
+        error: this.getSkipReason(errorContext),
       };
     }
 
@@ -50,6 +53,7 @@ export class RecoveryEngine {
       return {
         success: false,
         shouldAbort: false,
+        error: 'No valid recovery plan produced by the LLM.',
       };
     }
 
@@ -62,6 +66,7 @@ export class RecoveryEngine {
         success: false,
         shouldAbort: true,
         abortReason: plan.abortReason || plan.reasoning,
+        error: plan.abortReason || plan.reasoning,
       };
     }
 
@@ -91,6 +96,7 @@ export class RecoveryEngine {
       success: result.success,
       result: result.data,
       shouldAbort: false,
+      error: result.error,
     };
   }
 
@@ -163,6 +169,14 @@ export class RecoveryEngine {
     errorContext: ErrorContext,
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     const registry = getToolRegistry();
+    const actionValidation = this.validateRecoveryPlan(plan, errorContext);
+
+    if (!actionValidation.valid) {
+      return {
+        success: false,
+        error: `INVALID_RECOVERY_PLAN: ${actionValidation.error}`,
+      };
+    }
 
     try {
       switch (plan.strategy) {
@@ -288,17 +302,15 @@ export class RecoveryEngine {
         }
 
         case 'wait_for_element': {
-          if (!plan.action) {
-            return { success: false, error: 'No selector to wait for' };
-          }
+          const selectorToWaitFor = this.getRecoverySelector(plan, errorContext);
 
-          logger.info(`Waiting for element: ${plan.action.params.selector}`);
+          logger.info(`Waiting for element: ${selectorToWaitFor}`);
 
           const waitResult = await registry.execute(
             'wait',
             {
               type: 'selector',
-              selector: plan.action.params.selector,
+              selector: selectorToWaitFor,
               timeout: 10000,
             },
             this.context,
@@ -308,10 +320,11 @@ export class RecoveryEngine {
             return { success: false, error: 'Element never appeared' };
           }
 
-          // Now retry original action
+          const nextTool = plan.action?.tool || errorContext.failedAction.tool;
+          const nextParams = plan.action?.params || errorContext.failedAction.params;
           const retryResult = await registry.execute(
-            errorContext.failedAction.tool,
-            errorContext.failedAction.params,
+            nextTool,
+            nextParams,
             this.context,
           );
 
@@ -416,6 +429,86 @@ export class RecoveryEngine {
         error: (error as Error).message,
       };
     }
+  }
+
+  private validateRecoveryPlan(
+    plan: RecoveryPlan,
+    errorContext: ErrorContext,
+  ): { valid: boolean; error?: string } {
+    if (!plan.reasoning || !plan.strategy) {
+      return {
+        valid: false,
+        error: 'Recovery plan must include both strategy and reasoning.',
+      };
+    }
+
+    switch (plan.strategy) {
+      case 'abort':
+      case 'abort_with_partial':
+        return { valid: true };
+      case 'refresh_and_retry':
+      case 'scroll_and_retry':
+      case 'dismiss_overlay':
+        if (!plan.action) {
+          return { valid: true };
+        }
+        return validateToolCall(plan.action.tool, plan.action.params);
+      case 'wait_and_retry':
+      case 'try_alternative_selector':
+      case 'navigate_alternative':
+        if (!plan.action) {
+          return {
+            valid: false,
+            error: `Recovery strategy "${plan.strategy}" requires an action.`,
+          };
+        }
+        return validateToolCall(plan.action.tool, plan.action.params);
+      case 'wait_for_element': {
+        const selector = this.getRecoverySelector(plan, errorContext);
+        if (!selector) {
+          return {
+            valid: false,
+            error:
+              'Recovery strategy "wait_for_element" requires a selector, containerSelector, failed selector, or alternative selector.',
+          };
+        }
+
+        if (!plan.action) {
+          return validateToolCall(
+            errorContext.failedAction.tool,
+            errorContext.failedAction.params,
+          );
+        }
+
+        return validateToolCall(plan.action.tool, plan.action.params);
+      }
+      default:
+        return {
+          valid: false,
+          error: `Unsupported recovery strategy "${plan.strategy}".`,
+        };
+    }
+  }
+
+  private getRecoverySelector(
+    plan: RecoveryPlan,
+    errorContext: ErrorContext,
+  ): string | undefined {
+    const actionParams = plan.action?.params;
+
+    const candidates = [
+      actionParams?.selector,
+      actionParams?.containerSelector,
+      errorContext.failedAction.selector,
+      errorContext.failedAction.params?.selector,
+      errorContext.failedAction.params?.containerSelector,
+      plan.alternativeSelectors?.[0],
+    ];
+
+    return candidates.find(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && candidate.trim().length > 0,
+    );
   }
 
   /**

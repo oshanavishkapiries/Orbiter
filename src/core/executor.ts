@@ -14,6 +14,7 @@ import { config } from '../config/index.js';
 import { ErrorContextBuilder } from './errors/context-builder.js';
 import { RecoveryEngine } from './errors/recovery-engine.js';
 import { ExecutionSnapshot } from './errors/types.js';
+import { validateToolCall } from '../tools/validator.js';
 import chalk from 'chalk';
 
 export interface ExecutionResult {
@@ -142,6 +143,17 @@ export class TaskExecutor {
 
         // Task complete - LLM finished
         if (response.finishReason === 'stop' && !response.toolCalls) {
+          if (this.looksLikeTextualToolCall(response.content)) {
+            logger.warn(
+              'LLM returned text that looks like a tool call without using the tool API; requesting correction',
+            );
+            this.history.addAssistantText(response.content);
+            this.history.addUserText(
+              'Your previous response described a tool action in plain text but did not issue an actual tool call. Do not write "Used ...". Use the tool API now with a valid tool call for the next browser action.',
+            );
+            continue;
+          }
+
           logger.success('Task completed by LLM');
           this.history.addAssistantText(response.content);
           continueExecution = false;
@@ -203,6 +215,11 @@ export class TaskExecutor {
             );
 
             logger.debug(`History size: ${this.history.size()} messages`);
+
+            if (this.isInvalidToolCall(stepResult)) {
+              logger.warn('Invalid tool call rejected locally; requesting a corrected call from the LLM');
+              break;
+            }
           }
         } else {
           this.history.addAssistantText(response.content);
@@ -283,6 +300,7 @@ export class TaskExecutor {
   ): Promise<ExecutionStep> {
     const startTime = Date.now();
     const registry = getToolRegistry();
+    const validation = validateToolCall(toolCall.name, toolCall.arguments);
 
     logger.step(
       stepNumber,
@@ -294,6 +312,26 @@ export class TaskExecutor {
 
     if (toolCall.arguments.selector) {
       logger.bullet(`Selector: ${chalk.gray(toolCall.arguments.selector)}`);
+    }
+
+    if (!validation.valid) {
+      const duration = Date.now() - startTime;
+      const result = {
+        success: false,
+        error: `INVALID_TOOL_CALL: ${validation.error}`,
+      };
+
+      logger.fail(`${toolCall.name} rejected: ${validation.error}`);
+
+      return {
+        stepNumber,
+        toolName: toolCall.name,
+        params: toolCall.arguments,
+        result,
+        success: false,
+        error: result.error,
+        duration,
+      };
     }
 
     let attemptNumber = 0;
@@ -345,6 +383,14 @@ export class TaskExecutor {
         }
       } catch (error) {
         lastError = error as Error;
+
+        if (this.isInvalidToolCallError(lastError)) {
+          logger.fail(
+            `${toolCall.name} rejected locally: ${lastError.message}`,
+          );
+          break;
+        }
+
         logger.fail(
           `${toolCall.name} failed (attempt ${attemptNumber}): ${lastError.message}`,
         );
@@ -436,6 +482,13 @@ export class TaskExecutor {
           };
         }
 
+        if (recovery.error && this.isInvalidRecoveryPlan(recovery.error)) {
+          lastError = new Error(
+            `INVALID_TOOL_CALL: ${recovery.error}`,
+          );
+          break;
+        }
+
         // If no more retries
         if (attemptNumber >= 3) break;
       }
@@ -460,6 +513,7 @@ export class TaskExecutor {
    * Check critical failure
    */
   private isCriticalFailure(step: ExecutionStep): boolean {
+    if (this.isInvalidToolCall(step)) return false;
     if (step.toolName === 'navigate' && !step.success) return true;
 
     const recentSteps = this.context.getState().history.slice(-3);
@@ -484,6 +538,25 @@ export class TaskExecutor {
     ];
     const lower = content.toLowerCase();
     return phrases.some((p) => lower.includes(p));
+  }
+
+  private looksLikeTextualToolCall(content: string): boolean {
+    const trimmed = content.trim();
+    if (!trimmed) return false;
+
+    return /^(used|calling|call)\s+[a-z_]+/i.test(trimmed);
+  }
+
+  private isInvalidToolCall(step: ExecutionStep): boolean {
+    return typeof step.error === 'string' && step.error.startsWith('INVALID_TOOL_CALL:');
+  }
+
+  private isInvalidToolCallError(error: Error): boolean {
+    return error.message.startsWith('INVALID_TOOL_CALL:');
+  }
+
+  private isInvalidRecoveryPlan(reason?: string): boolean {
+    return typeof reason === 'string' && reason.startsWith('INVALID_RECOVERY_PLAN:');
   }
 
   /**

@@ -136,6 +136,12 @@ export class HistoryManager {
     this.messages.push({ role: 'assistant', content });
   }
 
+  /** Add a user correction/instruction message back into the conversation */
+  addUserText(content: string): void {
+    this.messages.push({ role: 'user', content });
+    this.trim();
+  }
+
   /** Current conversation array to send to LLM */
   getMessages(): Message[] {
     return this.messages;

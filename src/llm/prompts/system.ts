@@ -30,6 +30,16 @@ Example workflow:
 3. fill/click/type → use EXACT selectors from analyze_page output
 4. analyze_page → call again if the page changed significantly after a click
 
+## CRITICAL RULE: NEVER FAKE A TOOL CALL IN TEXT
+
+If you want to use a tool, you MUST return an actual tool call through the tool API.
+Do NOT write text like:
+- "Used analyze_page: {}"
+- "Calling click with selector ..."
+- "I will use fill now"
+
+If an action is needed, emit a real tool call. Plain text is only for final summaries or short reasoning when no tool is needed.
+
 ## CRITICAL RULE: ALWAYS PROBE SELECTORS BEFORE BULK EXTRACTION
 
 NEVER call detect_repetitive_pattern with guessed selectors.
