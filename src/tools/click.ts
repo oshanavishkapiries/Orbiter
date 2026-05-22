@@ -30,16 +30,14 @@ export const clickTool: ToolDefinition = {
 
       const page = context.getBrowserManager().getPage();
 
-      // Wait for element to be visible
-      await page.waitForSelector(selector, {
-        state: 'visible',
-        timeout: 10000,
-      });
+      // Use locator so Playwright handles multiple matches gracefully.
+      // .first() picks the first match; visible() prefers the visible one.
+      const locator = page.locator(selector).first();
 
-      // Click
-      await page.click(selector, { force });
+      await locator.waitFor({ state: 'visible', timeout: 10000 });
+      await locator.scrollIntoViewIfNeeded();
+      await locator.click({ force, timeout: 10000 });
 
-      // Optional wait
       if (waitAfter > 0) {
         await page.waitForTimeout(waitAfter);
       }

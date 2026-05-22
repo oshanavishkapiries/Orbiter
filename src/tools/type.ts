@@ -25,12 +25,17 @@ export const typeTool: ToolDefinition = {
         description:
           'Delay between key presses in ms (makes typing human-like)',
       },
+      pressEnter: {
+        type: 'boolean',
+        description:
+          'Press Enter after typing. Preferred for search boxes and forms — more reliable than clicking submit buttons.',
+      },
     },
     required: ['selector', 'text'],
   },
   execute: async (params, context: ExecutionContext): Promise<ToolResult> => {
     try {
-      const { selector, text, clear = true, delay = 50 } = params;
+      const { selector, text, clear = true, delay = 50, pressEnter = false } = params;
 
       const page = context.getBrowserManager().getPage();
 
@@ -48,9 +53,13 @@ export const typeTool: ToolDefinition = {
       // Type with delay
       await page.type(selector, text, { delay });
 
+      if (pressEnter) {
+        await page.press(selector, 'Enter');
+      }
+
       return {
         success: true,
-        message: `Typed "${text}" into ${selector}`,
+        message: `Typed "${text}" into ${selector}${pressEnter ? ' and pressed Enter' : ''}`,
       };
     } catch (error) {
       logger.error(`Type tool error: ${(error as Error).message}`);

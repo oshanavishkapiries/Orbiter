@@ -12,6 +12,7 @@ import { hoverTool } from './hover.js';
 import { selectTool } from './select.js';
 import { evaluateTool } from './evaluate.js';
 import { detectPatternTool } from './detect-pattern.js';
+import { analyzePageTool } from './analyze-page.js';
 
 /**
  * Initialize and register all core tools
@@ -20,6 +21,7 @@ export function initializeTools(): void {
   const registry = getToolRegistry();
 
   registry.registerAll([
+    analyzePageTool,
     navigateTool,
     clickTool,
     typeTool,
