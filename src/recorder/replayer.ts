@@ -199,7 +199,7 @@ export class FlowReplayer {
 
     if (toolResult.success) {
       logger.success(`${step.tool} completed in ${(duration / 1000).toFixed(1)}s`);
-      if (toolResult.message) logger.bullet(toolResult.message);
+      if (!this.mcpClient.isMcpTool(step.tool) && toolResult.message) logger.bullet(toolResult.message);
     } else {
       throw new Error(toolResult.error || `Tool ${step.tool} failed`);
     }

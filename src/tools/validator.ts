@@ -14,9 +14,15 @@ export function validateToolCall(
   const tool = registry.get(toolName);
 
   if (!tool) {
+    if (toolName.startsWith('browser_')) {
+      return {
+        valid: false,
+        error: `"${toolName}" is not in the MCP tool list. Check your available browser tools and use an exact name from the list.`,
+      };
+    }
     return {
       valid: false,
-      error: `Unknown tool "${toolName}". Use one of: ${registry.getNames().join(', ')}`,
+      error: `Unknown tool "${toolName}". Available custom tools: ${registry.getNames().join(', ')}`,
     };
   }
 
@@ -85,8 +91,6 @@ function validateToolSpecificRules(
   params: Record<string, unknown>,
 ): ToolValidationResult {
   switch (toolName) {
-    case 'wait':
-      return validateWaitParams(params);
     case 'extract_data':
       return validateExtractDataParams(params);
     case 'recall_dom_snapshot':
@@ -114,21 +118,6 @@ function validateToolSpecificRules(
     default:
       return { valid: true };
   }
-}
-
-function validateWaitParams(
-  params: Record<string, unknown>,
-): ToolValidationResult {
-  if (params.type === 'time') {
-    if (typeof params.duration !== 'number' || params.duration <= 0) {
-      return {
-        valid: false,
-        error: 'Tool "wait" requires a positive numeric "duration" when type="time".',
-      };
-    }
-  }
-
-  return { valid: true };
 }
 
 function validateExtractDataParams(

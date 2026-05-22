@@ -69,7 +69,7 @@ export class TaskExecutor {
     this.formatter = new OutputFormatter();
   }
 
-  async execute(maxSteps: number = 50): Promise<ExecutionResult> {
+  async execute(maxSteps: number = 50, onStepComplete?: (step: number, max: number) => void): Promise<ExecutionResult> {
     const cfg = config();
     const startTime = Date.now();
     const steps: ExecutionStep[] = [];
@@ -138,6 +138,12 @@ export class TaskExecutor {
         if (response.finishReason === 'stop' && !response.toolCalls) {
           logger.success('Task completed by LLM');
           this.history.addAssistantText(response.content);
+          if (response.content?.trim()) {
+            console.log('\n' + chalk.cyan('─'.repeat(60)));
+            console.log(chalk.bold('\nResult:\n'));
+            console.log(response.content.trim());
+            console.log('');
+          }
           continueExecution = false;
           break;
         }
@@ -146,6 +152,10 @@ export class TaskExecutor {
           for (const toolCall of response.toolCalls) {
             const stepResult = await this.executeToolCall(toolCall, stepNumber, maxSteps);
             steps.push(stepResult);
+
+            if (stepResult.success) {
+              onStepComplete?.(stepNumber, maxSteps);
+            }
 
             if (
               stepResult.success &&
@@ -297,7 +307,8 @@ export class TaskExecutor {
 
         if (result.success) {
           logger.success(`${toolCall.name} completed in ${(duration / 1000).toFixed(1)}s`);
-          if (result.message) logger.bullet(result.message);
+          // MCP tool messages are raw browser output (snapshots, Playwright code) — skip printing
+          if (!isMcp && result.message) logger.bullet(result.message);
 
           this.recorder.recordSuccess(
             toolCall.name,
