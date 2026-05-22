@@ -4,6 +4,7 @@ import { logger } from '../cli/ui/logger.js';
 import { BaseLLMProvider } from './interfaces.js';
 import { Message, Tool, LLMResponse, ToolCall } from './types.js';
 import { fetchModelCapabilities, ModelCapabilities } from './model-capabilities.js';
+import { ChatLogger } from './chat-logger.js';
 
 export class OpenRouterProvider extends BaseLLMProvider {
   name = 'openrouter';
@@ -89,6 +90,7 @@ export class OpenRouterProvider extends BaseLLMProvider {
     this.validateTools(tools);
 
     const cfg = config();
+    const callStart = Date.now();
 
     const payload: any = {
       model: this.model,
@@ -155,6 +157,19 @@ export class OpenRouterProvider extends BaseLLMProvider {
         logger.debug(
           `LLM response received (tokens: ${result.usage.totalTokens}, tool_calls: ${toolCalls.length})`,
         );
+
+        // Log full conversation turn to file + DB
+        const durationMs = Date.now() - callStart;
+        ChatLogger.getInstance().log(
+          messages,
+          {
+            content: result.content,
+            toolCalls: result.toolCalls,
+            finishReason: result.finishReason,
+            usage: result.usage,
+          },
+          durationMs,
+        ).catch(() => {}); // fire-and-forget, never blocks the LLM response
 
         return result;
       } catch (error: any) {

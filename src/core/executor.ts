@@ -6,6 +6,7 @@ import { SYSTEM_PROMPT } from '../llm/prompts/system.js';
 import { HistoryManager } from './history-manager.js';
 import { SessionRepository } from '../memory/database/repositories/session-repository.js';
 import { DatabaseConnection } from '../memory/database/connection.js';
+import { ChatLogger } from '../llm/chat-logger.js';
 import { FlowRecorder } from '../recorder/recorder.js';
 import { OutputFormatter } from '../recorder/output-formatter.js';
 import { logger } from '../cli/ui/logger.js';
@@ -92,10 +93,12 @@ export class TaskExecutor {
         this.sessionRepo,
         this.sessionId,
       );
+      ChatLogger.getInstance().startSession(this.sessionId, this.sessionRepo);
       logger.debug(`Session started: ${this.sessionId}`);
     } catch (err) {
       logger.debug(`Session DB unavailable, running without session memory: ${(err as Error).message}`);
       this.history = new HistoryManager(SYSTEM_PROMPT, this.plan.goal, null, null);
+      ChatLogger.getInstance().startSession(null, null);
     }
 
     // Start recording

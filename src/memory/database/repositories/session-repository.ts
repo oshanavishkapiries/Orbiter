@@ -37,6 +37,21 @@ export interface CollectedDataRecord {
   createdAt: number;
 }
 
+export interface LLMInteractionRecord {
+  id: number;
+  sessionId: string;
+  callIndex: number;
+  fullMessages: any[];
+  responseContent: string | null;
+  toolCalls: any[] | null;
+  finishReason: string | null;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  durationMs: number;
+  timestamp: number;
+}
+
 export class SessionRepository extends BaseRepository<SessionRecord> {
   async createSession(
     goal: string,
@@ -218,6 +233,87 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
       toolName: row.tool_name,
       data: row.data,
       createdAt: Number(row.created_at),
+    }));
+  }
+
+  // ─── LLM Interaction Log ────────────────────────────────
+
+  async storeLLMInteraction(
+    sessionId: string,
+    callIndex: number,
+    fullMessages: any[],
+    responseContent: string | null,
+    toolCalls: any[] | null,
+    finishReason: string | null,
+    promptTokens: number,
+    completionTokens: number,
+    totalTokens: number,
+    durationMs: number,
+    timestamp: number,
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO llm_interactions
+         (session_id, call_index, full_messages, response_content, tool_calls,
+          finish_reason, prompt_tokens, completion_tokens, total_tokens, duration_ms, timestamp)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        sessionId,
+        callIndex,
+        JSON.stringify(fullMessages),
+        responseContent,
+        toolCalls ? JSON.stringify(toolCalls) : null,
+        finishReason,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        durationMs,
+        timestamp,
+      ],
+    );
+  }
+
+  async getLLMInteractions(sessionId: string): Promise<LLMInteractionRecord[]> {
+    const result = await this.pool.query(
+      `SELECT id, session_id, call_index, full_messages, response_content,
+              tool_calls, finish_reason, prompt_tokens, completion_tokens,
+              total_tokens, duration_ms, timestamp
+       FROM llm_interactions
+       WHERE session_id = $1
+       ORDER BY call_index ASC`,
+      [sessionId],
+    );
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      sessionId: row.session_id,
+      callIndex: row.call_index,
+      fullMessages: row.full_messages ?? [],
+      responseContent: row.response_content,
+      toolCalls: row.tool_calls ?? null,
+      finishReason: row.finish_reason,
+      promptTokens: row.prompt_tokens ?? 0,
+      completionTokens: row.completion_tokens ?? 0,
+      totalTokens: row.total_tokens ?? 0,
+      durationMs: row.duration_ms ?? 0,
+      timestamp: Number(row.timestamp),
+    }));
+  }
+
+  async listSessions(limit = 50): Promise<SessionRecord[]> {
+    const result = await this.pool.query(
+      `SELECT id, goal, model, provider, status, created_at, completed_at
+       FROM sessions
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [limit],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      goal: row.goal,
+      model: row.model,
+      provider: row.provider,
+      status: row.status,
+      createdAt: Number(row.created_at),
+      completedAt: row.completed_at ? Number(row.completed_at) : undefined,
     }));
   }
 }

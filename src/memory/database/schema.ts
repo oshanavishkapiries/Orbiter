@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const CREATE_TABLES_SQL = `
 -- ═══════════════════════════════════════════════════════
@@ -244,5 +244,28 @@ export const MIGRATIONS: Record<number, string> = {
       created_at BIGINT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_collected_data_session ON session_collected_data(session_id);
+  `,
+
+  3: `
+    -- ═══════════════════════════════════════════════════════
+    -- LLM CHAT LOG TABLE (v3)
+    -- ═══════════════════════════════════════════════════════
+
+    CREATE TABLE IF NOT EXISTS llm_interactions (
+      id BIGSERIAL PRIMARY KEY,
+      session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+      call_index INTEGER NOT NULL,
+      full_messages JSONB NOT NULL,
+      response_content TEXT,
+      tool_calls JSONB,
+      finish_reason TEXT,
+      prompt_tokens INTEGER,
+      completion_tokens INTEGER,
+      total_tokens INTEGER,
+      duration_ms INTEGER,
+      timestamp BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_llm_interactions_session ON llm_interactions(session_id);
+    CREATE INDEX IF NOT EXISTS idx_llm_interactions_call ON llm_interactions(session_id, call_index);
   `,
 };
