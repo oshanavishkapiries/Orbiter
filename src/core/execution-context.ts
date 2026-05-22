@@ -2,6 +2,7 @@ import { BrowserManager } from '../browser/manager.js';
 import { PageUtils } from '../browser/page-utils.js';
 import { logger } from '../cli/ui/logger.js';
 import type { LLMProvider } from '../llm/types.js';
+import type { SessionRepository } from '../memory/database/repositories/session-repository.js';
 
 export interface ExecutionState {
   currentStep: number;
@@ -26,6 +27,8 @@ export class ExecutionContext {
   private pageUtils: PageUtils | null = null;
   private state: ExecutionState;
   private llm: LLMProvider | null = null;
+  private sessionRepo: SessionRepository | null = null;
+  private sessionId: string | null = null;
 
   constructor() {
     this.browserManager = new BrowserManager();
@@ -60,6 +63,19 @@ export class ExecutionContext {
 
   getLLM(): LLMProvider | null {
     return this.llm;
+  }
+
+  setSession(repo: SessionRepository, sessionId: string): void {
+    this.sessionRepo = repo;
+    this.sessionId = sessionId;
+  }
+
+  getSessionRepo(): SessionRepository | null {
+    return this.sessionRepo;
+  }
+
+  getSessionId(): string | null {
+    return this.sessionId;
   }
 
   /**

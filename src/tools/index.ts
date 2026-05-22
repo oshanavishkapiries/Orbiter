@@ -14,6 +14,9 @@ import { evaluateTool } from './evaluate.js';
 import { detectPatternTool } from './detect-pattern.js';
 import { analyzePageTool } from './analyze-page.js';
 import { probeSelectorsTool } from './probe-selectors.js';
+import { recallStepHistoryTool } from './recall-step-history.js';
+import { recallDomSnapshotTool } from './recall-dom-snapshot.js';
+import { recallSessionDataTool } from './recall-session-data.js';
 
 /**
  * Initialize and register all core tools
@@ -37,6 +40,9 @@ export function initializeTools(): void {
     extractDataTool,
     evaluateTool,
     detectPatternTool,
+    recallStepHistoryTool,
+    recallDomSnapshotTool,
+    recallSessionDataTool,
   ]);
 }
 

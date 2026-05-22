@@ -1,0 +1,223 @@
+import { BaseRepository } from './base-repository.js';
+
+export interface SessionRecord {
+  id: string;
+  goal: string;
+  model?: string;
+  provider?: string;
+  status: 'running' | 'completed' | 'failed';
+  createdAt: number;
+  completedAt?: number;
+}
+
+export interface StepRecord {
+  stepNumber: number;
+  toolName: string;
+  params: any;
+  resultSummary: string;
+  fullResult?: any;
+  success: boolean;
+  duration?: number;
+  createdAt: number;
+}
+
+export interface DomSnapshot {
+  stepNumber: number;
+  url: string;
+  title?: string;
+  interactiveElements?: any[];
+  fullAnalysis?: any;
+  createdAt: number;
+}
+
+export interface CollectedDataRecord {
+  stepNumber: number;
+  toolName: string;
+  data: any;
+  createdAt: number;
+}
+
+export class SessionRepository extends BaseRepository<SessionRecord> {
+  async createSession(
+    goal: string,
+    model?: string,
+    provider?: string,
+  ): Promise<string> {
+    const id = this.generateId('sess');
+    await this.pool.query(
+      `INSERT INTO sessions (id, goal, model, provider, status, created_at)
+       VALUES ($1, $2, $3, $4, 'running', $5)`,
+      [id, goal, model ?? null, provider ?? null, this.now()],
+    );
+    return id;
+  }
+
+  async completeSession(
+    sessionId: string,
+    status: 'completed' | 'failed' = 'completed',
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE sessions SET status = $1, completed_at = $2 WHERE id = $3`,
+      [status, this.now(), sessionId],
+    );
+  }
+
+  async storeStep(
+    sessionId: string,
+    stepNumber: number,
+    toolName: string,
+    params: any,
+    resultSummary: string,
+    fullResult: any,
+    success: boolean,
+    duration?: number,
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO session_steps
+         (session_id, step_number, tool_name, params, result_summary, full_result, success, duration, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        sessionId,
+        stepNumber,
+        toolName,
+        JSON.stringify(params),
+        resultSummary,
+        fullResult !== undefined ? JSON.stringify(fullResult) : null,
+        success,
+        duration ?? null,
+        this.now(),
+      ],
+    );
+  }
+
+  async storeDomSnapshot(
+    sessionId: string,
+    stepNumber: number,
+    url: string,
+    title: string | undefined,
+    interactiveElements: any[] | undefined,
+    fullAnalysis: any,
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO session_dom_snapshots
+         (session_id, step_number, url, title, interactive_elements, full_analysis, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        sessionId,
+        stepNumber,
+        url,
+        title ?? null,
+        interactiveElements ? JSON.stringify(interactiveElements) : null,
+        fullAnalysis ? JSON.stringify(fullAnalysis) : null,
+        this.now(),
+      ],
+    );
+  }
+
+  async storeCollectedData(
+    sessionId: string,
+    stepNumber: number,
+    toolName: string,
+    data: any,
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO session_collected_data (session_id, step_number, tool_name, data, created_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [sessionId, stepNumber, toolName, JSON.stringify(data), this.now()],
+    );
+  }
+
+  async getStepHistory(
+    sessionId: string,
+    fromStep?: number,
+    toStep?: number,
+  ): Promise<StepRecord[]> {
+    let query = `
+      SELECT step_number, tool_name, params, result_summary, success, duration, created_at
+      FROM session_steps
+      WHERE session_id = $1
+    `;
+    const values: any[] = [sessionId];
+
+    if (fromStep !== undefined) {
+      values.push(fromStep);
+      query += ` AND step_number >= $${values.length}`;
+    }
+    if (toStep !== undefined) {
+      values.push(toStep);
+      query += ` AND step_number <= $${values.length}`;
+    }
+
+    query += ' ORDER BY step_number ASC';
+
+    const result = await this.pool.query(query, values);
+    return result.rows.map((row) => ({
+      stepNumber: row.step_number,
+      toolName: row.tool_name,
+      params: row.params,
+      resultSummary: row.result_summary,
+      success: row.success,
+      duration: row.duration,
+      createdAt: Number(row.created_at),
+    }));
+  }
+
+  async getFullStepResult(
+    sessionId: string,
+    stepNumber: number,
+  ): Promise<any | null> {
+    const result = await this.pool.query(
+      `SELECT full_result FROM session_steps WHERE session_id = $1 AND step_number = $2`,
+      [sessionId, stepNumber],
+    );
+    return result.rows[0]?.full_result ?? null;
+  }
+
+  async getDomSnapshot(
+    sessionId: string,
+    stepNumber?: number,
+  ): Promise<DomSnapshot | null> {
+    let query = `
+      SELECT step_number, url, title, interactive_elements, full_analysis, created_at
+      FROM session_dom_snapshots
+      WHERE session_id = $1
+    `;
+    const values: any[] = [sessionId];
+
+    if (stepNumber !== undefined) {
+      values.push(stepNumber);
+      query += ` AND step_number = $${values.length}`;
+    }
+
+    query += ' ORDER BY id DESC LIMIT 1';
+
+    const result = await this.pool.query(query, values);
+    if (!result.rows[0]) return null;
+
+    const row = result.rows[0];
+    return {
+      stepNumber: row.step_number,
+      url: row.url,
+      title: row.title,
+      interactiveElements: row.interactive_elements,
+      fullAnalysis: row.full_analysis,
+      createdAt: Number(row.created_at),
+    };
+  }
+
+  async getAllCollectedData(sessionId: string): Promise<CollectedDataRecord[]> {
+    const result = await this.pool.query(
+      `SELECT step_number, tool_name, data, created_at
+       FROM session_collected_data
+       WHERE session_id = $1
+       ORDER BY step_number ASC`,
+      [sessionId],
+    );
+    return result.rows.map((row) => ({
+      stepNumber: row.step_number,
+      toolName: row.tool_name,
+      data: row.data,
+      createdAt: Number(row.created_at),
+    }));
+  }
+}

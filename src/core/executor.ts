@@ -1,8 +1,11 @@
-import { LLMProvider, Message, ToolCall } from '../llm/types.js';
+import { LLMProvider, ToolCall } from '../llm/types.js';
 import { getToolRegistry } from '../tools/registry.js';
 import { ExecutionContext } from './execution-context.js';
 import { TaskPlan } from './planner.js';
 import { SYSTEM_PROMPT } from '../llm/prompts/system.js';
+import { HistoryManager } from './history-manager.js';
+import { SessionRepository } from '../memory/database/repositories/session-repository.js';
+import { DatabaseConnection } from '../memory/database/connection.js';
 import { FlowRecorder } from '../recorder/recorder.js';
 import { OutputFormatter } from '../recorder/output-formatter.js';
 import { logger } from '../cli/ui/logger.js';
@@ -38,12 +41,14 @@ export interface ExecutionStep {
 }
 
 export class TaskExecutor {
-  private conversationHistory: Message[] = [];
+  private history: HistoryManager;
   private totalTokens = 0;
   private recorder: FlowRecorder;
   private formatter: OutputFormatter;
   private extractedData: any[] = [];
   private recoveryEngine: RecoveryEngine;
+  private sessionRepo: SessionRepository | null = null;
+  private sessionId: string | null = null;
 
   constructor(
     private llm: LLMProvider,
@@ -53,24 +58,12 @@ export class TaskExecutor {
     private llmModelName: string = 'unknown',
   ) {
     this.recoveryEngine = new RecoveryEngine(llm, context);
-
-    // Give the context a reference to the LLM so tools can query vision support
     context.setLLM(llm);
 
-    // Initialize conversation
-    this.conversationHistory.push({
-      role: 'system',
-      content: SYSTEM_PROMPT,
-    });
+    // History manager initialized without session (session attached async in execute())
+    this.history = new HistoryManager(SYSTEM_PROMPT, plan.goal, null, null);
 
-    this.conversationHistory.push({
-      role: 'user',
-      content: `Please accomplish this task: ${plan.goal}`,
-    });
-
-    // Initialize recorder
     this.recorder = new FlowRecorder(plan.goal, llmProviderName, llmModelName);
-
     this.formatter = new OutputFormatter();
   }
 
@@ -82,6 +75,29 @@ export class TaskExecutor {
     const startTime = Date.now();
     const steps: ExecutionStep[] = [];
     const registry = getToolRegistry();
+
+    // Initialize session memory (non-fatal if DB unavailable)
+    try {
+      await DatabaseConnection.getInstance().initialize();
+      this.sessionRepo = new SessionRepository();
+      this.sessionId = await this.sessionRepo.createSession(
+        this.plan.goal,
+        this.llmModelName,
+        this.llmProviderName,
+      );
+      this.context.setSession(this.sessionRepo, this.sessionId);
+      // Re-create history manager now that we have a session
+      this.history = new HistoryManager(
+        SYSTEM_PROMPT,
+        this.plan.goal,
+        this.sessionRepo,
+        this.sessionId,
+      );
+      logger.debug(`Session started: ${this.sessionId}`);
+    } catch (err) {
+      logger.debug(`Session DB unavailable, running without session memory: ${(err as Error).message}`);
+      this.history = new HistoryManager(SYSTEM_PROMPT, this.plan.goal, null, null);
+    }
 
     // Start recording
     if (cfg.recording.enabled) {
@@ -106,7 +122,7 @@ export class TaskExecutor {
 
       try {
         const tools = registry.getToolsForLLM();
-        const response = await this.llm.chat(this.conversationHistory, tools);
+        const response = await this.llm.chat(this.history.getMessages(), tools);
 
         // Track tokens
         this.totalTokens += response.usage.totalTokens;
@@ -123,10 +139,7 @@ export class TaskExecutor {
         // Task complete - LLM finished
         if (response.finishReason === 'stop' && !response.toolCalls) {
           logger.success('Task completed by LLM');
-          this.conversationHistory.push({
-            role: 'assistant',
-            content: response.content,
-          });
+          this.history.addAssistantText(response.content);
           continueExecution = false;
           break;
         }
@@ -141,7 +154,7 @@ export class TaskExecutor {
             );
             steps.push(stepResult);
 
-            // Collect extracted data
+            // Collect extracted data (in-memory for output formatter)
             if (
               stepResult.success &&
               (toolCall.name === 'extract_data' ||
@@ -157,7 +170,6 @@ export class TaskExecutor {
               }
             }
 
-            // Context record
             this.context.recordStep(
               stepResult.toolName,
               JSON.stringify(stepResult.params),
@@ -165,51 +177,31 @@ export class TaskExecutor {
               stepResult.error,
             );
 
-            // Critical failure check
             if (!stepResult.success && this.isCriticalFailure(stepResult)) {
               logger.error('Critical failure, stopping execution');
               continueExecution = false;
               break;
             }
 
-            // Update conversation
-            this.conversationHistory.push({
-              role: 'assistant',
-              content: `Used ${toolCall.name}: ${JSON.stringify(toolCall.arguments)}`,
-            });
+            // Add to smart history — stores full result in DB, puts summary in conversation
+            this.history.addAssistantAction(toolCall.name, toolCall.arguments);
+            const imageBase64 =
+              this.llm.supportsVision()
+                ? stepResult.result?.imageBase64
+                : undefined;
+            await this.history.addToolResult(
+              stepNumber,
+              toolCall.name,
+              stepResult.result,
+              toolCall.arguments,
+              stepResult.duration,
+              imageBase64,
+            );
 
-            // If the tool returned a base64 image and the LLM supports vision,
-            // inject the screenshot as an actual image message so the model sees it.
-            const imageBase64 = stepResult.result?.imageBase64;
-            if (imageBase64 && this.llm.supportsVision()) {
-              const textResult = { ...stepResult.result };
-              delete textResult.imageBase64;
-              this.conversationHistory.push({
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: `Tool result: ${JSON.stringify(textResult)}\n\nHere is what the page looks like right now:`,
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: { url: imageBase64, detail: 'auto' },
-                  },
-                ],
-              });
-              logger.debug('Injected screenshot image into conversation');
-            } else {
-              this.conversationHistory.push({
-                role: 'user',
-                content: `Tool result: ${JSON.stringify(stepResult.result)}`,
-              });
-            }
+            logger.debug(`History size: ${this.history.size()} messages`);
           }
         } else {
-          this.conversationHistory.push({
-            role: 'assistant',
-            content: response.content,
-          });
+          this.history.addAssistantText(response.content);
 
           if (this.isTaskComplete(response.content)) {
             continueExecution = false;
@@ -219,6 +211,14 @@ export class TaskExecutor {
         logger.error(`Execution error: ${(error as Error).message}`);
         continueExecution = false;
       }
+    }
+
+    // Close session in DB
+    if (this.sessionRepo && this.sessionId) {
+      const failed = steps.filter((s) => !s.success).length;
+      await this.sessionRepo
+        .completeSession(this.sessionId, failed > 0 ? 'failed' : 'completed')
+        .catch(() => {});
     }
 
     // Stop recording

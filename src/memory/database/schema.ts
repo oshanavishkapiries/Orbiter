@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const CREATE_TABLES_SQL = `
 -- ═══════════════════════════════════════════════════════
@@ -191,8 +191,58 @@ VALUES (1, EXTRACT(EPOCH FROM NOW())::bigint * 1000)
 ON CONFLICT DO NOTHING;
 `;
 
-// Migration scripts for future schema updates
 export const MIGRATIONS: Record<number, string> = {
-  // Version 2 migration would go here
-  // 2: `ALTER TABLE memories ADD COLUMN new_field TEXT;`
+  2: `
+    -- ═══════════════════════════════════════════════════════
+    -- SESSION MEMORY TABLES (v2)
+    -- ═══════════════════════════════════════════════════════
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      goal TEXT NOT NULL,
+      model TEXT,
+      provider TEXT,
+      status TEXT DEFAULT 'running',
+      created_at BIGINT NOT NULL,
+      completed_at BIGINT
+    );
+
+    CREATE TABLE IF NOT EXISTS session_steps (
+      id BIGSERIAL PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      step_number INTEGER NOT NULL,
+      tool_name TEXT NOT NULL,
+      params JSONB NOT NULL DEFAULT '{}',
+      result_summary TEXT NOT NULL,
+      full_result JSONB,
+      success BOOLEAN NOT NULL,
+      duration INTEGER,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_steps_session ON session_steps(session_id);
+    CREATE INDEX IF NOT EXISTS idx_session_steps_step ON session_steps(session_id, step_number);
+
+    CREATE TABLE IF NOT EXISTS session_dom_snapshots (
+      id BIGSERIAL PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      step_number INTEGER NOT NULL,
+      url TEXT NOT NULL,
+      title TEXT,
+      interactive_elements JSONB,
+      full_analysis JSONB,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_dom_snapshots_session ON session_dom_snapshots(session_id);
+    CREATE INDEX IF NOT EXISTS idx_dom_snapshots_step ON session_dom_snapshots(session_id, step_number);
+
+    CREATE TABLE IF NOT EXISTS session_collected_data (
+      id BIGSERIAL PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      step_number INTEGER NOT NULL,
+      tool_name TEXT NOT NULL,
+      data JSONB NOT NULL,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_collected_data_session ON session_collected_data(session_id);
+  `,
 };
