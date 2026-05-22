@@ -11,20 +11,20 @@ Observation:
 - browser_snapshot   — get the current page accessibility tree (ARIA roles + refs). CALL THIS AFTER EVERY NAVIGATION.
 - browser_screenshot — take a screenshot (use when visual confirmation is needed)
 
-Interaction (use refs from browser_snapshot):
-- browser_click         — click an element { element: "description", ref: "eNNN" }
-- browser_type          — type text character by character (good for autocomplete) { element: "description", ref: "eNNN", text: "..." }
-- browser_fill          — fill a form field (fast) { element: "description", ref: "eNNN", value: "..." }
-- browser_select_option — pick from a <select> { element: "description", ref: "eNNN", values: ["..."] }
-- browser_hover         — hover over an element { element: "description", ref: "eNNN" }
-- browser_scroll        — scroll the page { direction: "down", coordinate: [760, 400] }
-- browser_drag          — drag an element { startElement: "...", startRef: "eNNN", endElement: "...", endRef: "eMMM" }
+Interaction — use the EXACT parameter schema from each tool's definition:
+- browser_click         — click an element (requires the element ref from snapshot)
+- browser_type          — type text character by character, good for autocomplete inputs
+- browser_fill          — fill a form field instantly
+- browser_select_option — pick an option from a <select> dropdown
+- browser_hover         — hover over an element
+- browser_scroll        — scroll the page
+- browser_drag          — drag from one element to another
 
 Waiting:
-- browser_wait_for — wait for element or text { time?: number, text?: string, textGone?: string }
+- browser_wait_for — wait for element, text, or a fixed time
 
 JavaScript:
-- browser_evaluate — run JS in page context { function: "expression or IIFE" }
+- browser_evaluate — run JS in page context; the parameter is named "function"
 
 ## DATA EXTRACTION TOOLS
 
@@ -51,9 +51,12 @@ JavaScript:
 ## HOW TO READ THE SNAPSHOT
 
 The snapshot shows: ROLE "NAME" [ref=eNNN]
-- ref=eNNN  → use this in browser_click, browser_type, browser_fill, etc.
-- ROLE      → accessibility role (button, textbox, link, etc.)
-- NAME      → accessible label
+- ROLE → accessibility role (button, textbox, link, etc.)
+- NAME → accessible label
+- [ref=eNNN] → the element reference. When a tool asks for the ref/target, pass ONLY the ID part.
+
+Example: snapshot shows  combobox "Search Google Maps" [ref=e18]
+- The ref/target ID is: e18   (NOT "ref=e18" — never include the "ref=" prefix)
 
 ## DYNAMIC / SPA PAGES
 
@@ -63,10 +66,9 @@ If the snapshot shows a loading screen, wait then snapshot again:
 
 ## FORM SUBMISSION
 
-Fill the field, then press Enter via evaluate:
-  browser_fill { element: "Search input", ref: "e5", value: "London" }
-  browser_evaluate { function: "document.querySelector('input[name=q]').form.submit()" }
-OR just click the submit button using its ref from the snapshot.
+Fill the field using browser_fill (with the ref from the snapshot), then either:
+- Click the submit button using browser_click with its ref, or
+- Press Enter: browser_evaluate { function: "document.querySelector('input').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))" }
 
 ## BULK DATA EXTRACTION
 

@@ -158,16 +158,9 @@ export class RecoveryEngine {
 
         case 'dismiss_overlay': {
           logger.info('Dismissing overlay...');
-          try {
-            await mcpClient.callTool('browser_click', {
-              element: 'close button',
-            });
-          } catch {
-            // Simulate Escape key via evaluate as fallback
-            await mcpClient.evaluate(
-              `document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true,cancelable:true}))`,
-            );
-          }
+          await mcpClient.evaluate(
+            `document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true,cancelable:true}))`,
+          );
           await mcpClient.delay(800);
           const target = plan.action ?? errorContext.failedAction;
           const r = await this.executeTool(target.tool, target.params);
