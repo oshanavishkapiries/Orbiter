@@ -46,8 +46,8 @@ Pattern: inspect element to find the right selector
 ## HOW TO READ THE SNAPSHOT
 
 The snapshot shows:  - ROLE "NAME"
-  ROLE → value of the `role` parameter (for fill/click)
-  NAME → value of the `name` parameter
+  ROLE → value of the "role" parameter (for fill/click)
+  NAME → value of the "name" parameter
 
 For run_code you can use any CSS/ARIA selector — you are not limited to the snapshot.
 
