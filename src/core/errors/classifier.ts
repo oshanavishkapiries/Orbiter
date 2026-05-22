@@ -16,6 +16,15 @@ export class ErrorClassifier {
       return { type: 'timeout', severity: 'medium' };
     }
     if (
+      msg.includes('no containers matched') ||
+      msg.includes('no data extracted') ||
+      msg.includes('selectors returned null') ||
+      msg.includes('matched the containerselector') ||
+      msg.includes('matched the selector')
+    ) {
+      return { type: 'selector_mismatch', severity: 'low' };
+    }
+    if (
       msg.includes('not found') ||
       msg.includes('no element') ||
       msg.includes('unable to find') ||

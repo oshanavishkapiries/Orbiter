@@ -79,10 +79,17 @@ export class McpClient {
     const result = await this.callTool('browser_evaluate', { function: expression });
     if (!result.success) throw new Error(result.error ?? 'Evaluate failed');
     const text = result.data ?? result.message ?? '';
+    return this.parseMcpValue(text);
+  }
+
+  private parseMcpValue(text: string): any {
+    // MCP browser_evaluate returns: "### Result\n<json>\n### Ran Playwright code\n..."
+    const resultMatch = text.match(/###\s*Result\s*\n([\s\S]*?)(?:\n###|$)/);
+    const raw = resultMatch ? resultMatch[1].trim() : text.trim();
     try {
-      return JSON.parse(text);
+      return JSON.parse(raw);
     } catch {
-      return text;
+      return raw;
     }
   }
 

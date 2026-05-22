@@ -57,8 +57,8 @@ export class ErrorContextBuilder {
   private async detectPageFlags(): Promise<PageFlags> {
     try {
       return await this.mcpClient.evaluate(`({
-        hasModal: !!document.querySelector('[role="dialog"], [aria-modal="true"]'),
-        hasOverlay: !!document.querySelector('[class*="overlay"],[class*="cookie"],[class*="consent"],[class*="popup"],[id*="cookie"]'),
+        hasModal: !!document.querySelector('[aria-modal="true"]'),
+        hasOverlay: !!(document.querySelector('[class*="cookie"],[class*="consent"],[id*="cookie"],[id*="gdpr"]') && document.querySelector('button')),
         hasCaptcha: !!(document.querySelector('[class*="captcha"],[id*="captcha"]') || document.querySelector('iframe[src*="recaptcha"],iframe[src*="hcaptcha"]')),
       })`);
     } catch {

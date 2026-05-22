@@ -31,6 +31,11 @@ export class RecoveryEngine {
     if (errorContext.error.severity === 'critical') {
       return { success: false, shouldAbort: true, abortReason: 'Critical error — stopping' };
     }
+    if (errorContext.error.type === 'selector_mismatch') {
+      // Wrong CSS selectors — retrying same params won't help; let LLM re-probe the DOM
+      this.displayErrorContext(errorContext);
+      return { success: false, shouldAbort: false, error: errorContext.error.message };
+    }
 
     logger.info('Analyzing error for recovery...');
     this.displayErrorContext(errorContext);
