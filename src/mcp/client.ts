@@ -76,7 +76,7 @@ export class McpClient {
   }
 
   async evaluate(expression: string): Promise<any> {
-    const result = await this.callTool('browser_evaluate', { expression });
+    const result = await this.callTool('browser_evaluate', { function: expression });
     if (!result.success) throw new Error(result.error ?? 'Evaluate failed');
     const text = result.data ?? result.message ?? '';
     try {

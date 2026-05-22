@@ -109,3 +109,19 @@ export function getUserPrompt(userGoal: string): string {
 
 Accomplish this using the available tools. Be concise — state what you are doing and report the result.`;
 }
+
+export const PLANNING_SYSTEM_PROMPT = `You are a browser automation planner. Your job is to create a concise numbered action plan for the given goal.
+
+Output ONLY a numbered list of steps. Each step should be a single action (navigate, click, fill, extract, etc.).
+Do not call any tools. Do not explain — just list the steps.
+
+Example format:
+1. Navigate to the target website
+2. Search for the query
+3. Extract the results`;
+
+export function getPlanningPrompt(userGoal: string): string {
+  return `Goal: ${userGoal}
+
+Write a numbered step-by-step action plan to accomplish this goal using browser automation.`;
+}

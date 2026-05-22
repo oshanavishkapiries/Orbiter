@@ -124,8 +124,13 @@ export function runCommand() {
           for (const [index, step] of plan.steps.entries()) {
             console.log(chalk.white(`  ${index + 1}. ${step}`));
           }
+        } else if (plan.reasoning.trim()) {
+          const lines = plan.reasoning.trim().split('\n').slice(0, 10);
+          for (const line of lines) {
+            if (line.trim()) console.log(chalk.gray(`  ${line.trim()}`));
+          }
         } else {
-          console.log(chalk.gray(`  ${plan.reasoning.slice(0, 200)}...`));
+          console.log(chalk.gray(`  (plan will emerge during execution)`));
         }
         console.log('');
 

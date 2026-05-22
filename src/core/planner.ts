@@ -1,6 +1,5 @@
 import { LLMProvider, Message } from '../llm/types.js';
-import { getToolRegistry } from '../tools/registry.js';
-import { SYSTEM_PROMPT, getUserPrompt } from '../llm/prompts/system.js';
+import { PLANNING_SYSTEM_PROMPT, getPlanningPrompt } from '../llm/prompts/system.js';
 import { logger } from '../cli/ui/logger.js';
 
 export interface TaskPlan {
@@ -20,22 +19,19 @@ export class TaskPlanner {
   async plan(userGoal: string): Promise<TaskPlan> {
     logger.info('Planning task...');
 
-    const registry = getToolRegistry();
-    const tools = registry.getToolsForLLM();
-
     const messages: Message[] = [
       {
         role: 'system',
-        content: SYSTEM_PROMPT,
+        content: PLANNING_SYSTEM_PROMPT,
       },
       {
         role: 'user',
-        content: getUserPrompt(userGoal),
+        content: getPlanningPrompt(userGoal),
       },
     ];
 
     try {
-      const response = await this.llm.chat(messages, tools);
+      const response = await this.llm.chat(messages, []);
       const steps = this.extractSteps(response.content);
 
       // Parse plan from response
