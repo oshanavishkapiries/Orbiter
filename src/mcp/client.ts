@@ -116,7 +116,7 @@ export class McpClient {
     if (options.executablePath) args.push('--executable-path', options.executablePath);
     if (options.browser) args.push('--browser', options.browser);
     if (options.viewport) {
-      args.push('--viewport', `${options.viewport.width}x${options.viewport.height}`);
+      args.push('--viewport-size', `${options.viewport.width}x${options.viewport.height}`);
     }
     if (options.outputDir) args.push('--output-dir', options.outputDir);
 

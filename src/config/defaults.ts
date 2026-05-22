@@ -21,7 +21,7 @@ export const defaults: OrbiterConfig = {
     },
     profilePath: null,
     executablePath: null,
-    channel: null,
+    channel: null,  // 'chrome' | 'msedge' | 'firefox' | 'webkit'
   },
   execution: {
     maxRetries: 3,

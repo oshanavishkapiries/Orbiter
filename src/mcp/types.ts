@@ -3,6 +3,6 @@ export interface McpClientOptions {
   userDataDir?: string | null;
   executablePath?: string | null;
   viewport?: { width: number; height: number };
-  browser?: 'chromium' | 'firefox' | 'webkit' | 'chrome' | 'msedge';
+  browser?: 'chrome' | 'firefox' | 'webkit' | 'msedge';
   outputDir?: string;
 }
