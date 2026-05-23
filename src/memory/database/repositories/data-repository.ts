@@ -211,6 +211,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
       { key: 'browser.defaultTimeout', value: String(cfg.browser?.defaultTimeout ?? 30000), type: 'number', cat: 'browser', desc: 'Default browser action timeout (ms)' },
       { key: 'browser.viewport.width', value: String(cfg.browser?.viewport?.width ?? 1280), type: 'number', cat: 'browser', desc: 'Browser viewport width (px)' },
       { key: 'browser.viewport.height', value: String(cfg.browser?.viewport?.height ?? 720), type: 'number', cat: 'browser', desc: 'Browser viewport height (px)' },
+      { key: 'execution.maxSteps', value: String(cfg.execution?.maxSteps ?? 100), type: 'number', cat: 'execution', desc: 'Default max steps per execution run' },
       { key: 'execution.maxRetries', value: String(cfg.execution?.maxRetries ?? 3), type: 'number', cat: 'execution', desc: 'Max tool retry attempts on failure' },
       { key: 'execution.retryDelay', value: String(cfg.execution?.retryDelay ?? 1000), type: 'number', cat: 'execution', desc: 'Delay between retries (ms)' },
       { key: 'execution.screenshotOnError', value: String(cfg.execution?.screenshotOnError ?? true), type: 'boolean', cat: 'execution', desc: 'Capture screenshot on tool error' },

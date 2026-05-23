@@ -77,7 +77,7 @@ export class TaskExecutor {
     this.highlighter = new ElementHighlighter(highlightEnabled);
   }
 
-  async execute(maxSteps: number = 50): Promise<ExecutionResult> {
+  async execute(maxSteps?: number): Promise<ExecutionResult> {
     const cfg = config();
     const startTime = Date.now();
     const steps: ExecutionStep[] = [];
@@ -88,12 +88,19 @@ export class TaskExecutor {
     const allTools: Tool[] = [...mcpClient.getTools(), ...registry.getToolsForLLM()];
 
     // Initialize session memory (non-fatal if DB unavailable)
+    let resolvedMaxSteps = maxSteps ?? 100;
     try {
       await DatabaseConnection.getInstance().initialize();
       injectLogPool(DatabaseConnection.getInstance().getPool());
 
       const dataRepo = new DataRepository();
       await dataRepo.seedSettings(cfg).catch(() => {});
+
+      // Read execution.maxSteps from DB when not explicitly overridden by CLI
+      if (maxSteps === undefined) {
+        const dbMaxSteps = await dataRepo.getSetting('execution.maxSteps').catch(() => null);
+        if (dbMaxSteps) resolvedMaxSteps = parseInt(dbMaxSteps) || 100;
+      }
 
       this.sessionRepo = new SessionRepository();
       this.sessionId = await this.sessionRepo.createSession(
@@ -118,20 +125,34 @@ export class TaskExecutor {
       ChatLogger.getInstance().startSession(null, null);
     }
 
+    const effectiveMaxSteps = resolvedMaxSteps;
+
     if (cfg.recording.enabled) {
       this.recorder.start();
     }
 
-    logger.info(`Starting execution (max ${maxSteps} steps)`);
-    this.context.setTotalSteps(maxSteps);
+    logger.info(`Starting execution (max ${effectiveMaxSteps} steps)`);
+    this.context.setTotalSteps(effectiveMaxSteps);
 
     let stepNumber = 0;
     let continueExecution = true;
+    let stepLimitWarned = false;
 
-    while (continueExecution && stepNumber < maxSteps) {
+    while (continueExecution && stepNumber < effectiveMaxSteps) {
       stepNumber++;
 
-      logger.step(stepNumber, maxSteps, 'thinking', 'LLM deciding next action...');
+      // Warn LLM when only a few steps remain so it can save data and wrap up
+      const stepsLeft = effectiveMaxSteps - stepNumber;
+      if (!stepLimitWarned && stepsLeft <= 5) {
+        stepLimitWarned = true;
+        logger.warn(`Only ${stepsLeft} step(s) remaining — injecting save reminder`);
+        this.history.addUserText(
+          `[SYSTEM] You have only ${stepsLeft} step(s) remaining before execution stops. ` +
+          `If you have collected any data, call save_json or save_csv NOW to persist it, then stop.`,
+        );
+      }
+
+      logger.step(stepNumber, effectiveMaxSteps, 'thinking', 'LLM deciding next action...');
 
       try {
         const response = await this.llm.chat(this.history.getMessages(), allTools);
@@ -173,7 +194,7 @@ export class TaskExecutor {
 
         if (response.toolCalls && response.toolCalls.length > 0) {
           for (const toolCall of response.toolCalls) {
-            const stepResult = await this.executeToolCall(toolCall, stepNumber, maxSteps);
+            const stepResult = await this.executeToolCall(toolCall, stepNumber, effectiveMaxSteps);
             steps.push(stepResult);
 
             if (stepResult.success && (toolCall.name === 'save_csv' || toolCall.name === 'save_json')) {
@@ -228,6 +249,10 @@ export class TaskExecutor {
       }
     }
 
+    if (stepNumber >= effectiveMaxSteps && continueExecution) {
+      logger.warn(`Step limit reached (${effectiveMaxSteps}/${effectiveMaxSteps}). Use --max-steps <n> to increase, or update execution.maxSteps in the settings table.`);
+    }
+
     if (this.sessionRepo && this.sessionId) {
       const failed = steps.filter((s) => !s.success).length;
       await this.sessionRepo
@@ -280,6 +305,14 @@ export class TaskExecutor {
 
     logger.step(stepNumber, totalSteps, toolCall.name, `Executing ${toolCall.name}...`);
     logger.bullet(`Tool: ${chalk.cyan(toolCall.name)}`);
+
+    // In debug mode, print tool arguments so scripts/selectors are visible
+    if (toolCall.name === 'browser_evaluate' && toolCall.arguments?.function) {
+      const script = String(toolCall.arguments.function);
+      logger.debug(`  ${chalk.gray('script:')} ${chalk.dim(script.length > 500 ? script.slice(0, 500) + '…' : script)}`);
+    } else if (toolCall.arguments && Object.keys(toolCall.arguments).length > 0) {
+      logger.debug(`  ${chalk.gray('args:')} ${chalk.dim(JSON.stringify(toolCall.arguments).slice(0, 300))}`);
+    }
 
     // Only validate custom tools — MCP tools are validated server-side
     if (!isMcp) {

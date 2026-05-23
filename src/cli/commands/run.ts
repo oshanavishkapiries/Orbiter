@@ -23,7 +23,7 @@ export function runCommand() {
     .option('-p, --profile <path>', 'Browser profile path')
     .option('--headless', 'Run browser in headless mode')
     .option('--no-record', 'Disable flow recording')
-    .option('--max-steps <number>', 'Maximum steps to execute', '50')
+    .option('--max-steps <number>', 'Maximum steps to execute (default: reads from DB settings)')
     .option('--report', 'Generate execution report')
     .option('--report-format <format>', 'Report format: markdown or json', 'markdown')
     .option('-e, --enhance', 'Enhance the prompt with AI before execution')
@@ -123,7 +123,7 @@ export function runCommand() {
           !!options.highlight,
         );
 
-        const result = await executor.execute(parseInt(options.maxSteps));
+        const result = await executor.execute(options.maxSteps ? parseInt(options.maxSteps) : undefined);
 
         for (const step of result.steps) {
           timeline.add({
