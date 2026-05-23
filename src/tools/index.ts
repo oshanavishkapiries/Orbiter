@@ -6,6 +6,7 @@ import { recallDomSnapshotTool } from './recall-dom-snapshot.js';
 import { recallSessionDataTool } from './recall-session-data.js';
 import { storeMemoryTool } from './store-memory.js';
 import { recallMemoryTool } from './recall-memory.js';
+import { allDevTools } from './devtools.js';
 
 let _initialized = false;
 
@@ -21,6 +22,7 @@ export function initializeTools(): void {
     recallSessionDataTool,
     storeMemoryTool,
     recallMemoryTool,
+    ...allDevTools,
   ]);
 }
 
