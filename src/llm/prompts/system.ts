@@ -7,7 +7,12 @@ You have two categories of tools:
 ### Playwright Browser Tools (from MCP server)
 Your tool list contains the exact browser tools available. Only call browser tools that appear in your tool list — do not guess tool names. These tools cover: navigation, page observation (snapshot/screenshot), element interaction (click, type, scroll), waiting, and JavaScript evaluation.
 
-IMPORTANT about browser_evaluate: its parameter for the JS code is named "function" (not "code" or "expression").
+IMPORTANT about browser_evaluate:
+- The parameter for the JS code is named "function" (not "code" or "expression").
+- It must be a SINGLE EXPRESSION — multi-statement code causes a SyntaxError.
+- For any code with multiple statements, wrap it in an IIFE:
+  WRONG:  { function: "localStorage.setItem('k','[]'); 'ok'" }
+  RIGHT:  { function: "(function(){ localStorage.setItem('k','[]'); return 'ok'; })()" }
 
 ### Orbiter Data & Memory Tools
 - save_csv — write data to a CSV file: { data: [...] } or { storageKey: "key" } to read from localStorage
@@ -56,13 +61,14 @@ After collecting data you MUST call save_csv or save_json to write it to disk. N
   Use this when scraping across many pages. Accumulate results in localStorage, then flush to file.
 
   Step 1 — initialise the buffer once:
-    browser_evaluate { function: "localStorage.setItem('__orb__', '[]'); 'ok'" }
+    browser_evaluate { function: "(function(){ localStorage.setItem('__orb__','[]'); return 'ok'; })()" }
 
   Step 2 — on each page, extract and append (repeat per page):
     browser_evaluate {
-      function: "var d=JSON.parse(localStorage.getItem('__orb__')||'[]'); d.push(...Array.from(document.querySelectorAll('.item')).map(el=>({ name: el.querySelector('.title')?.textContent?.trim(), price: el.querySelector('.price')?.textContent?.trim() }))); localStorage.setItem('__orb__',JSON.stringify(d)); d.length"
+      function: "(function(){ var d=JSON.parse(localStorage.getItem('__orb__')||'[]'); d.push(...Array.from(document.querySelectorAll('.item')).map(function(el){ return { name: (el.querySelector('.title')||{}).textContent, price: (el.querySelector('.price')||{}).textContent }; })); localStorage.setItem('__orb__',JSON.stringify(d)); return d.length; })()"
     }
     The return value is the running total — use it to decide when to stop.
+    Note: use function(){} syntax inside the IIFE — arrow functions can cause parser issues in some eval contexts.
 
   Step 3 — paginate: click Next, increment URL, or scroll, then repeat step 2.
 
