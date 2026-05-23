@@ -30,6 +30,7 @@ export function runCommand() {
     .option('-e, --enhance', 'Enhance the prompt with AI before execution')
     .option('--no-enhance', 'Disable prompt enhancement for this run')
     .option('--overlay', 'Show a live action overlay in the browser window')
+    .option('--highlight', 'Highlight interactive elements in the browser after each step')
     .action(async (prompt, options) => {
       console.log(banners.run(prompt));
 
@@ -153,6 +154,7 @@ export function runCommand() {
           modelInfo.provider,
           modelInfo.name,
           !!options.overlay,
+          !!options.highlight,
         );
 
         const result = await executor.execute(parseInt(options.maxSteps));

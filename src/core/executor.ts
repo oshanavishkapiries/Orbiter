@@ -16,6 +16,7 @@ import { ExecutionSnapshot } from './errors/types.js';
 import { validateToolCall } from '../tools/validator.js';
 import { SkillLoader } from '../skills/loader.js';
 import { BrowserOverlay } from './overlay.js';
+import { ElementHighlighter } from './element-highlighter.js';
 import chalk from 'chalk';
 
 export interface ExecutionResult {
@@ -59,6 +60,7 @@ export class TaskExecutor {
   private skillLoader: SkillLoader;
   private injectedSkills = new Set<string>();
   private overlay: BrowserOverlay;
+  private highlighter: ElementHighlighter;
 
   constructor(
     private llm: LLMProvider,
@@ -67,12 +69,14 @@ export class TaskExecutor {
     private llmProviderName: string = 'openrouter',
     private llmModelName: string = 'unknown',
     overlayEnabled: boolean = false,
+    highlightEnabled: boolean = false,
   ) {
     this.recoveryEngine = new RecoveryEngine(llm, context);
     context.setLLM(llm);
     this.recorder = new FlowRecorder(plan.goal, llmProviderName, llmModelName);
     this.skillLoader = new SkillLoader();
     this.overlay = new BrowserOverlay(overlayEnabled);
+    this.highlighter = new ElementHighlighter(highlightEnabled);
   }
 
   async execute(maxSteps: number = 50): Promise<ExecutionResult> {
@@ -178,6 +182,9 @@ export class TaskExecutor {
               mcpClient, stepNumber, maxSteps,
               toolCall.name, stepResult.success, this.savedRecordCount,
             );
+            if (stepResult.success) {
+              await this.highlighter.inject(mcpClient);
+            }
 
             this.context.recordStep(
               stepResult.toolName,
@@ -228,6 +235,7 @@ export class TaskExecutor {
     }
 
     await this.overlay.remove(mcpClient);
+    await this.highlighter.remove(mcpClient);
     this.recorder.stop();
 
     let flowPath: string | undefined;
