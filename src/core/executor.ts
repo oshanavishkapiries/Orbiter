@@ -15,6 +15,8 @@ import { ErrorContextBuilder } from './errors/context-builder.js';
 import { RecoveryEngine } from './errors/recovery-engine.js';
 import { ExecutionSnapshot } from './errors/types.js';
 import { validateToolCall } from '../tools/validator.js';
+import { SkillLoader } from '../skills/loader.js';
+import { BrowserOverlay } from './overlay.js';
 import chalk from 'chalk';
 
 export interface ExecutionResult {
@@ -55,6 +57,9 @@ export class TaskExecutor {
   private recoveryEngine: RecoveryEngine;
   private sessionRepo: SessionRepository | null = null;
   private sessionId: string | null = null;
+  private skillLoader: SkillLoader;
+  private injectedSkills = new Set<string>();
+  private overlay: BrowserOverlay;
 
   constructor(
     private llm: LLMProvider,
@@ -62,11 +67,14 @@ export class TaskExecutor {
     private plan: TaskPlan,
     private llmProviderName: string = 'openrouter',
     private llmModelName: string = 'unknown',
+    overlayEnabled: boolean = false,
   ) {
     this.recoveryEngine = new RecoveryEngine(llm, context);
     context.setLLM(llm);
     this.recorder = new FlowRecorder(plan.goal, llmProviderName, llmModelName);
     this.formatter = new OutputFormatter();
+    this.skillLoader = new SkillLoader();
+    this.overlay = new BrowserOverlay(overlayEnabled);
   }
 
   async execute(maxSteps: number = 50): Promise<ExecutionResult> {
@@ -126,11 +134,19 @@ export class TaskExecutor {
         this.totalOutputTokens += response.usage.completionTokens;
         this.recorder.updateTokenUsage(response.usage.totalTokens);
 
-        // Update page context for recorder
+        // Update page context; inject site skill on first visit
         try {
           const url = await mcpClient.getCurrentUrl();
           const title = await mcpClient.getTitle();
-          if (url) this.recorder.updatePageContext(url, title);
+          if (url) {
+            this.recorder.updatePageContext(url, title);
+            const skill = this.skillLoader.matchUrl(url);
+            if (skill && !this.injectedSkills.has(skill.domain)) {
+              this.injectedSkills.add(skill.domain);
+              this.history.injectSkillContext(skill.name, skill.context);
+              logger.info(`Site skill injected: ${skill.name}`);
+            }
+          }
         } catch {
           // no page navigated yet
         }
@@ -152,6 +168,11 @@ export class TaskExecutor {
           for (const toolCall of response.toolCalls) {
             const stepResult = await this.executeToolCall(toolCall, stepNumber, maxSteps);
             steps.push(stepResult);
+
+            await this.overlay.update(
+              mcpClient, stepNumber, maxSteps,
+              toolCall.name, stepResult.success, this.extractedData.length,
+            );
 
             if (stepResult.success && (toolCall.name === 'save_extracted_data' || toolCall.name === 'bulk_extract')) {
               const data = stepResult.result?.data;
@@ -212,6 +233,7 @@ export class TaskExecutor {
         .catch(() => {});
     }
 
+    await this.overlay.remove(mcpClient);
     this.recorder.stop();
 
     let flowPath: string | undefined;

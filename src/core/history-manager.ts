@@ -89,6 +89,17 @@ export class HistoryManager {
     this.trim();
   }
 
+  injectSkillContext(skillName: string, context: string): void {
+    this.messages.push({
+      role: 'user',
+      content: `[Site Skill: ${skillName}]\n${context}`,
+    });
+    this.messages.push({
+      role: 'assistant',
+      content: `Understood. I will apply the ${skillName} site skill guidance for this page.`,
+    });
+  }
+
   addAssistantText(content: string): void {
     this.messages.push({ role: 'assistant', content });
   }

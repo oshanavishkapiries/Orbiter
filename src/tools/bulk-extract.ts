@@ -64,9 +64,10 @@ export const bulkExtractTool: ToolDefinition = {
     logger.info(`bulk_extract: page 1 / max ${clampedMax}`);
     const firstPage = await runExtractFn(mcpClient, extractFn);
     if (firstPage.length === 0) {
+      const diagnostic = await getDiagnostic(mcpClient, extractFn);
       return {
         success: false,
-        error: 'bulk_extract: extractFn returned no items on the first page. Verify the selector and page state with browser_evaluate before calling bulk_extract.',
+        error: `bulk_extract: extractFn returned no items on the first page. ${diagnostic} Use browser_evaluate to inspect the current page state before calling bulk_extract again.`,
       };
     }
     addNew(firstPage);
@@ -110,6 +111,26 @@ export const bulkExtractTool: ToolDefinition = {
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+async function getDiagnostic(mcpClient: McpClient, extractFn: string): Promise<string> {
+  try {
+    // Count how many container elements the extractFn's first querySelector would find.
+    // Heuristic: look for the first querySelectorAll call in the extractFn.
+    const selectorMatch = extractFn.match(/querySelectorAll\(['"]([^'"]+)['"]\)/);
+    const primarySelector = selectorMatch ? selectorMatch[1] : 'article';
+    const count = await mcpClient.evaluate(
+      `document.querySelectorAll(${JSON.stringify(primarySelector)}).length`,
+    );
+    const url = await mcpClient.getCurrentUrl();
+    const countStr = typeof count === 'number' ? count : '?';
+    if (countStr === 0) {
+      return `Diagnostic: 0 "${primarySelector}" elements found on the current page (${url}). The page may have navigated to a detail view — go back to the search results list before calling bulk_extract.`;
+    }
+    return `Diagnostic: ${countStr} "${primarySelector}" elements found but extractFn returned no records — check the selector logic inside extractFn matches the actual DOM structure.`;
+  } catch {
+    return 'Diagnostic unavailable.';
+  }
+}
 
 async function runExtractFn(mcpClient: McpClient, extractFn: string): Promise<any[]> {
   try {
