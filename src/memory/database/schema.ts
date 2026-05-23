@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const CREATE_TABLES_SQL = `
 -- ═══════════════════════════════════════════════════════
@@ -267,5 +267,84 @@ export const MIGRATIONS: Record<number, string> = {
     );
     CREATE INDEX IF NOT EXISTS idx_llm_interactions_session ON llm_interactions(session_id);
     CREATE INDEX IF NOT EXISTS idx_llm_interactions_call ON llm_interactions(session_id, call_index);
+  `,
+
+  4: `
+    -- ═══════════════════════════════════════════════════════
+    -- DATA STORAGE TABLES (v4)
+    -- Replaces file-based storage for flows, outputs, logs,
+    -- error captures, reports, and dynamic settings.
+    -- ═══════════════════════════════════════════════════════
+
+    CREATE TABLE IF NOT EXISTS flows (
+      id TEXT PRIMARY KEY,
+      session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'raw',
+      step_count INTEGER DEFAULT 0,
+      flow_data JSONB NOT NULL,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_flows_session ON flows(session_id);
+    CREATE INDEX IF NOT EXISTS idx_flows_created ON flows(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS outputs (
+      id BIGSERIAL PRIMARY KEY,
+      session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+      flow_id TEXT REFERENCES flows(id) ON DELETE SET NULL,
+      name TEXT NOT NULL,
+      format TEXT NOT NULL,
+      record_count INTEGER DEFAULT 0,
+      data JSONB,
+      csv_content TEXT,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_outputs_session ON outputs(session_id);
+    CREATE INDEX IF NOT EXISTS idx_outputs_created ON outputs(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS app_logs (
+      id BIGSERIAL PRIMARY KEY,
+      level TEXT NOT NULL,
+      message TEXT NOT NULL,
+      meta JSONB,
+      session_id TEXT,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level);
+    CREATE INDEX IF NOT EXISTS idx_app_logs_session ON app_logs(session_id);
+    CREATE INDEX IF NOT EXISTS idx_app_logs_created ON app_logs(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS error_captures (
+      id TEXT PRIMARY KEY,
+      session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+      error_type TEXT,
+      error_message TEXT,
+      url TEXT,
+      screenshot_base64 TEXT,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_error_captures_session ON error_captures(session_id);
+    CREATE INDEX IF NOT EXISTS idx_error_captures_created ON error_captures(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS reports (
+      id BIGSERIAL PRIMARY KEY,
+      session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+      task_name TEXT NOT NULL,
+      format TEXT NOT NULL,
+      content TEXT NOT NULL,
+      report_data JSONB,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_reports_session ON reports(session_id);
+    CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      value_type TEXT NOT NULL DEFAULT 'string',
+      category TEXT,
+      description TEXT,
+      updated_at BIGINT NOT NULL
+    );
   `,
 };

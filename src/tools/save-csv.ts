@@ -5,16 +5,16 @@ import { OutputFormatter } from '../recorder/output-formatter.js';
 export const saveCsvTool: ToolDefinition = {
   name: 'save_csv',
   description:
-    'Save data as a CSV file on disk. ' +
+    'Save data as CSV to the database. ' +
     'Pass "data" directly (small sets) or "storageKey" to read from browser localStorage (bulk sets accumulated page-by-page). ' +
-    'Returns the saved file path.',
+    'Returns the saved output reference.',
   parameters: {
     type: 'object',
     required: [],
     properties: {
       data: {
         type: 'array',
-        description: 'Array of plain objects to save. Columns inferred from object keys. Use for small direct datasets.',
+        description: 'Array of plain objects to save. Columns inferred from object keys.',
       },
       storageKey: {
         type: 'string',
@@ -24,7 +24,7 @@ export const saveCsvTool: ToolDefinition = {
       },
       filename: {
         type: 'string',
-        description: 'Base filename without extension. Auto-generated if omitted.',
+        description: 'Base name for this output. Auto-generated if omitted.',
       },
     },
   },
@@ -61,16 +61,16 @@ export const saveCsvTool: ToolDefinition = {
 
     const formatter = new OutputFormatter();
     const name = filename || `data-${new Date().toISOString().slice(0, 10)}-${Date.now()}`;
-    const filePath = formatter.saveCsv(records, name);
+    const ref = await formatter.saveCsv(records, name, context.getSessionId());
 
-    if (!filePath) {
-      return { success: false, error: 'CSV write failed (no records).' };
+    if (!ref) {
+      return { success: false, error: 'CSV save failed.' };
     }
 
     return {
       success: true,
-      message: `Saved ${records.length} records → ${filePath}`,
-      data: { filePath, count: records.length },
+      message: `Saved ${records.length} records to database (${ref})`,
+      data: { outputRef: ref, count: records.length },
     };
   },
 };

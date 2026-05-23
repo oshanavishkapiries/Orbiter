@@ -1,14 +1,15 @@
 import { logger } from '../../cli/ui/logger.js';
 import { generateErrorId } from '../../utils/id.js';
-import { ensureDir } from '../../utils/fs.js';
-import { PATHS } from '../../utils/paths.js';
 import { ErrorClassifier } from './classifier.js';
 import { ErrorContext, BrowserStateSnapshot, ExecutionSnapshot, PageFlags } from './types.js';
 import type { McpClient } from '../../mcp/client.js';
-import { writeFileSync } from 'fs';
+import { DataRepository } from '../../memory/database/repositories/data-repository.js';
 
 export class ErrorContextBuilder {
-  constructor(private mcpClient: McpClient) {}
+  constructor(
+    private mcpClient: McpClient,
+    private sessionId: string | null = null,
+  ) {}
 
   async build(
     error: Error,
@@ -19,7 +20,7 @@ export class ErrorContextBuilder {
   ): Promise<ErrorContext> {
     const errorId = generateErrorId();
     const { type, severity } = ErrorClassifier.classify(error);
-    const browserState = await this.captureBrowserState(errorId);
+    const browserState = await this.captureBrowserState(errorId, error);
 
     return {
       errorId,
@@ -32,7 +33,7 @@ export class ErrorContextBuilder {
     };
   }
 
-  private async captureBrowserState(errorId: string): Promise<BrowserStateSnapshot> {
+  private async captureBrowserState(errorId: string, error: Error): Promise<BrowserStateSnapshot> {
     let url = 'unknown';
     let title = 'unknown';
     let ariaSnapshot = '';
@@ -50,7 +51,7 @@ export class ErrorContextBuilder {
       logger.debug('Could not capture page state for error context');
     }
 
-    const screenshotPath = await this.takeScreenshot(errorId);
+    const screenshotPath = await this.takeScreenshot(errorId, url, error);
     return { url, title, ariaSnapshot, pageFlags, screenshotPath };
   }
 
@@ -66,17 +67,23 @@ export class ErrorContextBuilder {
     }
   }
 
-  private async takeScreenshot(errorId: string): Promise<string> {
-    ensureDir(PATHS.errors);
-    const path = `${PATHS.errors}/error-${errorId}-${Date.now()}.png`;
+  private async takeScreenshot(errorId: string, url: string, error: Error): Promise<string> {
     try {
       const result = await this.mcpClient.callTool('browser_screenshot', {});
       if (result.imageBase64) {
-        writeFileSync(path, Buffer.from(result.imageBase64, 'base64'));
+        const repo = new DataRepository();
+        await repo.saveErrorCapture(
+          errorId,
+          this.sessionId,
+          (error as any).type ?? null,
+          error.message,
+          url,
+          result.imageBase64,
+        );
       }
     } catch {
-      logger.debug('Could not take error screenshot');
+      logger.debug('Could not save error screenshot');
     }
-    return path;
+    return errorId;
   }
 }

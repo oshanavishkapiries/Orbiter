@@ -5,9 +5,9 @@ import { OutputFormatter } from '../recorder/output-formatter.js';
 export const saveJsonTool: ToolDefinition = {
   name: 'save_json',
   description:
-    'Save data as a JSON file on disk. ' +
+    'Save data as JSON to the database. ' +
     'Pass "data" directly or "storageKey" to read from browser localStorage. ' +
-    'Returns the saved file path.',
+    'Returns the saved output reference.',
   parameters: {
     type: 'object',
     required: [],
@@ -24,7 +24,7 @@ export const saveJsonTool: ToolDefinition = {
       },
       filename: {
         type: 'string',
-        description: 'Base filename without extension. Auto-generated if omitted.',
+        description: 'Base name for this output. Auto-generated if omitted.',
       },
     },
   },
@@ -63,12 +63,12 @@ export const saveJsonTool: ToolDefinition = {
 
     const formatter = new OutputFormatter();
     const name = filename || `data-${new Date().toISOString().slice(0, 10)}-${Date.now()}`;
-    const filePath = formatter.saveJson(records, name);
+    const ref = await formatter.saveJson(records, name, context.getSessionId());
 
     return {
       success: true,
-      message: `Saved ${records.length} record(s) → ${filePath}`,
-      data: { filePath, count: records.length },
+      message: `Saved ${records.length} record(s) to database (${ref})`,
+      data: { outputRef: ref, count: records.length },
     };
   },
 };

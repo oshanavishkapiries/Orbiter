@@ -8,6 +8,8 @@ import { getToolRegistry, initializeTools } from '../tools/index.js';
 import { createProgressBar } from '../cli/ui/progress.js';
 import { ParameterEngine } from './parameters.js';
 import { OutputFormatter } from './output-formatter.js';
+import { DatabaseConnection } from '../memory/database/connection.js';
+import { DataRepository } from '../memory/database/repositories/data-repository.js';
 import { Flow, FlowStep, ReplayOptions, ReplayResult } from './schema.js';
 
 export class FlowReplayer {
@@ -23,18 +25,37 @@ export class FlowReplayer {
     this.formatter = new OutputFormatter();
   }
 
-  loadFlow(flowPath: string): Flow {
-    if (!fileExists(flowPath)) {
-      throw new Error(`Flow file not found: ${flowPath}`);
+  async loadFlow(flowOrId: string): Promise<Flow> {
+    // Try DB first if it looks like a flow ID
+    if (flowOrId.startsWith('flow_') || flowOrId.startsWith('flow-')) {
+      try {
+        await DatabaseConnection.getInstance().initialize();
+        const repo = new DataRepository();
+        const flow = await repo.loadFlow(flowOrId);
+        if (flow) {
+          logger.info(`Flow loaded from database: ${flow.name}`);
+          logger.bullet(`Steps: ${flow.steps.length}`);
+          logger.bullet(`Created: ${new Date(flow.createdAt).toLocaleString()}`);
+          logger.bullet(`Type: ${flow.type}`);
+          return flow as Flow;
+        }
+      } catch (err) {
+        logger.debug(`DB flow load failed: ${(err as Error).message}`);
+      }
     }
 
-    const flow = readJson<Flow>(flowPath);
+    // Fallback to file
+    if (!fileExists(flowOrId)) {
+      throw new Error(`Flow not found: "${flowOrId}" (tried database and file system)`);
+    }
+
+    const flow = readJson<Flow>(flowOrId);
 
     if (!flow.id || !flow.steps || !Array.isArray(flow.steps)) {
       throw new Error('Invalid flow file format');
     }
 
-    logger.info(`Flow loaded: ${flow.name}`);
+    logger.info(`Flow loaded from file: ${flow.name}`);
     logger.bullet(`Steps: ${flow.steps.length}`);
     logger.bullet(`Created: ${new Date(flow.createdAt).toLocaleString()}`);
     logger.bullet(`Type: ${flow.type}`);
@@ -42,14 +63,14 @@ export class FlowReplayer {
     return flow;
   }
 
-  async replay(flowPath: string, options: ReplayOptions = {}): Promise<ReplayResult> {
+  async replay(flowOrId: string, options: ReplayOptions = {}): Promise<ReplayResult> {
     const startTime = Date.now();
     const cfg = config();
 
     console.log('\n' + chalk.cyan.bold('🔄 ORBITER - Flow Replay') + '\n');
     console.log(chalk.gray('─'.repeat(60)) + '\n');
 
-    const flow = this.loadFlow(flowPath);
+    const flow = await this.loadFlow(flowOrId);
 
     if (options.parameters) {
       this.paramEngine = new ParameterEngine(options.parameters);
@@ -76,7 +97,6 @@ export class FlowReplayer {
       executablePath: cfg.browser.executablePath,
       browser: (cfg.browser.channel as any) ?? undefined,
       viewport: cfg.browser.viewport,
-      outputDir: './data/errors',
     });
     this.context.setMcpClient(this.mcpClient);
     logger.success('Browser ready');
@@ -147,11 +167,11 @@ export class FlowReplayer {
 
     progress.stop();
 
-    const outputFiles: string[] = [];
+    const outputRefs: string[] = [];
     if (extractedData.length > 0) {
       const filename = this.formatter.generateFilename(flow.name);
-      const files = this.formatter.saveAll(extractedData, filename);
-      outputFiles.push(...files);
+      const refs = await this.formatter.saveAll(extractedData, filename);
+      outputRefs.push(...refs);
     }
 
     const duration = Date.now() - startTime;
@@ -165,7 +185,7 @@ export class FlowReplayer {
       stepsFailed,
       duration,
       extractedData: extractedData.length > 0 ? extractedData : undefined,
-      outputFiles: outputFiles.length > 0 ? outputFiles : undefined,
+      outputFiles: outputRefs.length > 0 ? outputRefs : undefined,
       errors,
     };
 
@@ -184,7 +204,6 @@ export class FlowReplayer {
       logger.bullet(`Selector: ${chalk.gray(step.selector)}`);
     }
 
-    // Route: MCP tools go through mcpClient, custom tools go through registry
     let toolResult: any;
     if (this.mcpClient.isMcpTool(step.tool)) {
       toolResult = await this.mcpClient.callTool(step.tool, params);
@@ -226,9 +245,9 @@ export class FlowReplayer {
     }
 
     if (result.outputFiles && result.outputFiles.length > 0) {
-      console.log('\n' + chalk.bold('Output files:'));
-      for (const file of result.outputFiles) {
-        console.log(`  📄 ${file}`);
+      console.log('\n' + chalk.bold('Saved outputs:'));
+      for (const ref of result.outputFiles) {
+        console.log(`  📄 ${ref} ${chalk.dim('(database)')}`);
       }
     }
 

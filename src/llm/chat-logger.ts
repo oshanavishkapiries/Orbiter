@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { logger } from '../cli/ui/logger.js';
 
 export interface LLMInteraction {
@@ -18,7 +16,6 @@ export interface LLMInteraction {
 
 export class ChatLogger {
   private static _instance: ChatLogger | null = null;
-  private logPath: string | null = null;
   private callIndex = 0;
   private sessionId: string | null = null;
   // Lazy import to avoid circular dependency: executor → chat-logger → session-repo → executor
@@ -33,24 +30,11 @@ export class ChatLogger {
     return ChatLogger._instance;
   }
 
-  startSession(
-    sessionId: string | null,
-    sessionRepo: any | null,
-    logDir = './data/logs',
-  ): void {
+  startSession(sessionId: string | null, sessionRepo: any | null): void {
     this.sessionId = sessionId;
     this.sessionRepo = sessionRepo;
     this.callIndex = 0;
-
-    const filename = sessionId
-      ? `llm-chat-${sessionId}.jsonl`
-      : `llm-chat-${Date.now()}.jsonl`;
-
-    const resolvedDir = path.resolve(logDir);
-    fs.mkdirSync(resolvedDir, { recursive: true });
-    this.logPath = path.join(resolvedDir, filename);
-
-    logger.debug(`Chat log: ${this.logPath}`);
+    logger.debug(`Chat logger initialized for session: ${sessionId ?? 'no-session'}`);
   }
 
   async log(
@@ -60,25 +44,6 @@ export class ChatLogger {
   ): Promise<void> {
     this.callIndex++;
 
-    const entry: LLMInteraction = {
-      timestamp: Date.now(),
-      sessionId: this.sessionId,
-      callIndex: this.callIndex,
-      messages,
-      response,
-      durationMs,
-    };
-
-    // Write to JSONL log file
-    if (this.logPath) {
-      try {
-        fs.appendFileSync(this.logPath, JSON.stringify(entry) + '\n');
-      } catch (err) {
-        logger.debug(`Chat log write failed: ${(err as Error).message}`);
-      }
-    }
-
-    // Persist to DB (non-fatal)
     if (this.sessionRepo && this.sessionId) {
       try {
         await this.sessionRepo.storeLLMInteraction(
@@ -92,7 +57,7 @@ export class ChatLogger {
           response.usage.completionTokens,
           response.usage.totalTokens,
           durationMs,
-          entry.timestamp,
+          Date.now(),
         );
       } catch (err) {
         logger.debug(`LLM interaction DB write failed: ${(err as Error).message}`);
@@ -100,12 +65,7 @@ export class ChatLogger {
     }
   }
 
-  getLogPath(): string | null {
-    return this.logPath;
-  }
-
   reset(): void {
-    this.logPath = null;
     this.callIndex = 0;
     this.sessionId = null;
     this.sessionRepo = null;

@@ -133,6 +133,15 @@ export class DatabaseConnection {
       'page_structures',
       'successful_flows',
       'usage_logs',
+      'sessions',
+      'session_steps',
+      'llm_interactions',
+      'flows',
+      'outputs',
+      'app_logs',
+      'error_captures',
+      'reports',
+      'settings',
     ];
 
     const tables: Record<string, number> = {};

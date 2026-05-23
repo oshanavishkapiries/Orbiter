@@ -21,7 +21,7 @@ export const defaults: OrbiterConfig = {
     },
     profilePath: null,
     executablePath: null,
-    channel: null,  // 'chrome' | 'msedge' | 'firefox' | 'webkit'
+    channel: null,
   },
   execution: {
     maxRetries: 3,
@@ -42,21 +42,10 @@ export const defaults: OrbiterConfig = {
   },
   recording: {
     enabled: true,
-    outputDir: './data/flows',
     includeScreenshots: false,
-  },
-  output: {
-    dir: './data/outputs',
-    formats: ['json'],
   },
   logging: {
     level: 'info',
-    file: {
-      enabled: true,
-      path: './data/logs',
-      maxSize: '10mb',
-      maxFiles: 10,
-    },
     console: {
       enabled: true,
       colorize: true,

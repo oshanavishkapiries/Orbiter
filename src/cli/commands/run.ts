@@ -70,7 +70,6 @@ export function runCommand() {
           executablePath: cfg.browser.executablePath,
           browser: (cfg.browser.channel as any) ?? undefined,
           viewport: cfg.browser.viewport,
-          outputDir: './data/errors',
         };
 
         sp.text('Starting Playwright MCP server...');
@@ -158,8 +157,8 @@ export function runCommand() {
           duration: result.summary.duration,
           tokensUsed: result.summary.tokensUsed,
           estimatedCost,
-          flowPath: result.flowPath,
-          outputFiles: result.outputFiles,
+          flowId: result.flowId,
+          outputs: result.outputs,
         };
 
         summaries.execution(summaryData);
@@ -186,11 +185,11 @@ export function runCommand() {
             })),
             tokensUsed: result.summary.tokensUsed,
             estimatedCost,
-            flowPath: result.flowPath,
-            outputFiles: result.outputFiles,
+            flowId: result.flowId,
+            outputs: result.outputs,
             errors,
           };
-          reportGen.save(reportData, options.reportFormat);
+          await reportGen.save(reportData, options.reportFormat, result.sessionId);
         }
       } catch (error) {
         const err = error as Error;

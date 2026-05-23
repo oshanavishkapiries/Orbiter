@@ -10,8 +10,8 @@ export interface ExecutionSummary {
   duration: number;
   tokensUsed: number;
   estimatedCost: number;
-  flowPath?: string;
-  outputFiles?: string[];
+  flowId?: string;
+  outputs?: string[];
   extractedItems?: number;
 }
 
@@ -21,7 +21,7 @@ export interface ReplaySummary {
   stepsExecuted: number;
   stepsFailed: number;
   duration: number;
-  outputFiles?: string[];
+  outputs?: string[];
   extractedItems?: number;
   originalCost: number;
 }
@@ -74,29 +74,28 @@ export const summaries = {
     console.log(`  LLM tokens:   ${data.tokensUsed.toLocaleString()}`);
     console.log(`  LLM cost:     ${chalk.yellow('$' + cost)}`);
 
-    // Output files
-    if (data.outputFiles && data.outputFiles.length > 0) {
-      console.log('\n' + chalk.bold('Output files:'));
-      for (const file of data.outputFiles) {
-        console.log(`  📄 ${chalk.gray(file)}`);
+    // Saved outputs
+    if (data.outputs && data.outputs.length > 0) {
+      console.log('\n' + chalk.bold('Saved outputs:'));
+      for (const ref of data.outputs) {
+        console.log(`  📄 ${chalk.gray(ref)} ${chalk.dim('(database)')}`);
       }
     }
 
-    // Flow path
-    if (data.flowPath) {
+    // Flow recorded
+    if (data.flowId) {
       console.log('\n' + chalk.bold('Flow recorded:'));
-      console.log(`  📝 ${chalk.gray(data.flowPath)}`);
+      console.log(`  📝 ${chalk.gray(data.flowId)} ${chalk.dim('(database)')}`);
     }
 
     // Next steps
-    if (data.flowPath) {
+    if (data.flowId) {
       console.log('\n' + chalk.bold('Next steps:'));
       console.log(
-        `  ${chalk.gray('•')} Optimize: ${chalk.cyan('orbiter refine ' + data.flowPath)}`,
+        `  ${chalk.gray('•')} Optimize: ${chalk.cyan('orbiter refine ' + data.flowId)}`,
       );
-      const replayPath = data.flowPath.replace('.raw.json', '.flow.json');
       console.log(
-        `  ${chalk.gray('•')} Replay:   ${chalk.cyan('orbiter replay ' + replayPath)}`,
+        `  ${chalk.gray('•')} Replay:   ${chalk.cyan('orbiter replay ' + data.flowId)}`,
       );
     }
 
@@ -128,11 +127,11 @@ export const summaries = {
       );
     }
 
-    // Output files
-    if (data.outputFiles && data.outputFiles.length > 0) {
-      console.log('\n' + chalk.bold('Output files:'));
-      for (const file of data.outputFiles) {
-        console.log(`  📄 ${chalk.gray(file)}`);
+    // Saved outputs
+    if (data.outputs && data.outputs.length > 0) {
+      console.log('\n' + chalk.bold('Saved outputs:'));
+      for (const ref of data.outputs) {
+        console.log(`  📄 ${chalk.gray(ref)} ${chalk.dim('(database)')}`);
       }
     }
 

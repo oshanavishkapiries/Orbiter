@@ -4,10 +4,12 @@ import { ExecutionContext } from './execution-context.js';
 import { SYSTEM_PROMPT } from '../llm/prompts/system.js';
 import { HistoryManager } from './history-manager.js';
 import { SessionRepository } from '../memory/database/repositories/session-repository.js';
+import { DataRepository } from '../memory/database/repositories/data-repository.js';
 import { DatabaseConnection } from '../memory/database/connection.js';
 import { ChatLogger } from '../llm/chat-logger.js';
 import { FlowRecorder } from '../recorder/recorder.js';
 import { logger } from '../cli/ui/logger.js';
+import { injectLogPool } from '../cli/ui/db-log-transport.js';
 import { config } from '../config/index.js';
 import { ErrorContextBuilder } from './errors/context-builder.js';
 import { RecoveryEngine } from './errors/recovery-engine.js';
@@ -20,8 +22,9 @@ import chalk from 'chalk';
 export interface ExecutionResult {
   success: boolean;
   steps: ExecutionStep[];
-  flowPath?: string;
-  outputFiles?: string[];
+  sessionId?: string;
+  flowId?: string;
+  outputs?: string[];
   summary: {
     totalSteps: number;
     successfulSteps: number;
@@ -50,7 +53,7 @@ export class TaskExecutor {
   private totalInputTokens = 0;
   private totalOutputTokens = 0;
   private recorder: FlowRecorder;
-  private outputFiles: string[] = [];
+  private outputs: string[] = [];
   private savedRecordCount = 0;
   private recoveryEngine: RecoveryEngine;
   private sessionRepo: SessionRepository | null = null;
@@ -87,6 +90,11 @@ export class TaskExecutor {
     // Initialize session memory (non-fatal if DB unavailable)
     try {
       await DatabaseConnection.getInstance().initialize();
+      injectLogPool(DatabaseConnection.getInstance().getPool());
+
+      const dataRepo = new DataRepository();
+      await dataRepo.seedSettings(cfg).catch(() => {});
+
       this.sessionRepo = new SessionRepository();
       this.sessionId = await this.sessionRepo.createSession(
         this.goal,
@@ -94,6 +102,8 @@ export class TaskExecutor {
         this.llmProviderName,
       );
       this.context.setSession(this.sessionRepo, this.sessionId);
+      this.recorder.setSessionId(this.sessionId);
+      this.recorder.setDataRepo(dataRepo);
       this.history = new HistoryManager(
         SYSTEM_PROMPT,
         this.goal,
@@ -167,9 +177,9 @@ export class TaskExecutor {
             steps.push(stepResult);
 
             if (stepResult.success && (toolCall.name === 'save_csv' || toolCall.name === 'save_json')) {
-              const filePath = stepResult.result?.data?.filePath;
+              const outputRef = stepResult.result?.data?.outputRef;
               const count = stepResult.result?.data?.count ?? 0;
-              if (filePath) this.outputFiles.push(filePath);
+              if (outputRef) this.outputs.push(outputRef);
               this.savedRecordCount += count;
             }
 
@@ -228,16 +238,10 @@ export class TaskExecutor {
     await this.highlighter.remove(mcpClient);
     this.recorder.stop();
 
-    let flowPath: string | undefined;
+    let flowId: string | undefined;
     if (cfg.recording.enabled) {
-      flowPath = await this.recorder.save();
+      flowId = await this.recorder.save();
     }
-
-    if (this.outputFiles.length > 0 && flowPath) {
-      this.recorder.setExtractedDataFile(this.outputFiles[0]);
-    }
-
-    const outputFiles = this.outputFiles;
 
     const duration = Date.now() - startTime;
     const successfulSteps = steps.filter((s) => s.success).length;
@@ -246,8 +250,9 @@ export class TaskExecutor {
     const result: ExecutionResult = {
       success: failedSteps === 0 && steps.length > 0,
       steps,
-      flowPath,
-      outputFiles: outputFiles.length > 0 ? outputFiles : undefined,
+      sessionId: this.sessionId ?? undefined,
+      flowId,
+      outputs: this.outputs.length > 0 ? this.outputs : undefined,
       summary: {
         totalSteps: steps.length,
         successfulSteps,
@@ -345,7 +350,7 @@ export class TaskExecutor {
 
         logger.fail(`${toolCall.name} failed (attempt ${attemptNumber}): ${lastError.message}`);
 
-        const contextBuilder = new ErrorContextBuilder(mcpClient);
+        const contextBuilder = new ErrorContextBuilder(mcpClient, this.sessionId);
         const executionSnapshot: ExecutionSnapshot = {
           originalGoal: this.goal,
           stepNumber,
@@ -490,20 +495,19 @@ export class TaskExecutor {
       : ((result.summary.tokensUsed / 1_000_000) * 3).toFixed(4);
     console.log(`  Cost: $${cost}`);
 
-    if (result.outputFiles && result.outputFiles.length > 0) {
-      console.log('\n' + chalk.bold('Output files:'));
-      for (const file of result.outputFiles) {
-        console.log(`  📄 ${file}`);
+    if (result.outputs && result.outputs.length > 0) {
+      console.log('\n' + chalk.bold('Saved outputs:'));
+      for (const ref of result.outputs) {
+        console.log(`  📄 ${ref} (database)`);
       }
     }
 
-    if (result.flowPath) {
+    if (result.flowId) {
       console.log('\n' + chalk.bold('Flow recorded:'));
-      console.log(`  📝 ${result.flowPath}`);
+      console.log(`  📝 ${result.flowId} (database)`);
       console.log('\n' + chalk.bold('Next steps:'));
-      console.log(`  • Optimize: orbiter refine ${result.flowPath}`);
-      const replayPath = result.flowPath.replace('.raw.json', '.flow.json');
-      console.log(`  • Replay:   orbiter replay ${replayPath}`);
+      console.log(`  • Optimize: orbiter refine ${result.flowId}`);
+      console.log(`  • Replay:   orbiter replay ${result.flowId}`);
     }
 
     console.log('');
