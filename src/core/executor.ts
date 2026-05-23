@@ -1,7 +1,6 @@
 import { LLMProvider, Tool, ToolCall } from '../llm/types.js';
 import { getToolRegistry } from '../tools/registry.js';
 import { ExecutionContext } from './execution-context.js';
-import { TaskPlan } from './planner.js';
 import { SYSTEM_PROMPT } from '../llm/prompts/system.js';
 import { HistoryManager } from './history-manager.js';
 import { SessionRepository } from '../memory/database/repositories/session-repository.js';
@@ -15,7 +14,6 @@ import { RecoveryEngine } from './errors/recovery-engine.js';
 import { ExecutionSnapshot } from './errors/types.js';
 import { validateToolCall } from '../tools/validator.js';
 import { SkillLoader } from '../skills/loader.js';
-import { BrowserOverlay } from './overlay.js';
 import { ElementHighlighter } from './element-highlighter.js';
 import chalk from 'chalk';
 
@@ -59,23 +57,20 @@ export class TaskExecutor {
   private sessionId: string | null = null;
   private skillLoader: SkillLoader;
   private injectedSkills = new Set<string>();
-  private overlay: BrowserOverlay;
   private highlighter: ElementHighlighter;
 
   constructor(
     private llm: LLMProvider,
     private context: ExecutionContext,
-    private plan: TaskPlan,
+    private goal: string,
     private llmProviderName: string = 'openrouter',
     private llmModelName: string = 'unknown',
-    overlayEnabled: boolean = false,
     highlightEnabled: boolean = false,
   ) {
     this.recoveryEngine = new RecoveryEngine(llm, context);
     context.setLLM(llm);
-    this.recorder = new FlowRecorder(plan.goal, llmProviderName, llmModelName);
+    this.recorder = new FlowRecorder(goal, llmProviderName, llmModelName);
     this.skillLoader = new SkillLoader();
-    this.overlay = new BrowserOverlay(overlayEnabled);
     this.highlighter = new ElementHighlighter(highlightEnabled);
   }
 
@@ -94,14 +89,14 @@ export class TaskExecutor {
       await DatabaseConnection.getInstance().initialize();
       this.sessionRepo = new SessionRepository();
       this.sessionId = await this.sessionRepo.createSession(
-        this.plan.goal,
+        this.goal,
         this.llmModelName,
         this.llmProviderName,
       );
       this.context.setSession(this.sessionRepo, this.sessionId);
       this.history = new HistoryManager(
         SYSTEM_PROMPT,
-        this.plan.goal,
+        this.goal,
         this.sessionRepo,
         this.sessionId,
       );
@@ -109,7 +104,7 @@ export class TaskExecutor {
       logger.debug(`Session started: ${this.sessionId}`);
     } catch (err) {
       logger.debug(`Session DB unavailable, running without session memory: ${(err as Error).message}`);
-      this.history = new HistoryManager(SYSTEM_PROMPT, this.plan.goal, null, null);
+      this.history = new HistoryManager(SYSTEM_PROMPT, this.goal, null, null);
       ChatLogger.getInstance().startSession(null, null);
     }
 
@@ -178,10 +173,6 @@ export class TaskExecutor {
               this.savedRecordCount += count;
             }
 
-            await this.overlay.update(
-              mcpClient, stepNumber, maxSteps,
-              toolCall.name, stepResult.success, this.savedRecordCount,
-            );
             if (stepResult.success) {
               await this.highlighter.inject(mcpClient);
             }
@@ -234,7 +225,6 @@ export class TaskExecutor {
         .catch(() => {});
     }
 
-    await this.overlay.remove(mcpClient);
     await this.highlighter.remove(mcpClient);
     this.recorder.stop();
 
@@ -357,7 +347,7 @@ export class TaskExecutor {
 
         const contextBuilder = new ErrorContextBuilder(mcpClient);
         const executionSnapshot: ExecutionSnapshot = {
-          originalGoal: this.plan.goal,
+          originalGoal: this.goal,
           stepNumber,
           totalSteps,
           previousSteps: this.context.getLastSuccessfulSteps(5).map((s) => ({

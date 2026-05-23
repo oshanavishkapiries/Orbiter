@@ -82,9 +82,9 @@ After collecting data you MUST call save_csv or save_json to write it to disk. N
 
 You are done ONLY when you have the requested data in hand AND have called save_csv or save_json to persist it. If results are not visible in the snapshot after a search, this does NOT mean the task succeeded — use browser_evaluate to find and extract the data before declaring completion.
 
-## RESPONSE STYLE
+## THINKING
 
-Be concise. State what you are doing and what you found.`;
+Before each group of actions, write one short line stating what you are about to do and why. After the results come back, reassess — if the page state changed unexpectedly, adjust your approach before continuing. Do not over-explain; one line is enough.`;
 
 export function getUserPrompt(userGoal: string): string {
   return `Goal: ${userGoal}
@@ -92,18 +92,3 @@ export function getUserPrompt(userGoal: string): string {
 Accomplish this using the available tools. Be concise — state what you are doing and report the result.`;
 }
 
-export const PLANNING_SYSTEM_PROMPT = `You are a browser automation planner. Your job is to create a concise numbered action plan for the given goal.
-
-Output ONLY a numbered list of steps. Each step should be a single action (navigate, click, fill, extract, etc.).
-Do not call any tools. Do not explain — just list the steps.
-
-Example format:
-1. Navigate to the target website
-2. Search for the query
-3. Extract the results`;
-
-export function getPlanningPrompt(userGoal: string): string {
-  return `Goal: ${userGoal}
-
-Write a numbered step-by-step action plan to accomplish this goal using browser automation.`;
-}

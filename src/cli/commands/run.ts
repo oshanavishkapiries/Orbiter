@@ -5,7 +5,6 @@ import { summaries, ExecutionSummary } from '../ui/summary.js';
 import { Timeline } from '../ui/timeline.js';
 import { ReportGenerator, ReportData, ReportStep } from '../ui/report.js';
 import { ExecutionContext } from '../../core/execution-context.js';
-import { TaskPlanner } from '../../core/planner.js';
 import { TaskExecutor } from '../../core/executor.js';
 import { PromptEnhancer } from '../../core/prompt-enhancer.js';
 import { LLMFactory } from '../../llm/factory.js';
@@ -29,7 +28,6 @@ export function runCommand() {
     .option('--report-format <format>', 'Report format: markdown or json', 'markdown')
     .option('-e, --enhance', 'Enhance the prompt with AI before execution')
     .option('--no-enhance', 'Disable prompt enhancement for this run')
-    .option('--overlay', 'Show a live action overlay in the browser window')
     .option('--highlight', 'Highlight interactive elements in the browser after each step')
     .action(async (prompt, options) => {
       console.log(banners.run(prompt));
@@ -66,7 +64,6 @@ export function runCommand() {
         initializeTools();
         sp.text('Tools registered');
 
-        // Build MCP options from CLI flags + config
         const mcpOptions = {
           headless: options.headless ?? cfg.browser.headless,
           userDataDir: options.profile ?? cfg.browser.profilePath,
@@ -98,7 +95,7 @@ export function runCommand() {
         let activePrompt = prompt;
 
         if (shouldEnhance) {
-          logger.phase('PROMPT ENHANCEMENT PHASE');
+          logger.phase('PROMPT ENHANCEMENT');
           const enhanceSp = spinner('Enhancing prompt...').start();
           const enhancer = new PromptEnhancer(llm);
           const enhanceResult = await enhancer.enhance(prompt);
@@ -116,44 +113,14 @@ export function runCommand() {
           timeline.add({ type: 'step', status: 'success', message: 'Prompt enhanced' });
         }
 
-        logger.phase('PLANNING PHASE');
-
-        const planner = new TaskPlanner(llm);
-        const plan = await planner.plan(activePrompt);
-
-        console.log(chalk.blue('\nExecution Plan:'));
-        if (plan.steps.length > 0) {
-          for (const [index, step] of plan.steps.entries()) {
-            console.log(chalk.white(`  ${index + 1}. ${step}`));
-          }
-        } else if (plan.reasoning.trim()) {
-          const lines = plan.reasoning.trim().split('\n').slice(0, 10);
-          for (const line of lines) {
-            if (line.trim()) console.log(chalk.gray(`  ${line.trim()}`));
-          }
-        } else {
-          console.log(chalk.gray(`  (plan will emerge during execution)`));
-        }
-        console.log('');
-
-        logger.bullet(`Estimated steps: ${plan.estimatedSteps}`);
-        logger.bullet(`Pattern detection needed: ${plan.needsDetection ? 'Yes' : 'No'}`);
-
-        timeline.add({
-          type: 'step',
-          status: 'success',
-          message: `Planning complete (${plan.estimatedSteps} steps estimated)`,
-        });
-
-        logger.phase('EXECUTION PHASE');
+        logger.phase('EXECUTION');
 
         const executor = new TaskExecutor(
           llm,
           context,
-          plan,
+          activePrompt,
           modelInfo.provider,
           modelInfo.name,
-          !!options.overlay,
           !!options.highlight,
         );
 
