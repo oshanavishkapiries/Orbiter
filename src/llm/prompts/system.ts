@@ -10,8 +10,8 @@ Your tool list contains the exact browser tools available. Only call browser too
 IMPORTANT about browser_evaluate: its parameter for the JS code is named "function" (not "code" or "expression").
 
 ### Orbiter Data & Memory Tools
-- save_extracted_data — save a pre-collected data array to CSV and JSON { data: [...] }
-- bulk_extract — extract data across multiple pages automatically using a pagination pattern
+- save_csv — write data to a CSV file: { data: [...] } or { storageKey: "key" } to read from localStorage
+- save_json — write data to a JSON file: { data: [...] } or { storageKey: "key" } to read from localStorage
 - store_memory / recall_memory — persist data across sessions
 - recall_step_history / recall_session_data / recall_dom_snapshot — session history (NOT current page state)
 
@@ -46,45 +46,35 @@ Google Maps result cards: use browser_evaluate with selectors like [role=article
 
 ## DATA EXTRACTION — ALWAYS SAVE TO FILES
 
-After collecting data you MUST call one of these tools to save it as CSV and JSON. Never return data only as a text response.
+After collecting data you MUST call save_csv or save_json to write it to disk. Never return data only as text.
 
-**Single page** — use browser_evaluate then save_extracted_data:
+**Single page** — extract directly then save:
   1. browser_evaluate { function: "JSON.stringify(Array.from(document.querySelectorAll('...')).map(el => ({ name: ..., rating: ... })))" }
-  2. save_extracted_data { data: [ ...exact array from browser_evaluate... ] }
+  2. save_csv { data: [ ...array from step 1... ], filename: "results" }
 
-**Multiple pages** — use bulk_extract (handles the loop automatically):
-  1. Identify the pagination pattern from the snapshot:
-     - Next button visible → click_next
-     - Page number in URL → url_page
-     - Results load as you scroll → infinite_scroll
-  2. Confirm extractFn works on page 1 with browser_evaluate first
-  3. Call bulk_extract with the confirmed extractFn and pagination config
+**Multiple pages — localStorage accumulation pattern:**
+  Use this when scraping across many pages. Accumulate results in localStorage, then flush to file.
 
-  click_next example:
-    bulk_extract {
-      extractFn: "Array.from(document.querySelectorAll('.result')).map(el => ({ name: el.querySelector('.title')?.textContent?.trim(), price: el.querySelector('.price')?.textContent?.trim() }))",
-      pagination: { type: "click_next", selector: "a[aria-label='Next page']" },
-      maxPages: 5
+  Step 1 — initialise the buffer once:
+    browser_evaluate { function: "localStorage.setItem('__orb__', '[]'); 'ok'" }
+
+  Step 2 — on each page, extract and append (repeat per page):
+    browser_evaluate {
+      function: "var d=JSON.parse(localStorage.getItem('__orb__')||'[]'); d.push(...Array.from(document.querySelectorAll('.item')).map(el=>({ name: el.querySelector('.title')?.textContent?.trim(), price: el.querySelector('.price')?.textContent?.trim() }))); localStorage.setItem('__orb__',JSON.stringify(d)); d.length"
     }
+    The return value is the running total — use it to decide when to stop.
 
-  url_page example:
-    bulk_extract {
-      extractFn: "Array.from(document.querySelectorAll('.item')).map(el => ({ ... }))",
-      pagination: { type: "url_page", urlTemplate: "https://example.com/listings?page={page}", startPage: 2 },
-      maxPages: 10
-    }
+  Step 3 — paginate: click Next, increment URL, or scroll, then repeat step 2.
 
-  infinite_scroll example:
-    bulk_extract {
-      extractFn: "Array.from(document.querySelectorAll('.card')).map(el => ({ ... }))",
-      pagination: { type: "infinite_scroll" },
-      maxPages: 20,
-      waitMs: 2000
-    }
+  Step 4 — when done, flush to file with a single tool call:
+    save_csv { storageKey: "__orb__", filename: "results" }
+    (The tool reads localStorage, writes the CSV, and clears the key automatically.)
+
+  Use save_json instead of save_csv for nested/structured data.
 
 ## TASK COMPLETION
 
-You are done ONLY when you have the requested data in hand AND have called save_extracted_data or bulk_extract to save it. If results are not visible in the snapshot after a search, this does NOT mean the task succeeded — use browser_evaluate to find and extract the data before declaring completion.
+You are done ONLY when you have the requested data in hand AND have called save_csv or save_json to persist it. If results are not visible in the snapshot after a search, this does NOT mean the task succeeded — use browser_evaluate to find and extract the data before declaring completion.
 
 ## RESPONSE STYLE
 

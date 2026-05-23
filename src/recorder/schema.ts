@@ -14,10 +14,9 @@ export type FlowStepAction =
   | 'select_dropdown'
   | 'wait'
   | 'screenshot'
-  | 'save_extracted_data'
-  | 'bulk_extract'
-  | 'evaluate_js'
-  | 'loop_extract';
+  | 'save_csv'
+  | 'save_json'
+  | 'evaluate_js';
 
 export interface FlowStepMetadata {
   wasRetry: boolean;

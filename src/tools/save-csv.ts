@@ -1,0 +1,76 @@
+import { ToolDefinition, ToolResult } from './types.js';
+import { ExecutionContext } from '../core/execution-context.js';
+import { OutputFormatter } from '../recorder/output-formatter.js';
+
+export const saveCsvTool: ToolDefinition = {
+  name: 'save_csv',
+  description:
+    'Save data as a CSV file on disk. ' +
+    'Pass "data" directly (small sets) or "storageKey" to read from browser localStorage (bulk sets accumulated page-by-page). ' +
+    'Returns the saved file path.',
+  parameters: {
+    type: 'object',
+    required: [],
+    properties: {
+      data: {
+        type: 'array',
+        description: 'Array of plain objects to save. Columns inferred from object keys. Use for small direct datasets.',
+      },
+      storageKey: {
+        type: 'string',
+        description:
+          'Browser localStorage key to read data from. Use when you accumulated data in localStorage across pages. ' +
+          'The tool reads and clears the key automatically.',
+      },
+      filename: {
+        type: 'string',
+        description: 'Base filename without extension. Auto-generated if omitted.',
+      },
+    },
+  },
+  execute: async (params, context: ExecutionContext): Promise<ToolResult> => {
+    const { data, storageKey, filename } = params as {
+      data?: any[];
+      storageKey?: string;
+      filename?: string;
+    };
+
+    let records: any[];
+
+    if (storageKey) {
+      const mcpClient = context.getMcpClient();
+      const key = JSON.stringify(storageKey);
+      const raw = await mcpClient.evaluate(
+        `JSON.stringify(JSON.parse(localStorage.getItem(${key}) || '[]'))`,
+      );
+      await mcpClient.evaluate(`localStorage.removeItem(${key})`).catch(() => {});
+      try {
+        records = typeof raw === 'string' ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
+      } catch {
+        return { success: false, error: `Failed to parse localStorage data for key "${storageKey}"` };
+      }
+    } else if (Array.isArray(data)) {
+      records = data;
+    } else {
+      return { success: false, error: 'Provide "data" (array) or "storageKey" (localStorage key).' };
+    }
+
+    if (records.length === 0) {
+      return { success: false, error: 'No records to save.' };
+    }
+
+    const formatter = new OutputFormatter();
+    const name = filename || `data-${new Date().toISOString().slice(0, 10)}-${Date.now()}`;
+    const filePath = formatter.saveCsv(records, name);
+
+    if (!filePath) {
+      return { success: false, error: 'CSV write failed (no records).' };
+    }
+
+    return {
+      success: true,
+      message: `Saved ${records.length} records → ${filePath}`,
+      data: { filePath, count: records.length },
+    };
+  },
+};

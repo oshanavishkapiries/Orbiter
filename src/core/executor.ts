@@ -8,7 +8,6 @@ import { SessionRepository } from '../memory/database/repositories/session-repos
 import { DatabaseConnection } from '../memory/database/connection.js';
 import { ChatLogger } from '../llm/chat-logger.js';
 import { FlowRecorder } from '../recorder/recorder.js';
-import { OutputFormatter } from '../recorder/output-formatter.js';
 import { logger } from '../cli/ui/logger.js';
 import { config } from '../config/index.js';
 import { ErrorContextBuilder } from './errors/context-builder.js';
@@ -52,8 +51,8 @@ export class TaskExecutor {
   private totalInputTokens = 0;
   private totalOutputTokens = 0;
   private recorder: FlowRecorder;
-  private formatter: OutputFormatter;
-  private extractedData: any[] = [];
+  private outputFiles: string[] = [];
+  private savedRecordCount = 0;
   private recoveryEngine: RecoveryEngine;
   private sessionRepo: SessionRepository | null = null;
   private sessionId: string | null = null;
@@ -72,7 +71,6 @@ export class TaskExecutor {
     this.recoveryEngine = new RecoveryEngine(llm, context);
     context.setLLM(llm);
     this.recorder = new FlowRecorder(plan.goal, llmProviderName, llmModelName);
-    this.formatter = new OutputFormatter();
     this.skillLoader = new SkillLoader();
     this.overlay = new BrowserOverlay(overlayEnabled);
   }
@@ -169,21 +167,17 @@ export class TaskExecutor {
             const stepResult = await this.executeToolCall(toolCall, stepNumber, maxSteps);
             steps.push(stepResult);
 
+            if (stepResult.success && (toolCall.name === 'save_csv' || toolCall.name === 'save_json')) {
+              const filePath = stepResult.result?.data?.filePath;
+              const count = stepResult.result?.data?.count ?? 0;
+              if (filePath) this.outputFiles.push(filePath);
+              this.savedRecordCount += count;
+            }
+
             await this.overlay.update(
               mcpClient, stepNumber, maxSteps,
-              toolCall.name, stepResult.success, this.extractedData.length,
+              toolCall.name, stepResult.success, this.savedRecordCount,
             );
-
-            if (stepResult.success && (toolCall.name === 'save_extracted_data' || toolCall.name === 'bulk_extract')) {
-              const data = stepResult.result?.data;
-              if (data) {
-                if (Array.isArray(data)) {
-                  this.extractedData.push(...data);
-                } else {
-                  this.extractedData.push(data);
-                }
-              }
-            }
 
             this.context.recordStep(
               stepResult.toolName,
@@ -241,15 +235,11 @@ export class TaskExecutor {
       flowPath = await this.recorder.save();
     }
 
-    const outputFiles: string[] = [];
-    if (this.extractedData.length > 0) {
-      const filename = this.formatter.generateFilename(this.recorder.getFlowName());
-      const files = this.formatter.saveAll(this.extractedData, filename);
-      outputFiles.push(...files);
-      if (flowPath) {
-        this.recorder.setExtractedDataFile(files[0] || '');
-      }
+    if (this.outputFiles.length > 0 && flowPath) {
+      this.recorder.setExtractedDataFile(this.outputFiles[0]);
     }
+
+    const outputFiles = this.outputFiles;
 
     const duration = Date.now() - startTime;
     const successfulSteps = steps.filter((s) => s.success).length;

@@ -64,7 +64,7 @@ export class HistoryManager {
           );
         }
 
-        if (toolName === 'save_extracted_data' && result?.success && result?.data) {
+        if ((toolName === 'save_csv' || toolName === 'save_json') && result?.success && result?.data) {
           await this.sessionRepo.storeCollectedData(this.sessionId, stepNumber, toolName, result.data);
         }
       } catch (err) {
@@ -170,16 +170,11 @@ export class HistoryManager {
       case 'screenshot':
         return `Screenshot captured. ${result.message ?? ''}`.trim();
 
-      case 'save_extracted_data': {
-        const items = Array.isArray(data) ? data : [data];
-        const fields = items[0] ? Object.keys(items[0]).join(', ') : '?';
-        return `Saved ${items.length} record(s). Fields: [${fields}]. Full dataset queued for CSV/JSON export.`;
-      }
-
-      case 'bulk_extract': {
-        const items = Array.isArray(data) ? data : [data];
-        const fields = items[0] ? Object.keys(items[0]).join(', ') : '?';
-        return `bulk_extract collected ${items.length} record(s) across pages. Fields: [${fields}]. Full dataset queued for CSV/JSON export.`;
+      case 'save_csv':
+      case 'save_json': {
+        const count = data?.count ?? '?';
+        const fp = data?.filePath ?? '';
+        return `${toolName}: saved ${count} record(s) → ${fp}`;
       }
 
       case 'run_code': {

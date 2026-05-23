@@ -91,10 +91,9 @@ function validateToolSpecificRules(
   params: Record<string, unknown>,
 ): ToolValidationResult {
   switch (toolName) {
-    case 'bulk_extract':
-      return validateBulkExtractParams(params);
-    case 'save_extracted_data':
-      return validateSaveExtractedDataParams(params);
+    case 'save_csv':
+    case 'save_json':
+      return validateSaveParams(toolName, params);
     case 'recall_dom_snapshot':
       return validatePositiveIntegerField(toolName, 'step_number', params);
     case 'recall_step_history': {
@@ -122,36 +121,20 @@ function validateToolSpecificRules(
   }
 }
 
-function validateBulkExtractParams(
+function validateSaveParams(
+  toolName: string,
   params: Record<string, unknown>,
 ): ToolValidationResult {
-  if (!isNonEmptyString(params.extractFn)) {
-    return { valid: false, error: 'Tool "bulk_extract" requires "extractFn" to be a non-empty string.' };
+  const hasData = params.data !== undefined && params.data !== null;
+  const hasKey = isNonEmptyString(params.storageKey);
+  if (!hasData && !hasKey) {
+    return {
+      valid: false,
+      error: `Tool "${toolName}" requires either "data" or "storageKey".`,
+    };
   }
-  if (!isPlainObject(params.pagination)) {
-    return { valid: false, error: 'Tool "bulk_extract" requires "pagination" to be an object.' };
-  }
-  const { type } = params.pagination as Record<string, unknown>;
-  if (type !== 'click_next' && type !== 'url_page' && type !== 'infinite_scroll') {
-    return { valid: false, error: 'Tool "bulk_extract" pagination.type must be "click_next", "url_page", or "infinite_scroll".' };
-  }
-  if (type === 'click_next' && !isNonEmptyString((params.pagination as any).selector)) {
-    return { valid: false, error: 'Tool "bulk_extract" pagination.selector is required for type "click_next".' };
-  }
-  if (type === 'url_page' && !isNonEmptyString((params.pagination as any).urlTemplate)) {
-    return { valid: false, error: 'Tool "bulk_extract" pagination.urlTemplate is required for type "url_page".' };
-  }
-  return { valid: true };
-}
-
-function validateSaveExtractedDataParams(
-  params: Record<string, unknown>,
-): ToolValidationResult {
-  if (!Array.isArray(params.data)) {
-    return { valid: false, error: 'Tool "save_extracted_data" requires "data" to be an array.' };
-  }
-  if (params.data.length === 0) {
-    return { valid: false, error: 'Tool "save_extracted_data" requires a non-empty "data" array.' };
+  if (hasData && params.data !== null && !Array.isArray(params.data) && toolName === 'save_csv') {
+    return { valid: false, error: 'Tool "save_csv" "data" must be an array of objects.' };
   }
   return { valid: true };
 }
