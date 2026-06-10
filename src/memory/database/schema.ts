@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const CREATE_TABLES_SQL = `
 -- ═══════════════════════════════════════════════════════
@@ -346,5 +346,25 @@ export const MIGRATIONS: Record<number, string> = {
       description TEXT,
       updated_at BIGINT NOT NULL
     );
+  `,
+
+  5: `
+    -- ═══════════════════════════════════════════════════════
+    -- VECTOR MEMORY TABLES (v5)
+    -- ═══════════════════════════════════════════════════════
+
+    CREATE EXTENSION IF NOT EXISTS vector;
+
+    CREATE TABLE IF NOT EXISTS vector_memories (
+      id TEXT PRIMARY KEY,
+      session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+      domain TEXT NOT NULL,
+      task_summary TEXT NOT NULL,
+      context_json JSONB NOT NULL,
+      embedding vector(384),
+      created_at BIGINT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vector_memories_domain ON vector_memories(domain);
   `,
 };

@@ -11,20 +11,27 @@ import {
   ErrorPatternWithConfidence,
   CreateErrorPatternInput,
 } from './database/repositories/error-pattern-repository.js';
+import { VectorRepository } from './database/repositories/vector-repository.js';
+import { EmbeddingService } from './embedding-service.js';
 
 export class MemoryManager {
   private memoryRepo: MemoryRepository;
   private selectorRepo: SelectorRepository;
   private errorPatternRepo: ErrorPatternRepository;
+  private vectorRepo: VectorRepository;
+  private embeddingService: EmbeddingService;
 
   constructor() {
     this.memoryRepo = new MemoryRepository();
     this.selectorRepo = new SelectorRepository();
     this.errorPatternRepo = new ErrorPatternRepository();
+    this.vectorRepo = new VectorRepository();
+    this.embeddingService = EmbeddingService.getInstance();
   }
 
   async initialize(): Promise<void> {
     await DatabaseConnection.getInstance().initialize();
+    await this.embeddingService.initialize();
   }
 
   // ─────────────────────────────────────────────
@@ -101,6 +108,44 @@ export class MemoryManager {
   // ─────────────────────────────────────────────
   // General
   // ─────────────────────────────────────────────
+
+  // ─────────────────────────────────────────────
+  // Vector Memory (Advanced Context)
+  // ─────────────────────────────────────────────
+
+  async rememberVectorContext(
+    id: string,
+    domain: string,
+    taskSummary: string,
+    contextJson: any,
+    sessionId?: string
+  ): Promise<void> {
+    logger.debug(`Remembering vector context for ${domain}: ${taskSummary}`);
+    
+    // Generate embedding from task summary and context
+    const textToEmbed = `${taskSummary}\n${JSON.stringify(contextJson)}`;
+    const embedding = await this.embeddingService.embed(textToEmbed);
+    
+    await this.vectorRepo.create({
+      id,
+      sessionId,
+      domain,
+      taskSummary,
+      contextJson,
+      embedding
+    });
+  }
+
+  async searchVectorContext(
+    domain: string,
+    query: string,
+    limit = 3
+  ): Promise<any[]> {
+    logger.debug(`Searching vector context for ${domain} with query: ${query}`);
+    const embedding = await this.embeddingService.embed(query);
+    return this.vectorRepo.search(domain, embedding, limit);
+  }
+
 
   async getStats() {
     const dbConn = DatabaseConnection.getInstance();
