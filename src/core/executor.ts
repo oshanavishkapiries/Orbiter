@@ -15,7 +15,6 @@ import { ErrorContextBuilder } from './errors/context-builder.js';
 import { RecoveryEngine } from './errors/recovery-engine.js';
 import { ExecutionSnapshot } from './errors/types.js';
 import { validateToolCall } from '../tools/validator.js';
-import { SkillLoader } from '../skills/loader.js';
 import { ElementHighlighter } from './element-highlighter.js';
 import chalk from 'chalk';
 
@@ -58,8 +57,6 @@ export class TaskExecutor {
   private recoveryEngine: RecoveryEngine;
   private sessionRepo: SessionRepository | null = null;
   private sessionId: string | null = null;
-  private skillLoader: SkillLoader;
-  private injectedSkills = new Set<string>();
   private highlighter: ElementHighlighter;
 
   constructor(
@@ -73,7 +70,6 @@ export class TaskExecutor {
     this.recoveryEngine = new RecoveryEngine(llm, context);
     context.setLLM(llm);
     this.recorder = new FlowRecorder(goal, llmProviderName, llmModelName);
-    this.skillLoader = new SkillLoader();
     this.highlighter = new ElementHighlighter(highlightEnabled);
   }
 
@@ -168,12 +164,6 @@ export class TaskExecutor {
           const title = await mcpClient.getTitle();
           if (url) {
             this.recorder.updatePageContext(url, title);
-            const skill = this.skillLoader.matchUrl(url);
-            if (skill && !this.injectedSkills.has(skill.domain)) {
-              this.injectedSkills.add(skill.domain);
-              this.history.injectSkillContext(skill.name, skill.context);
-              logger.info(`Site skill injected: ${skill.name}`);
-            }
           }
         } catch {
           // no page navigated yet
