@@ -289,7 +289,6 @@ export class TaskExecutor {
       },
     };
 
-    this.displaySummary(result);
     return result;
   }
 
@@ -503,48 +502,6 @@ export class TaskExecutor {
     return typeof reason === 'string' && reason.startsWith('INVALID_RECOVERY_PLAN:');
   }
 
-  private displaySummary(result: ExecutionResult): void {
-    console.log('\n' + chalk.cyan('━'.repeat(60)) + '\n');
-
-    if (result.success) {
-      console.log(chalk.green.bold('✅ EXECUTION COMPLETE') + '\n');
-    } else {
-      console.log(chalk.yellow.bold('⚠️  EXECUTION COMPLETE WITH ERRORS') + '\n');
-    }
-
-    console.log(chalk.bold('Summary:'));
-    console.log(`  Total steps: ${result.summary.totalSteps}`);
-    console.log(`  ${chalk.green('✓')} Successful: ${result.summary.successfulSteps}`);
-    if (result.summary.failedSteps > 0) {
-      console.log(`  ${chalk.red('✖')} Failed: ${result.summary.failedSteps}`);
-    }
-    console.log(`  Duration: ${(result.summary.duration / 1000).toFixed(1)}s`);
-    console.log(`  Tokens: ${result.summary.tokensUsed.toLocaleString()}`);
-
-    const caps = (this.llm as any).getCapabilities?.();
-    const cost = caps
-      ? ((result.summary.inputTokens / 1_000_000) * caps.inputPricePerMToken +
-         (result.summary.outputTokens / 1_000_000) * caps.outputPricePerMToken).toFixed(4)
-      : ((result.summary.tokensUsed / 1_000_000) * 3).toFixed(4);
-    console.log(`  Cost: $${cost}`);
-
-    if (result.outputs && result.outputs.length > 0) {
-      console.log('\n' + chalk.bold('Saved outputs:'));
-      for (const ref of result.outputs) {
-        console.log(`  📄 ${ref} (database)`);
-      }
-    }
-
-    if (result.flowId) {
-      console.log('\n' + chalk.bold('Flow recorded:'));
-      console.log(`  📝 ${result.flowId} (database)`);
-      console.log('\n' + chalk.bold('Next steps:'));
-      console.log(`  • Optimize: orbiter refine ${result.flowId}`);
-      console.log(`  • Replay:   orbiter replay ${result.flowId}`);
-    }
-
-    console.log('');
-  }
 
   getRecorderStats() {
     return this.recorder.getStats();
