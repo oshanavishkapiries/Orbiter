@@ -12,6 +12,8 @@
     "clean:runtime": "node scripts/development/clear-runtime-folders.mjs",
     "build": "tsup",
     "start": "node dist/index.js",
+    "serve": "node dist/index.js serve",
+    "serve:dev": "tsx src/index.ts serve",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "vitest",

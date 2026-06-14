@@ -2,6 +2,7 @@ import { LLMProvider, Tool, ToolCall } from '../llm/types.js';
 import { getToolRegistry } from '../tools/registry.js';
 import { ExecutionContext } from './execution-context.js';
 import { SYSTEM_PROMPT } from '../llm/prompts/system.js';
+import { eventBus } from '../server/event-bus.js';
 import { HistoryManager } from './history-manager.js';
 import { SessionRepository } from '../memory/database/repositories/session-repository.js';
 import { DataRepository } from '../memory/database/repositories/data-repository.js';
@@ -186,6 +187,13 @@ export class TaskExecutor {
           for (const toolCall of response.toolCalls) {
             const stepResult = await this.executeToolCall(toolCall, stepNumber, effectiveMaxSteps);
             steps.push(stepResult);
+
+            if (this.sessionId) {
+              eventBus.emitStep(this.sessionId, stepResult);
+              if (stepResult.result?.imageBase64) {
+                eventBus.emitScreenshot(this.sessionId, { imageBase64: stepResult.result.imageBase64 });
+              }
+            }
 
             if (stepResult.success && (toolCall.name === 'save_csv' || toolCall.name === 'save_json')) {
               const outputRef = stepResult.result?.data?.outputRef;

@@ -13,6 +13,11 @@ async function main() {
     await DatabaseConnection.getInstance().initialize();
     logger.info('Database connected successfully.');
 
+    // Initialize worker schemas and start worker
+    const { initializeWorkerSchema, startWorker, stopWorker } = await import('./worker.js');
+    await initializeWorkerSchema();
+    startWorker();
+
     // 2. Start Fastify server
     const server = createServer();
     await server.listen({ port: PORT, host: HOST });
@@ -21,6 +26,7 @@ async function main() {
     // Handle shutdown signals
     const shutdown = async () => {
       logger.info('Shutting down server...');
+      stopWorker();
       await server.close();
       await DatabaseConnection.getInstance().close();
       logger.info('Shutdown complete.');

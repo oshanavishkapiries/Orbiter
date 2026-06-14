@@ -94,7 +94,7 @@ export class FlowRefiner {
         `Estimated tokens: ~${Math.round(estimatedTokens).toLocaleString()}`,
       );
 
-      const confirm = await this.confirmAction(
+      const confirm = !options.interactive || await this.confirmAction(
         `Run LLM optimization? (uses ~${Math.round(estimatedTokens)} tokens) [Y/n]: `,
       );
 

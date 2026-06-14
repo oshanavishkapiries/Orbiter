@@ -10,6 +10,7 @@ import { modelsCommand } from './commands/models.js';
 import { memoryCommand } from './commands/memory.js';
 import { sessionCommand } from './commands/session.js';
 import { viewerCommand } from './commands/viewer.js';
+import { serveCommand } from './commands/serve.js';
 
 const VERSION = '1.0.0';
 
@@ -35,6 +36,7 @@ export function createCLI() {
   program.addCommand(memoryCommand());
   program.addCommand(sessionCommand());
   program.addCommand(viewerCommand());
+  program.addCommand(serveCommand());
 
   // Help command customization
   program.configureHelp({
