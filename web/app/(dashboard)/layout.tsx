@@ -18,7 +18,6 @@ import {
   LogOut,
   Menu,
   Moon,
-  Search,
   Settings,
   Sparkles,
   Sun,
@@ -162,7 +161,7 @@ export default function DashboardLayout({
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* TOPBAR */}
         <header className="h-16 shrink-0 border-b border-border/50 bg-background/70 backdrop-blur-md flex items-center justify-between px-6 md:px-8 z-30">
-          {/* Left section: Mobile Toggle & Search */}
+          {/* Left section: Mobile Toggle */}
           <div className="flex items-center gap-2 md:gap-4">
             <button
               onClick={() => setIsMobileOpen(true)}
@@ -171,16 +170,6 @@ export default function DashboardLayout({
             >
               <Menu className="size-5" />
             </button>
-
-            {/* Left search */}
-            <div className="relative w-64 max-w-xs hidden md:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search workspaces..."
-                className="w-full pl-9 pr-4 py-1.5 text-xs bg-muted/40 border border-border rounded-lg outline-hidden focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
-              />
-            </div>
           </div>
           <div className="md:hidden flex items-center gap-2">
             <span className="font-semibold text-sm">Orbiter</span>
