@@ -4,6 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
+import { Logo } from "@/components/logo"
 import {
   Bell,
   Brain,
@@ -48,10 +49,15 @@ export default function DashboardLayout({
   const pathname = usePathname()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
-  const [isCollapsed, setIsCollapsed] = React.useState(false)
+  const [isCollapsed, setIsCollapsed] = React.useState(true)
   const [showNotifications, setShowNotifications] = React.useState(false)
   const [showProfileMenu, setShowProfileMenu] = React.useState(false)
   const [unreadNotifications, setUnreadNotifications] = React.useState(3)
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const notifications = [
     { id: 1, title: "Flow Completed", desc: "Ingest-User-Data executed successfully", time: "5m ago", type: "success" },
@@ -70,25 +76,18 @@ export default function DashboardLayout({
   }, [])
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground transition-colors duration-200">
+    <div className="h-screen w-screen flex bg-background text-foreground transition-colors duration-200 overflow-hidden">
       {/* SIDEBAR */}
       <aside
         className={cn(
-          "sticky top-0 h-screen border-r border-border/50 bg-card/45 backdrop-blur-md flex flex-col transition-all duration-300 ease-in-out z-40 select-none",
+          "h-screen border-r border-border/50 bg-card/45 backdrop-blur-md flex flex-col transition-all duration-300 ease-in-out z-40 select-none shrink-0",
           isCollapsed ? "w-20" : "w-64"
         )}
       >
         {/* Brand/Logo Header */}
-        <div className="h-16 flex items-center px-4 border-b border-border/50 justify-between">
+        <div className="h-16 flex items-center px-6 border-b border-border/50 justify-between">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex items-center justify-center size-9 rounded-xl bg-linear-to-tr from-primary to-indigo-600 shadow-md shadow-indigo-500/10 text-primary-foreground shrink-0">
-              <Sparkles className="size-5" />
-            </div>
-            {!isCollapsed && (
-              <span className="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-linear-to-r from-foreground to-foreground/80 animate-fade-in">
-                Orbiter
-              </span>
-            )}
+            <Logo collapsed={isCollapsed} size="md" />
           </div>
         </div>
 
@@ -159,9 +158,9 @@ export default function DashboardLayout({
       </aside>
 
       {/* MAIN LAYOUT WRAPPER */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* TOPBAR */}
-        <header className="sticky top-0 z-30 h-16 border-b border-border/50 bg-background/70 backdrop-blur-md flex items-center justify-between px-6 md:px-8">
+        <header className="h-16 shrink-0 border-b border-border/50 bg-background/70 backdrop-blur-md flex items-center justify-between px-6 md:px-8 z-30">
           {/* Left search */}
           <div className="relative w-64 max-w-xs hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -184,7 +183,13 @@ export default function DashboardLayout({
               className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               title="Toggle Theme"
             >
-              {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
+              {!mounted ? (
+                <div className="size-5" />
+              ) : theme === "dark" ? (
+                <Sun className="size-5" />
+              ) : (
+                <Moon className="size-5" />
+              )}
             </button>
 
             {/* Notification Bell */}

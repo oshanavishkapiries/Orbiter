@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Lock, Mail, Sparkles } from "lucide-react"
+import { Eye, EyeOff, Lock, Mail } from "lucide-react"
+import { Logo } from "@/components/logo"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -42,13 +43,8 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md px-6">
         {/* Brand Logo / Name */}
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="flex items-center justify-center size-12 rounded-2xl bg-linear-to-tr from-primary to-indigo-600 shadow-lg shadow-indigo-500/20 mb-3 text-primary-foreground">
-            <Sparkles className="size-6 animate-pulse" />
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-linear-to-r from-foreground to-foreground/70">
-            Orbiter
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <Logo size="xl" className="mb-2" />
+          <p className="mt-1 text-sm text-muted-foreground">
             Autonomous agent workflow studio
           </p>
         </div>
