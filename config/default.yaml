@@ -1,26 +1,30 @@
 # Orbiter Default Configuration
 version: 1
 
-# LLM Settings
-llm:
-  provider: openrouter  # openrouter | opencode-go
-  model: anthropic/claude-sonnet-4  # ex: anthropic/claude-sonnet-4 or kimi-k2.6
-  maxTokens: 4096
-  temperature: 0.7
+# ── Bootstrap settings (required before DB connects) ──────────
+# Database URL and browser profile path must be set here or in .env.
+# All other settings are seeded into the `settings` DB table on first run
+# and can be updated dynamically from there.
 
 # Database Settings
 database:
   url: postgresql://root:root@45.159.221.130:7777/root
 
-# Browser Settings
+# Browser Settings (bootstrap only — profile path is filesystem-dependent)
 browser:
-  headless: false
+  headless: true
   defaultTimeout: 30000
   viewport:
     width: 1280
     height: 720
-  profilePath: null  # Use custom Chrome profile
-  stealth: true
+  profilePath: null
+
+# LLM Settings
+llm:
+  provider: openrouter
+  model: anthropic/claude-sonnet-4
+  maxTokens: 4096
+  temperature: 0.7
 
 # Execution Settings
 execution:
@@ -29,7 +33,7 @@ execution:
   screenshotOnError: true
   screenshotOnStep: false
 
-# Prompt Enhancement Settings
+# Prompt Enhancement
 promptEnhancer:
   enabled: true
 
@@ -44,24 +48,11 @@ loop:
 # Recording Settings
 recording:
   enabled: true
-  outputDir: ./data/flows
   includeScreenshots: false
-
-# Output Settings
-output:
-  dir: ./data/outputs
-  formats:
-    - json
-    - csv
 
 # Logging Settings
 logging:
-  level: info  # error, warn, info, debug, trace
-  file:
-    enabled: true
-    path: ./data/logs
-    maxSize: 10mb
-    maxFiles: 10
+  level: info
   console:
     enabled: true
     colorize: true

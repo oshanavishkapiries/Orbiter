@@ -1,5 +1,4 @@
-import { BrowserManager } from '../browser/manager.js';
-import { PageUtils } from '../browser/page-utils.js';
+import { McpClient } from '../mcp/client.js';
 import { logger } from '../cli/ui/logger.js';
 import type { LLMProvider } from '../llm/types.js';
 import type { SessionRepository } from '../memory/database/repositories/session-repository.js';
@@ -23,15 +22,13 @@ export interface ExecutionHistoryItem {
 }
 
 export class ExecutionContext {
-  private browserManager: BrowserManager;
-  private pageUtils: PageUtils | null = null;
+  private mcpClient: McpClient | null = null;
   private state: ExecutionState;
   private llm: LLMProvider | null = null;
   private sessionRepo: SessionRepository | null = null;
   private sessionId: string | null = null;
 
   constructor() {
-    this.browserManager = new BrowserManager();
     this.state = {
       currentStep: 0,
       totalSteps: 0,
@@ -41,22 +38,17 @@ export class ExecutionContext {
     };
   }
 
-  /**
-   * Initialize browser
-   */
-  async initialize(options?: any): Promise<void> {
-    logger.info('Initializing execution context...');
-
-    await this.browserManager.launch(options);
-    const page = this.browserManager.getPage();
-    this.pageUtils = new PageUtils(page);
-
-    logger.success('Execution context initialized');
+  setMcpClient(client: McpClient): void {
+    this.mcpClient = client;
   }
 
-  /**
-   * Attach the active LLM provider so tools can query its capabilities
-   */
+  getMcpClient(): McpClient {
+    if (!this.mcpClient) {
+      throw new Error('MCP client not initialized — call setMcpClient() first');
+    }
+    return this.mcpClient;
+  }
+
   setLLM(llm: LLMProvider): void {
     this.llm = llm;
   }
@@ -78,40 +70,14 @@ export class ExecutionContext {
     return this.sessionId;
   }
 
-  /**
-   * Get browser manager
-   */
-  getBrowserManager(): BrowserManager {
-    return this.browserManager;
-  }
-
-  /**
-   * Get page utils
-   */
-  getPageUtils(): PageUtils {
-    if (!this.pageUtils) {
-      throw new Error('Execution context not initialized');
-    }
-    return this.pageUtils;
-  }
-
-  /**
-   * Get current state
-   */
   getState(): ExecutionState {
     return this.state;
   }
 
-  /**
-   * Set total steps
-   */
   setTotalSteps(total: number): void {
     this.state.totalSteps = total;
   }
 
-  /**
-   * Record step execution
-   */
   recordStep(
     action: string,
     target: string | undefined,
@@ -137,45 +103,21 @@ export class ExecutionContext {
     this.state.currentStep++;
   }
 
-  /**
-   * Store data
-   */
   storeData(key: string, value: any): void {
     this.state.collectedData[key] = value;
   }
 
-  /**
-   * Get stored data
-   */
   getData(key: string): any {
     return this.state.collectedData[key];
   }
 
-  /**
-   * Get last N successful steps
-   */
   getLastSuccessfulSteps(n: number): ExecutionHistoryItem[] {
-    return this.state.history
-      .filter((item) => item.result === 'success')
-      .slice(-n);
+    return this.state.history.filter((item) => item.result === 'success').slice(-n);
   }
 
-  /**
-   * Get execution summary
-   */
-  getSummary(): {
-    totalSteps: number;
-    successfulSteps: number;
-    failedSteps: number;
-    duration: number;
-  } {
-    const successful = this.state.history.filter(
-      (h) => h.result === 'success',
-    ).length;
-    const failed = this.state.history.filter(
-      (h) => h.result === 'failed',
-    ).length;
-
+  getSummary(): { totalSteps: number; successfulSteps: number; failedSteps: number; duration: number } {
+    const successful = this.state.history.filter((h) => h.result === 'success').length;
+    const failed = this.state.history.filter((h) => h.result === 'failed').length;
     return {
       totalSteps: this.state.history.length,
       successfulSteps: successful,
@@ -184,12 +126,11 @@ export class ExecutionContext {
     };
   }
 
-  /**
-   * Cleanup
-   */
   async cleanup(): Promise<void> {
     logger.info('Cleaning up execution context...');
-    await this.browserManager.close();
+    if (this.mcpClient) {
+      await this.mcpClient.disconnect();
+    }
     logger.success('Execution context cleaned up');
   }
 }

@@ -1,9 +1,7 @@
-import path from 'path';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
-import { config } from '../../config/index.js';
 import { logger } from '../../cli/ui/logger.js';
-import { readJson, writeJson, fileExists } from '../../utils/fs.js';
+import { readJson, fileExists } from '../../utils/fs.js';
 import { LLMFactory } from '../../llm/factory.js';
 import { AutoCleaner } from './auto-cleaner.js';
 import { SelectorOptimizer } from './selector-optimizer.js';
@@ -12,6 +10,8 @@ import { InteractiveReviewer } from './interactive-reviewer.js';
 import { FlowDiffViewer } from './diff-viewer.js';
 import { Flow, FlowStep } from '../schema.js';
 import { OptimizedFlow, RefineOptions } from './types.js';
+import { DatabaseConnection } from '../../memory/database/connection.js';
+import { DataRepository } from '../../memory/database/repositories/data-repository.js';
 
 export class FlowRefiner {
   private autoCleaner: AutoCleaner;
@@ -24,19 +24,11 @@ export class FlowRefiner {
     this.diffViewer = new FlowDiffViewer();
   }
 
-  /**
-   * Main refine method
-   */
-  async refine(rawFlowPath: string, options: RefineOptions): Promise<string> {
+  async refine(rawFlowOrId: string, options: RefineOptions): Promise<string> {
     console.log('\n' + chalk.cyan.bold('🧹 ORBITER - Flow Refiner'));
     console.log(chalk.gray('─'.repeat(60)) + '\n');
 
-    // Load raw flow
-    if (!fileExists(rawFlowPath)) {
-      throw new Error(`Flow file not found: ${rawFlowPath}`);
-    }
-
-    const rawFlow = readJson<Flow>(rawFlowPath);
+    const rawFlow = await this.loadFlow(rawFlowOrId);
 
     logger.info(`Loaded: ${rawFlow.name}`);
     logger.bullet(`Original steps: ${rawFlow.steps.length}`);
@@ -47,9 +39,7 @@ export class FlowRefiner {
     let currentSteps = [...rawFlow.steps];
     const optimizationMethods: string[] = [];
 
-    // ─────────────────────────────────────────────
-    // Phase 1: Auto Cleanup
-    // ─────────────────────────────────────────────
+    // ─── Phase 1: Auto Cleanup ─────────────────────────────
     if (options.autoClean) {
       logger.info(chalk.bold('Phase 1: Auto Cleanup'));
 
@@ -63,9 +53,7 @@ export class FlowRefiner {
       console.log('');
     }
 
-    // ─────────────────────────────────────────────
-    // Phase 2: Selector Optimization
-    // ─────────────────────────────────────────────
+    // ─── Phase 2: Selector Analysis ───────────────────────
     logger.info(chalk.bold('Phase 2: Selector Analysis'));
 
     const selectorIssues: string[] = [];
@@ -94,9 +82,7 @@ export class FlowRefiner {
 
     console.log('');
 
-    // ─────────────────────────────────────────────
-    // Phase 3: LLM Optimization
-    // ─────────────────────────────────────────────
+    // ─── Phase 3: LLM Optimization ────────────────────────
     let llmSuggestions: string[] = [];
     let llmTokensUsed = 0;
 
@@ -128,7 +114,6 @@ export class FlowRefiner {
 
           this.diffViewer.displaySuggestions(result.suggestions);
 
-          // Apply LLM optimized steps
           currentSteps = result.optimizedSteps.map((s, idx) => ({
             ...(currentSteps[idx] || {}),
             ...s,
@@ -147,9 +132,7 @@ export class FlowRefiner {
       console.log('');
     }
 
-    // ─────────────────────────────────────────────
-    // Phase 4: Interactive Review
-    // ─────────────────────────────────────────────
+    // ─── Phase 4: Interactive Review ──────────────────────
     if (options.interactive) {
       logger.info(chalk.bold('Phase 4: Interactive Review'));
       console.log('');
@@ -161,15 +144,11 @@ export class FlowRefiner {
       console.log('');
     }
 
-    // ─────────────────────────────────────────────
-    // Build Optimized Flow
-    // ─────────────────────────────────────────────
+    // ─── Build Optimized Flow ─────────────────────────────
     const reductionPercent = Math.round(
-      ((rawFlow.steps.length - currentSteps.length) / rawFlow.steps.length) *
-        100,
+      ((rawFlow.steps.length - currentSteps.length) / rawFlow.steps.length) * 100,
     );
 
-    // Estimate replay time (avg 2s per step)
     const estimatedReplayTime = currentSteps.length * 2;
 
     const optimizedFlow: OptimizedFlow = {
@@ -201,46 +180,74 @@ export class FlowRefiner {
       },
     };
 
-    // Display final steps
     this.diffViewer.displayFinalSteps(optimizedFlow.steps);
 
-    // ─────────────────────────────────────────────
-    // Save Output
-    // ─────────────────────────────────────────────
-    const outputPath = this.resolveOutputPath(rawFlowPath, options.outputPath);
+    // ─── Save to DB ────────────────────────────────────────
+    let outputRef = optimizedFlow.id;
 
     if (!options.dryRun) {
-      writeJson(outputPath, optimizedFlow);
-      logger.success(`\nOptimized flow saved: ${outputPath}`);
+      outputRef = await this.saveOptimizedFlow(optimizedFlow);
     } else {
       logger.info('\nDry run - flow not saved');
     }
 
-    // Final summary
     this.displayFinalSummary(
       rawFlow.steps.length,
       currentSteps.length,
       reductionPercent,
       estimatedReplayTime,
-      outputPath,
-      rawFlowPath,
+      outputRef,
     );
 
-    return outputPath;
+    return outputRef;
   }
 
-  /**
-   * Build selector fallback chain for a step
-   */
+  private async loadFlow(flowOrId: string): Promise<Flow> {
+    // Try DB first
+    if (flowOrId.startsWith('flow_') || flowOrId.startsWith('flow-')) {
+      try {
+        await DatabaseConnection.getInstance().initialize();
+        const repo = new DataRepository();
+        const flow = await repo.loadFlow(flowOrId);
+        if (flow) return flow as Flow;
+      } catch (err) {
+        logger.debug(`DB flow load failed: ${(err as Error).message}`);
+      }
+    }
+
+    // Fallback to file
+    if (!fileExists(flowOrId)) {
+      throw new Error(`Flow not found: "${flowOrId}" (tried database and file system)`);
+    }
+
+    const flow = readJson<Flow>(flowOrId);
+    if (!flow.id || !flow.steps || !Array.isArray(flow.steps)) {
+      throw new Error('Invalid flow file format');
+    }
+
+    return flow;
+  }
+
+  private async saveOptimizedFlow(flow: OptimizedFlow): Promise<string> {
+    try {
+      await DatabaseConnection.getInstance().initialize();
+      const repo = new DataRepository();
+      const id = await repo.saveFlow(flow as any);
+      logger.success(`\nOptimized flow saved to database (id: ${id})`);
+      return id;
+    } catch (err) {
+      logger.warn(`Failed to save optimized flow to DB: ${(err as Error).message}`);
+      return flow.id;
+    }
+  }
+
   private buildSelectorChain(step: FlowStep): string[] {
     const selectors: string[] = [];
 
-    // Primary selector
     if (step.selector) {
       selectors.push(step.selector);
     }
 
-    // Add recovery selectors
     if (step.recoveryAttempts) {
       const recovered = this.selectorOptimizer.extractRecoverySelectors(step);
       for (const sel of recovered) {
@@ -253,20 +260,6 @@ export class FlowRefiner {
     return selectors;
   }
 
-  /**
-   * Resolve output path for optimized flow
-   */
-  private resolveOutputPath(rawPath: string, customPath?: string): string {
-    if (customPath) return customPath;
-
-    return rawPath
-      .replace('.raw.json', '.flow.json')
-      .replace('/flows/', '/flows/');
-  }
-
-  /**
-   * Confirm action prompt
-   */
   private async confirmAction(question: string): Promise<boolean> {
     return new Promise((resolve) => {
       const rl = createInterface({
@@ -277,23 +270,17 @@ export class FlowRefiner {
       rl.question(chalk.yellow(question), (answer: string) => {
         rl.close();
         const normalized = answer.toLowerCase().trim();
-        resolve(
-          normalized === '' || normalized === 'y' || normalized === 'yes',
-        );
+        resolve(normalized === '' || normalized === 'y' || normalized === 'yes');
       });
     });
   }
 
-  /**
-   * Display final summary
-   */
   private displayFinalSummary(
     originalCount: number,
     finalCount: number,
     reductionPercent: number,
     estimatedReplayTime: number,
-    outputPath: string,
-    rawPath: string,
+    outputRef: string,
   ): void {
     console.log('\n' + chalk.cyan('─'.repeat(60)));
     console.log(chalk.green.bold('\n✅ FLOW OPTIMIZATION COMPLETE\n'));
@@ -303,17 +290,15 @@ export class FlowRefiner {
       `  Steps: ${chalk.yellow(originalCount)} → ${chalk.green(finalCount)}` +
         chalk.gray(` (${reductionPercent}% reduction)`),
     );
-    console.log(
-      `  Estimated replay time: ${chalk.green(`~${estimatedReplayTime}s`)}`,
-    );
+    console.log(`  Estimated replay time: ${chalk.green(`~${estimatedReplayTime}s`)}`);
 
     console.log('\n' + chalk.bold('Output:'));
-    console.log(`  📄 ${outputPath}`);
+    console.log(`  📄 ${outputRef} ${chalk.dim('(database)')}`);
 
     console.log('\n' + chalk.bold('Next steps:'));
-    console.log(`  • Replay: ${chalk.cyan(`orbiter replay ${outputPath}`)}`);
+    console.log(`  • Replay: ${chalk.cyan(`orbiter replay ${outputRef}`)}`);
     console.log(
-      `  • With params: ${chalk.cyan(`orbiter replay ${outputPath} --params '{"KEY":"value"}'`)}`,
+      `  • With params: ${chalk.cyan(`orbiter replay ${outputRef} --params '{"KEY":"value"}'`)}`,
     );
     console.log('');
   }

@@ -7,6 +7,7 @@ export type ErrorType =
   | 'element_detached'
   | 'javascript_error'
   | 'captcha_detected'
+  | 'selector_mismatch'
   | 'unknown';
 
 export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical';

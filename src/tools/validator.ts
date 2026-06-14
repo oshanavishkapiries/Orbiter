@@ -14,9 +14,15 @@ export function validateToolCall(
   const tool = registry.get(toolName);
 
   if (!tool) {
+    if (toolName.startsWith('browser_')) {
+      return {
+        valid: false,
+        error: `"${toolName}" is not in the MCP tool list. Check your available browser tools and use an exact name from the list.`,
+      };
+    }
     return {
       valid: false,
-      error: `Unknown tool "${toolName}". Use one of: ${registry.getNames().join(', ')}`,
+      error: `Unknown tool "${toolName}". Available custom tools: ${registry.getNames().join(', ')}`,
     };
   }
 
@@ -85,10 +91,9 @@ function validateToolSpecificRules(
   params: Record<string, unknown>,
 ): ToolValidationResult {
   switch (toolName) {
-    case 'wait':
-      return validateWaitParams(params);
-    case 'extract_data':
-      return validateExtractDataParams(params);
+    case 'save_csv':
+    case 'save_json':
+      return validateSaveParams(toolName, params);
     case 'recall_dom_snapshot':
       return validatePositiveIntegerField(toolName, 'step_number', params);
     case 'recall_step_history': {
@@ -116,60 +121,24 @@ function validateToolSpecificRules(
   }
 }
 
-function validateWaitParams(
+function validateSaveParams(
+  toolName: string,
   params: Record<string, unknown>,
 ): ToolValidationResult {
-  if (params.type === 'time') {
-    if (typeof params.duration !== 'number' || params.duration <= 0) {
-      return {
-        valid: false,
-        error: 'Tool "wait" requires a positive numeric "duration" when type="time".',
-      };
-    }
+  const hasData = params.data !== undefined && params.data !== null;
+  const hasKey = isNonEmptyString(params.storageKey);
+  if (!hasData && !hasKey) {
+    return {
+      valid: false,
+      error: `Tool "${toolName}" requires either "data" or "storageKey".`,
+    };
   }
-
+  if (hasData && params.data !== null && !Array.isArray(params.data) && toolName === 'save_csv') {
+    return { valid: false, error: 'Tool "save_csv" "data" must be an array of objects.' };
+  }
   return { valid: true };
 }
 
-function validateExtractDataParams(
-  params: Record<string, unknown>,
-): ToolValidationResult {
-  if (!isPlainObject(params.schema)) {
-    return {
-      valid: false,
-      error: 'Tool "extract_data" requires "schema" to be an object.',
-    };
-  }
-
-  const entries = Object.entries(params.schema);
-  if (entries.length === 0) {
-    return {
-      valid: false,
-      error: 'Tool "extract_data" requires a non-empty "schema" object.',
-    };
-  }
-
-  for (const [field, selector] of entries) {
-    if (!isNonEmptyString(selector)) {
-      return {
-        valid: false,
-        error: `Tool "extract_data" schema field "${field}" must map to a non-empty selector string.`,
-      };
-    }
-  }
-
-  if (
-    params.containerSelector !== undefined &&
-    !isNonEmptyString(params.containerSelector)
-  ) {
-    return {
-      valid: false,
-      error: 'Tool "extract_data" field "containerSelector" must be a non-empty string when provided.',
-    };
-  }
-
-  return { valid: true };
-}
 
 function validatePositiveIntegerField(
   toolName: string,

@@ -31,6 +31,12 @@ export class RecoveryEngine {
     if (errorContext.error.severity === 'critical') {
       return { success: false, shouldAbort: true, abortReason: 'Critical error — stopping' };
     }
+    if (errorContext.error.type === 'selector_mismatch') {
+      // Wrong selectors — retrying same params won't help; signal retry-loop to break
+      // so the LLM can re-probe the DOM and try a different approach.
+      this.displayErrorContext(errorContext);
+      return { success: false, shouldAbort: false, error: `INVALID_RECOVERY_PLAN: ${errorContext.error.message}` };
+    }
 
     logger.info('Analyzing error for recovery...');
     this.displayErrorContext(errorContext);
@@ -91,7 +97,6 @@ export class RecoveryEngine {
     const plan = await Promise.race([llmCall, timeout]);
 
     if (plan === null) {
-      // LLM timed out or failed — pick a context-aware fallback
       logger.warn('Recovery LLM unavailable — using context-aware fallback');
       const flags = errorContext.browserState.pageFlags;
       if (flags.hasModal || flags.hasOverlay) {
@@ -118,56 +123,54 @@ export class RecoveryEngine {
     plan: RecoveryPlan,
     errorContext: ErrorContext,
   ): Promise<{ success: boolean; data?: any; error?: string }> {
-    const registry = getToolRegistry();
-
     try {
+      const mcpClient = this.context.getMcpClient();
+
       switch (plan.strategy) {
         case 'wait_and_retry': {
           const wait = plan.waitBeforeRetry || 3000;
           logger.info(`Waiting ${wait}ms...`);
           await new Promise(r => setTimeout(r, wait));
           const target = plan.action ?? errorContext.failedAction;
-          const r = await registry.execute(target.tool, target.params, this.context);
+          const r = await this.executeTool(target.tool, target.params);
           return { success: r.success, data: r.data, error: r.error };
         }
 
         case 'refresh_and_retry': {
           logger.info('Refreshing page...');
-          await this.context.getBrowserManager().getPage().reload({ waitUntil: 'load' });
-          await this.context.getBrowserManager().getPage().waitForTimeout(2000);
+          const currentUrl = await mcpClient.getCurrentUrl();
+          if (currentUrl) {
+            await mcpClient.callTool('browser_navigate', { url: currentUrl });
+          }
+          await mcpClient.delay(2000);
           const target = plan.action ?? errorContext.failedAction;
-          const r = await registry.execute(target.tool, target.params, this.context);
+          const r = await this.executeTool(target.tool, target.params);
           return { success: r.success, data: r.data, error: r.error };
         }
 
         case 'scroll_and_retry': {
           logger.info('Scrolling down...');
-          await this.context.getBrowserManager().getPage().evaluate(() => window.scrollBy(0, 400));
-          await this.context.getBrowserManager().getPage().waitForTimeout(800);
+          await mcpClient.callTool('browser_scroll', { direction: 'down', coordinate: [760, 400] });
+          await mcpClient.delay(800);
           const target = plan.action ?? errorContext.failedAction;
-          const r = await registry.execute(target.tool, target.params, this.context);
+          const r = await this.executeTool(target.tool, target.params);
           return { success: r.success, data: r.data, error: r.error };
         }
 
         case 'dismiss_overlay': {
           logger.info('Dismissing overlay...');
-          const page = this.context.getBrowserManager().getPage();
-          try {
-            await page.getByRole('button', { name: /close|dismiss|accept|got it|no thanks/i })
-              .first()
-              .click({ timeout: 3000 });
-          } catch {
-            await page.keyboard.press('Escape');
-          }
-          await page.waitForTimeout(800);
+          await mcpClient.evaluate(
+            `document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true,cancelable:true}))`,
+          );
+          await mcpClient.delay(800);
           const target = plan.action ?? errorContext.failedAction;
-          const r = await registry.execute(target.tool, target.params, this.context);
+          const r = await this.executeTool(target.tool, target.params);
           return { success: r.success, data: r.data, error: r.error };
         }
 
         case 'navigate_alternative': {
           if (!plan.action) return { success: false, error: 'No alternative URL provided' };
-          const r = await registry.execute('navigate', plan.action.params, this.context);
+          const r = await mcpClient.callTool('browser_navigate', plan.action.params);
           return { success: r.success, data: r.data, error: r.error };
         }
 
@@ -181,6 +184,14 @@ export class RecoveryEngine {
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
+  }
+
+  private async executeTool(toolName: string, params: Record<string, any>): Promise<any> {
+    const mcpClient = this.context.getMcpClient();
+    if (mcpClient.isMcpTool(toolName)) {
+      return mcpClient.callTool(toolName, params);
+    }
+    return getToolRegistry().execute(toolName, params, this.context);
   }
 
   private displayErrorContext(ctx: ErrorContext): void {

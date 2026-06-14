@@ -1,8 +1,7 @@
 import winston from 'winston';
 import chalk from 'chalk';
-import path from 'path';
 import { config } from '../../config/index.js';
-import { ensureDir } from '../../utils/fs.js';
+import { dbLogEntry } from './db-log-transport.js';
 
 // ─────────────────────────────────────────────
 // Log Level Colors & Icons
@@ -50,7 +49,6 @@ const consoleFormat = winston.format.printf(
 
     let output = `${time} ${color(icon)} ${message}`;
 
-    // Add step info if present
     if (meta.step) {
       output = `${time} ${chalk.cyan(`[${meta.step}]`)} ${color(icon)} ${message}`;
     }
@@ -59,14 +57,12 @@ const consoleFormat = winston.format.printf(
   },
 );
 
-// ─────────────────────────────────────────────
-// File Format (JSON)
-// ─────────────────────────────────────────────
-
-const fileFormat = winston.format.combine(
-  winston.format.timestamp(),
-  winston.format.json(),
-);
+// DB write side-effect format (runs at logger level for every log call)
+const dbFormat = winston.format((info) => {
+  const { level, message, timestamp: _ts, ...meta } = info;
+  dbLogEntry(String(level), String(message), Object.keys(meta).length > 0 ? meta : undefined);
+  return info;
+})();
 
 // ─────────────────────────────────────────────
 // Create Logger
@@ -91,54 +87,11 @@ function createWinstonLogger(): winston.Logger {
     );
   }
 
-  // File transport
-  if (cfg.logging.file.enabled) {
-    const logDir = cfg.logging.file.path;
-    ensureDir(logDir);
-
-    // Main log file
-    transports.push(
-      new winston.transports.File({
-        filename: path.join(logDir, 'orbiter.log'),
-        format: fileFormat,
-        maxsize: parseSize(cfg.logging.file.maxSize),
-        maxFiles: cfg.logging.file.maxFiles,
-      }),
-    );
-
-    // Error log file
-    transports.push(
-      new winston.transports.File({
-        filename: path.join(logDir, 'error.log'),
-        level: 'error',
-        format: fileFormat,
-        maxsize: parseSize(cfg.logging.file.maxSize),
-        maxFiles: cfg.logging.file.maxFiles,
-      }),
-    );
-  }
-
   return winston.createLogger({
     level: cfg.logging.level,
+    format: dbFormat,
     transports,
   });
-}
-
-function parseSize(size: string): number {
-  const units: Record<string, number> = {
-    b: 1,
-    kb: 1024,
-    mb: 1024 * 1024,
-    gb: 1024 * 1024 * 1024,
-  };
-
-  const match = size.toLowerCase().match(/^(\d+)(b|kb|mb|gb)?$/);
-  if (!match) return 10 * 1024 * 1024;
-
-  const value = parseInt(match[1], 10);
-  const unit = match[2] || 'b';
-
-  return value * units[unit];
 }
 
 // ─────────────────────────────────────────────

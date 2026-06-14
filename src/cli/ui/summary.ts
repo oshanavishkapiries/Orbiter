@@ -10,8 +10,8 @@ export interface ExecutionSummary {
   duration: number;
   tokensUsed: number;
   estimatedCost: number;
-  flowPath?: string;
-  outputFiles?: string[];
+  flowId?: string;
+  outputs?: string[];
   extractedItems?: number;
 }
 
@@ -21,7 +21,7 @@ export interface ReplaySummary {
   stepsExecuted: number;
   stepsFailed: number;
   duration: number;
-  outputFiles?: string[];
+  outputs?: string[];
   extractedItems?: number;
   originalCost: number;
 }
@@ -41,147 +41,159 @@ export const summaries = {
    * Execution summary
    */
   execution(data: ExecutionSummary): void {
-    const status = data.success
-      ? chalk.green.bold('✅ TASK COMPLETED SUCCESSFULLY')
-      : chalk.yellow.bold('⚠️  TASK COMPLETED WITH ERRORS');
+    const isSuccess = data.success && data.failedSteps === 0;
+    const title = isSuccess
+      ? chalk.greenBright.bold('✅  TASK COMPLETED SUCCESSFULLY')
+      : chalk.yellowBright.bold('⚠️   TASK COMPLETED WITH ERRORS');
+      
+    const borderColor = isSuccess ? 'green' : 'yellow';
+    const costStr = data.estimatedCost < 0.0001 ? '< $0.0001' : `$${data.estimatedCost.toFixed(4)}`;
 
-    console.log('\n' + chalk.cyan('━'.repeat(60)));
-    console.log('\n' + status + '\n');
+    let content = '';
+    
+    // Summary Stats
+    content += `${chalk.bold.white('📊 Execution Stats')}\n`;
+    content += `${chalk.gray('├─')} Status:     ${isSuccess ? chalk.green('Success') : chalk.yellow('Completed with Errors')}\n`;
+    content += `${chalk.gray('├─')} Duration:   ${chalk.cyan(formatDuration(data.duration))}\n`;
+    content += `${chalk.gray('├─')} Steps:      ${chalk.cyan(`${data.successfulSteps}/${data.totalSteps}`)} executed\n`;
+    
+    if (data.failedSteps > 0) {
+      content += `${chalk.gray('├─')} Errors:     ${chalk.red(data.failedSteps)}\n`;
+    }
+    if (data.recoveredSteps) {
+      content += `${chalk.gray('├─')} Recovered:  ${chalk.yellowBright(data.recoveredSteps)}\n`;
+    }
+    if (data.extractedItems) {
+      content += `${chalk.gray('├─')} Extracted:  ${chalk.green.bold(data.extractedItems)} items\n`;
+    }
+    
+    content += `${chalk.gray('└─')} Cost:       ${chalk.magenta(costStr)} (${data.tokensUsed.toLocaleString()} tokens)\n`;
 
-    // Results box
-    const resultsContent = [
-      `${chalk.bold('Results:')}`,
-      `  Steps executed:  ${data.successfulSteps}/${data.totalSteps}`,
-      data.failedSteps > 0
-        ? `  ${chalk.red('Steps failed:')}   ${data.failedSteps}`
-        : '',
-      data.recoveredSteps
-        ? `  ${chalk.yellow('Steps recovered:')} ${data.recoveredSteps}`
-        : '',
-      data.extractedItems
-        ? `  ${chalk.green('Items extracted:')} ${data.extractedItems}`
-        : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    console.log(resultsContent);
-
-    // Performance box
-    const cost = data.estimatedCost.toFixed(4);
-    console.log('\n' + chalk.bold('Performance:'));
-    console.log(`  Duration:     ${formatDuration(data.duration)}`);
-    console.log(`  LLM tokens:   ${data.tokensUsed.toLocaleString()}`);
-    console.log(`  LLM cost:     ${chalk.yellow('$' + cost)}`);
-
-    // Output files
-    if (data.outputFiles && data.outputFiles.length > 0) {
-      console.log('\n' + chalk.bold('Output files:'));
-      for (const file of data.outputFiles) {
-        console.log(`  📄 ${chalk.gray(file)}`);
-      }
+    // Saved Outputs
+    if (data.outputs && data.outputs.length > 0) {
+      content += `\n${chalk.bold.white('💾 Saved Outputs')}\n`;
+      data.outputs.forEach((ref, idx) => {
+        const isLast = idx === data.outputs!.length - 1;
+        const prefix = isLast ? '└─' : '├─';
+        content += `${chalk.gray(prefix)} ${chalk.blue(ref)}\n`;
+      });
     }
 
-    // Flow path
-    if (data.flowPath) {
-      console.log('\n' + chalk.bold('Flow recorded:'));
-      console.log(`  📝 ${chalk.gray(data.flowPath)}`);
+    // Recorded Flow
+    if (data.flowId) {
+      content += `\n${chalk.bold.white('📝 Recorded Flow')}\n`;
+      content += `${chalk.gray('└─')} ID:         ${chalk.yellowBright(data.flowId)}\n`;
+      
+      content += `\n${chalk.bold.white('🚀 Next Steps')}\n`;
+      content += `${chalk.gray('├─')} Replay:     ${chalk.dim('orbiter replay')} ${chalk.cyan(data.flowId)}\n`;
+      content += `${chalk.gray('└─')} Optimize:   ${chalk.dim('orbiter refine')} ${chalk.cyan(data.flowId)}\n`;
     }
 
-    // Next steps
-    if (data.flowPath) {
-      console.log('\n' + chalk.bold('Next steps:'));
-      console.log(
-        `  ${chalk.gray('•')} Optimize: ${chalk.cyan('orbiter refine ' + data.flowPath)}`,
-      );
-      const replayPath = data.flowPath.replace('.raw.json', '.flow.json');
-      console.log(
-        `  ${chalk.gray('•')} Replay:   ${chalk.cyan('orbiter replay ' + replayPath)}`,
-      );
-    }
-
+    // Print the boxed summary
     console.log('');
+    console.log(boxen(content.trimEnd(), {
+      title,
+      titleAlignment: 'center',
+      padding: 1,
+      margin: { top: 1, bottom: 1 },
+      borderColor,
+      borderStyle: 'round'
+    }));
   },
 
   /**
    * Replay summary
    */
   replay(data: ReplaySummary): void {
-    const status = data.success
-      ? chalk.green.bold('✅ REPLAY COMPLETED SUCCESSFULLY')
-      : chalk.yellow.bold('⚠️  REPLAY COMPLETED WITH ERRORS');
+    const isSuccess = data.success && data.stepsFailed === 0;
+    const title = isSuccess
+      ? chalk.greenBright.bold('✅  REPLAY COMPLETED SUCCESSFULLY')
+      : chalk.yellowBright.bold('⚠️   REPLAY COMPLETED WITH ERRORS');
+      
+    const borderColor = isSuccess ? 'green' : 'yellow';
 
-    console.log('\n' + chalk.cyan('━'.repeat(60)));
-    console.log('\n' + status + '\n');
-
-    console.log(chalk.bold('Results:'));
-    console.log(`  Flow:           ${chalk.cyan(data.flowName)}`);
-    console.log(`  Steps executed: ${data.stepsExecuted}`);
-
+    let content = '';
+    
+    // Summary Stats
+    content += `${chalk.bold.white('▶️  Replay Stats')}\n`;
+    content += `${chalk.gray('├─')} Flow:       ${chalk.cyan(data.flowName)}\n`;
+    content += `${chalk.gray('├─')} Status:     ${isSuccess ? chalk.green('Success') : chalk.yellow('Completed with Errors')}\n`;
+    content += `${chalk.gray('├─')} Duration:   ${chalk.cyan(formatDuration(data.duration))}\n`;
+    content += `${chalk.gray('├─')} Steps:      ${chalk.cyan(data.stepsExecuted)} executed\n`;
+    
     if (data.stepsFailed > 0) {
-      console.log(`  ${chalk.red('Steps failed:')}   ${data.stepsFailed}`);
+      content += `${chalk.gray('├─')} Errors:     ${chalk.red(data.stepsFailed)}\n`;
     }
-
     if (data.extractedItems) {
-      console.log(
-        `  ${chalk.green('Items extracted:')} ${data.extractedItems}`,
-      );
+      content += `${chalk.gray('├─')} Extracted:  ${chalk.green.bold(data.extractedItems)} items\n`;
     }
-
-    // Output files
-    if (data.outputFiles && data.outputFiles.length > 0) {
-      console.log('\n' + chalk.bold('Output files:'));
-      for (const file of data.outputFiles) {
-        console.log(`  📄 ${chalk.gray(file)}`);
-      }
-    }
-
-    // Performance comparison
-    console.log('\n' + chalk.bold('Performance:'));
-    console.log(`  Duration:    ${formatDuration(data.duration)}`);
-    console.log(`  LLM calls:   ${chalk.green('0')} (replay mode)`);
-    console.log(`  Replay cost: ${chalk.green('$0.00')}`);
+    
+    content += `${chalk.gray('└─')} Cost:       ${chalk.green('$0.00')} (0 LLM calls)\n`;
 
     if (data.originalCost > 0) {
-      console.log(`\n${chalk.bold('Savings vs original:')} `);
-      console.log(
-        `  Original cost: ${chalk.yellow('$' + data.originalCost.toFixed(4))}`,
-      );
-      console.log(`  ${chalk.green.bold('Cost saved: 100% 💰')}`);
+      content += `\n${chalk.bold.white('💰 Savings')}\n`;
+      content += `${chalk.gray('├─')} Orig Cost:  ${chalk.yellow('$' + data.originalCost.toFixed(4))}\n`;
+      content += `${chalk.gray('└─')} Saved:      ${chalk.green.bold('100% 💰')}\n`;
     }
 
+    // Saved Outputs
+    if (data.outputs && data.outputs.length > 0) {
+      content += `\n${chalk.bold.white('💾 Saved Outputs')}\n`;
+      data.outputs.forEach((ref, idx) => {
+        const isLast = idx === data.outputs!.length - 1;
+        const prefix = isLast ? '└─' : '├─';
+        content += `${chalk.gray(prefix)} ${chalk.blue(ref)}\n`;
+      });
+    }
+
+    // Print the boxed summary
     console.log('');
+    console.log(boxen(content.trimEnd(), {
+      title,
+      titleAlignment: 'center',
+      padding: 1,
+      margin: { top: 1, bottom: 1 },
+      borderColor,
+      borderStyle: 'round'
+    }));
   },
 
   /**
    * Loop Engine summary
    */
   loop(data: LoopSummary): void {
-    const status = data.success
-      ? chalk.green.bold('✅ LOOP ENGINE COMPLETE')
-      : chalk.yellow.bold('⚠️  LOOP ENGINE COMPLETED WITH ERRORS');
+    const isSuccess = data.success && data.failedItems === 0;
+    const title = isSuccess
+      ? chalk.greenBright.bold('✅  LOOP ENGINE COMPLETE')
+      : chalk.yellowBright.bold('⚠️   LOOP ENGINE COMPLETED WITH ERRORS');
+      
+    const borderColor = isSuccess ? 'green' : 'yellow';
 
-    console.log('\n' + chalk.cyan('━'.repeat(60)));
-    console.log('\n' + status + '\n');
-
-    console.log(chalk.bold('Results:'));
-    console.log(`  Items extracted: ${chalk.green(data.totalItems)}`);
-
+    let content = '';
+    
+    // Summary Stats
+    content += `${chalk.bold.white('🔄 Loop Stats')}\n`;
+    content += `${chalk.gray('├─')} Items:      ${chalk.green.bold(data.totalItems)} extracted\n`;
     if (data.failedItems > 0) {
-      console.log(`  ${chalk.red('Items failed:')}   ${data.failedItems}`);
+      content += `${chalk.gray('├─')} Errors:     ${chalk.red(data.failedItems)} failed items\n`;
     }
+    content += `${chalk.gray('├─')} Pages:      ${chalk.cyan(data.pagesProcessed)} processed\n`;
+    content += `${chalk.gray('├─')} Duration:   ${chalk.cyan(formatDuration(data.duration))}\n`;
+    content += `${chalk.gray('└─')} Cost:       ${chalk.green('$0.00')} (0 LLM calls)\n`;
 
-    console.log(`  Pages processed: ${data.pagesProcessed}`);
-    console.log(`  Duration:        ${formatDuration(data.duration)}`);
+    content += `\n${chalk.bold.white('💰 Savings')}\n`;
+    content += `${chalk.gray('└─')} Estimated:  ${chalk.green.bold(data.estimatedSavings + ' 💰')}\n`;
 
-    console.log('\n' + chalk.bold('Performance:'));
-    console.log(`  LLM calls in loop: ${chalk.green('0')}`);
-    console.log(`  Loop cost:         ${chalk.green('$0.00')}`);
-    console.log(
-      `  Estimated savings: ${chalk.green(data.estimatedSavings)} 💰`,
-    );
-
+    // Print the boxed summary
     console.log('');
+    console.log(boxen(content.trimEnd(), {
+      title,
+      titleAlignment: 'center',
+      padding: 1,
+      margin: { top: 1, bottom: 1 },
+      borderColor,
+      borderStyle: 'round'
+    }));
   },
 
   /**

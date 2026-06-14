@@ -86,7 +86,6 @@ export abstract class OpenAICompatibleProvider extends BaseLLMProvider {
           parameters: tool.parameters,
         },
       }));
-      payload.tool_choice = 'auto';
     }
 
     const MAX_RETRIES = 3;

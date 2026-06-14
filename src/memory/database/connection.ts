@@ -19,9 +19,11 @@ export class DatabaseConnection {
   private initialized = false;
 
   private constructor() {
+    const connString = getConnectionString();
+    const isLocal = connString.includes('localhost') || connString.includes('127.0.0.1');
     this.pool = new Pool({
-      connectionString: getConnectionString(),
-      ssl: false,
+      connectionString: connString,
+      ssl: isLocal ? false : { rejectUnauthorized: false },
     });
   }
 
@@ -133,6 +135,15 @@ export class DatabaseConnection {
       'page_structures',
       'successful_flows',
       'usage_logs',
+      'sessions',
+      'session_steps',
+      'llm_interactions',
+      'flows',
+      'outputs',
+      'app_logs',
+      'error_captures',
+      'reports',
+      'settings',
     ];
 
     const tables: Record<string, number> = {};
