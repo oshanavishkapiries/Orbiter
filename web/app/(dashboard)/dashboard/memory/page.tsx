@@ -13,7 +13,10 @@ import {
   Tag,
   Trash2,
   Loader2,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Bookmark
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -28,11 +31,20 @@ interface SelectorRecord {
   fallbacks: any[]
 }
 
+interface VectorRecord {
+  id: string
+  sessionId: string | null
+  domain: string
+  taskSummary: string
+  contextJson: any
+  createdAt: number
+}
+
 export default function MemoryPage() {
   const queryClient = useQueryClient()
   const [domainInput, setDomainInput] = React.useState("google.com")
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [activeTab, setActiveTab] = React.useState<"selectors" | "search">("selectors")
+  const [activeTab, setActiveTab] = React.useState<"selectors" | "vectors" | "search">("selectors")
 
   // Modal / Form state (Simulated UI Inject for display)
   const [showAddForm, setShowAddForm] = React.useState(false)
@@ -41,6 +53,9 @@ export default function MemoryPage() {
   const [newValue, setNewValue] = React.useState("")
   const [toastMessage, setToastMessage] = React.useState("")
 
+  // Paginated Vectors state
+  const [vectorPage, setVectorPage] = React.useState(1)
+
   // 1. Fetch Memory Stats
   const { data: statsData, isLoading: loadingStats } = useQuery({
     queryKey: ["memoryStats"],
@@ -48,20 +63,27 @@ export default function MemoryPage() {
   })
 
   // 2. Fetch selectors for active domain
-  const { data: selectorsData, isLoading: loadingSelectors, refetch: refetchSelectors } = useQuery({
+  const { data: selectorsData, isLoading: loadingSelectors } = useQuery({
     queryKey: ["selectors", domainInput],
     queryFn: () => orbiterApi.getSelectors(domainInput, 30),
     enabled: activeTab === "selectors" && !!domainInput,
   })
 
   // 3. Search Selectors/Vector
-  const { data: searchResults, isLoading: searching, refetch: runSearch } = useQuery({
+  const { data: searchResults, isLoading: searching } = useQuery({
     queryKey: ["selectorSearch", domainInput, searchQuery],
     queryFn: () => orbiterApi.searchSelectors(domainInput, searchQuery),
     enabled: activeTab === "search" && !!domainInput && !!searchQuery,
   })
 
-  // 4. Clear Memory Mutation
+  // 4. Fetch Long-term Vector Memories
+  const { data: vectorsData, isLoading: loadingVectors } = useQuery({
+    queryKey: ["vectors", vectorPage],
+    queryFn: () => orbiterApi.getVectors(vectorPage, 10),
+    enabled: activeTab === "vectors"
+  })
+
+  // 5. Clear Memory Mutation
   const clearMutation = useMutation({
     mutationFn: (params: { domain?: string; all: boolean }) => 
       orbiterApi.clearMemory(params.domain, params.all),
@@ -69,6 +91,7 @@ export default function MemoryPage() {
       setToastMessage(data.message || "Memory cleared successfully.")
       queryClient.invalidateQueries({ queryKey: ["memoryStats"] })
       queryClient.invalidateQueries({ queryKey: ["selectors"] })
+      queryClient.invalidateQueries({ queryKey: ["vectors"] })
       setTimeout(() => setToastMessage(""), 3000)
     }
   })
@@ -94,6 +117,8 @@ export default function MemoryPage() {
   }
 
   const stats = statsData?.success ? statsData : null
+  const vectorsList = vectorsData?.vectors || []
+  const totalVectorPages = vectorsData?.pagination?.totalPages || 1
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -242,28 +267,22 @@ export default function MemoryPage() {
 
         {/* Tab switcher */}
         <div className="flex items-center gap-1.5 bg-muted/40 p-0.5 rounded-lg border text-xs font-medium text-muted-foreground">
-          <button
-            onClick={() => setActiveTab("selectors")}
-            className={cn(
-              "px-3 py-1 rounded-md transition-all cursor-pointer whitespace-nowrap",
-              activeTab === "selectors" ? "bg-background text-foreground shadow-xs" : "hover:text-foreground"
-            )}
-          >
-            Selectors list
-          </button>
-          <button
-            onClick={() => setActiveTab("search")}
-            className={cn(
-              "px-3 py-1 rounded-md transition-all cursor-pointer whitespace-nowrap",
-              activeTab === "search" ? "bg-background text-foreground shadow-xs" : "hover:text-foreground"
-            )}
-          >
-            Search Selectors
-          </button>
+          {(["selectors", "vectors", "search"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "px-3 py-1 rounded-md transition-all cursor-pointer whitespace-nowrap capitalize",
+                activeTab === tab ? "bg-background text-foreground shadow-xs" : "hover:text-foreground"
+              )}
+            >
+              {tab === "vectors" ? "Vector Memories" : tab === "selectors" ? "Selectors list" : "Search Selectors"}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Tab details view */}
+      {/* Tab details: Selectors list */}
       {activeTab === "selectors" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {loadingSelectors ? (
@@ -287,7 +306,7 @@ export default function MemoryPage() {
                       Confidence {sel.confidence.toFixed(2)}
                     </span>
                   </div>
-                  <div className="p-3 bg-black/5 dark:bg-black/25 rounded-lg border border-border/40 text-xs font-mono break-all leading-normal">
+                  <div className="p-3 bg-black/5 dark:bg-black/40 rounded-lg border border-border/40 text-xs font-mono break-all leading-normal">
                     {sel.primarySelector}
                   </div>
                 </div>
@@ -301,6 +320,87 @@ export default function MemoryPage() {
           ) : (
             <div className="col-span-2 border border-dashed border-border py-16 text-center text-muted-foreground rounded-xl">
               No selector memories found for domain "{domainInput}". Try navigating on this domain with Orbiter.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab details: Vector Memories (New Feature) */}
+      {activeTab === "vectors" && (
+        <div className="space-y-4">
+          {loadingVectors ? (
+            <div className="py-20 text-center flex flex-col items-center justify-center gap-2">
+              <Loader2 className="size-6 text-primary animate-spin" />
+              <span className="text-xs text-muted-foreground">Loading long-term vector context...</span>
+            </div>
+          ) : vectorsList.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4">
+              {vectorsList.map((vec: VectorRecord) => (
+                <div
+                  key={vec.id}
+                  className="border border-border/50 bg-card/45 backdrop-blur-md p-5 rounded-xl shadow-xs space-y-4 hover:border-border transition-all duration-200"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/20 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Bookmark className="size-4 text-emerald-500" />
+                      <span className="text-xs font-bold text-foreground font-mono">{vec.id}</span>
+                      <span className="text-[10px] font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        {vec.domain}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground font-semibold">
+                      Created: {new Date(vec.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block tracking-wider">
+                      Task Summary Context
+                    </span>
+                    <p className="text-xs text-foreground bg-background/50 p-3 rounded-lg border border-border/40 leading-relaxed font-semibold">
+                      {vec.taskSummary}
+                    </p>
+                  </div>
+
+                  {vec.contextJson && (
+                    <div className="space-y-2">
+                      <span className="text-[9px] uppercase font-bold text-muted-foreground block tracking-wider">
+                        Metadata JSON
+                      </span>
+                      <pre className="text-[10px] font-mono bg-black/5 dark:bg-black/40 p-3 rounded-lg border border-border/40 overflow-x-auto text-muted-foreground leading-normal">
+                        {JSON.stringify(vec.contextJson, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Vector Pagination */}
+              {totalVectorPages > 1 && (
+                <div className="p-3 flex items-center justify-between bg-muted/10 rounded-xl border border-border/50">
+                  <button
+                    disabled={vectorPage <= 1}
+                    onClick={() => setVectorPage(vectorPage - 1)}
+                    className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                  >
+                    <ChevronLeft className="size-3" /> Prev
+                  </button>
+                  <span className="text-[10px] text-muted-foreground font-semibold">
+                    Page {vectorPage} of {totalVectorPages}
+                  </span>
+                  <button
+                    disabled={vectorPage >= totalVectorPages}
+                    onClick={() => setVectorPage(vectorPage + 1)}
+                    className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                  >
+                    Next <ChevronRight className="size-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="border border-dashed border-border py-16 text-center text-muted-foreground rounded-xl">
+              No vector context records saved in the database.
             </div>
           )}
         </div>

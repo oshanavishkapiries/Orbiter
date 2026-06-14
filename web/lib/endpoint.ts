@@ -11,6 +11,8 @@ export const ENDPOINTS = {
   EXECUTION_SESSIONS: `${API_BASE}/execution/sessions`,
   EXECUTION_SESSION_DETAIL: (id: string) => `${API_BASE}/execution/sessions/${id}`,
   EXECUTION_SESSION_DATA: (id: string) => `${API_BASE}/execution/sessions/${id}/data`,
+  EXECUTION_STATS: `${API_BASE}/execution/stats`,
+
   
   // Flows Domain
   FLOWS: `${API_BASE}/flows`,
@@ -22,6 +24,8 @@ export const ENDPOINTS = {
   MEMORY_VECTOR_SEARCH: `${API_BASE}/memory/vector/search`,
   MEMORY_STATS: `${API_BASE}/memory/stats`,
   MEMORY_CLEAR: `${API_BASE}/memory`,
+  MEMORY_VECTORS: `${API_BASE}/memory/vectors`,
+
   
   // System Domain
   SYSTEM_CONFIG: `${API_BASE}/system/config`,
@@ -93,6 +97,12 @@ export const orbiterApi = {
     return handleResponse<any>(res);
   },
 
+  async getExecutionStats() {
+    const res = await fetch(ENDPOINTS.EXECUTION_STATS);
+    return handleResponse<any>(res);
+  },
+
+
   // Flows
   async getFlows(page = 1, limit = 10, type?: 'raw' | 'optimized') {
     let url = `${ENDPOINTS.FLOWS}?page=${page}&limit=${limit}`;
@@ -150,6 +160,12 @@ export const orbiterApi = {
     const res = await fetch(url, { method: 'DELETE' });
     return handleResponse<any>(res);
   },
+
+  async getVectors(page = 1, limit = 10) {
+    const res = await fetch(`${ENDPOINTS.MEMORY_VECTORS}?page=${page}&limit=${limit}`);
+    return handleResponse<any>(res);
+  },
+
 
   // System
   async getConfig() {

@@ -65,28 +65,43 @@ export default function DashboardPage() {
     queryFn: () => orbiterApi.getMemoryStats(),
   })
 
+  // 4. Fetch Execution and Token stats (New API Endpoint)
+  const {
+    data: statsData,
+    isLoading: loadingStats,
+    refetch: refetchStats,
+    isRefetching: refetchingStats
+  } = useQuery({
+    queryKey: ["executionStats"],
+    queryFn: () => orbiterApi.getExecutionStats()
+  })
+
   const handleSync = () => {
     refetchSessions()
     refetchFlows()
     refetchMemory()
+    refetchStats()
   }
 
-  const isLoading = loadingSessions || loadingFlows || loadingMemory
-  const isRefreshing = refetchingSessions || refetchingFlows || refetchingMemory
+  const isLoading = loadingSessions || loadingFlows || loadingMemory || loadingStats
+  const isRefreshing = refetchingSessions || refetchingFlows || refetchingMemory || refetchingStats
 
   // Computed variables
   const sessionsList = sessionsData?.success ? sessionsData.sessions : []
-  const runningCount = sessionsList.filter((s: any) => s.status === "running" || s.status === "queued").length
-  const totalSessions = sessionsList.length
   const totalFlows = flowsData?.success ? (flowsData.pagination?.totalItems ?? 0) : 0
   const memoryTotal = memoryData?.success ? (memoryData.memory?.total ?? 0) : 0
   const dbTableCount = memoryData?.success ? (memoryData.database?.tables?.memories ?? 0) : 0
 
+  // Backend stats values
+  const activeStatsObj = statsData?.success ? statsData.sessionStats : { total: 0, running: 0 }
+  const tokenStatsObj = statsData?.success ? statsData.tokenStats : { total: 0, prompt: 0, completion: 0 }
+  const activityList = statsData?.success ? statsData.activity : []
+
   const stats: StatCard[] = [
     {
       name: "Active Sessions",
-      value: `${runningCount} / ${totalSessions}`,
-      change: `+${runningCount} active now`,
+      value: `${activeStatsObj.running} / ${activeStatsObj.total}`,
+      change: `+${activeStatsObj.running} active runners`,
       icon: Terminal,
       color: "text-blue-500 bg-blue-500/10"
     },
@@ -105,13 +120,37 @@ export default function DashboardPage() {
       color: "text-emerald-500 bg-emerald-500/10"
     },
     {
-      name: "LLM Providers",
-      value: "OpenRouter",
-      change: "Active provider",
+      name: "Token Throughput",
+      value: tokenStatsObj.total > 0 ? `${(tokenStatsObj.total / 1000).toFixed(1)}K` : "0",
+      change: `p: ${tokenStatsObj.prompt} | c: ${tokenStatsObj.completion}`,
       icon: Cpu,
       color: "text-amber-500 bg-amber-500/10"
     }
   ]
+
+  // Find max tokens to dynamically scale the custom SVG chart
+  const maxActivityToken = activityList.length > 0 ? Math.max(...activityList.map((a: any) => a.tokens)) : 1000
+  const chartHeight = 200
+
+  // Generate SVG path for actual activity logs
+  const generateChartPath = (fill: boolean) => {
+    if (activityList.length === 0) return ""
+    const stepX = 500 / (activityList.length - 1 || 1)
+    
+    let path = `M 0,${chartHeight - (activityList[0].tokens / maxActivityToken) * (chartHeight - 40)}`
+    
+    activityList.forEach((point: any, idx: number) => {
+      if (idx === 0) return
+      const x = idx * stepX
+      const y = chartHeight - (point.tokens / maxActivityToken) * (chartHeight - 40)
+      path += ` L ${x},${y}`
+    })
+
+    if (fill) {
+      path += ` L 500,${chartHeight} L 0,${chartHeight} Z`
+    }
+    return path
+  }
 
   if (isLoading) {
     return (
@@ -200,8 +239,8 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-1.5 bg-muted/40 p-0.5 rounded-md border text-[10px] font-semibold text-muted-foreground">
               <span className="px-2.5 py-1 rounded-sm bg-background text-foreground shadow-xs">24h</span>
-              <span className="px-2.5 py-1 rounded-sm">7d</span>
-              <span className="px-2.5 py-1 rounded-sm">30d</span>
+              <span className="px-2.5 py-1 rounded-sm opacity-50">7d</span>
+              <span className="px-2.5 py-1 rounded-sm opacity-50">30d</span>
             </div>
           </div>
 
@@ -209,45 +248,58 @@ export default function DashboardPage() {
           <div className="h-64 w-full flex items-end justify-between relative pt-6 px-2">
             {/* Chart Grid Lines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20 dark:opacity-10 text-[9px] text-muted-foreground">
-              <div className="w-full border-t border-dashed border-foreground/60 pt-1">50k tokens</div>
-              <div className="w-full border-t border-dashed border-foreground/60 pt-1">30k tokens</div>
-              <div className="w-full border-t border-dashed border-foreground/60 pt-1">10k tokens</div>
+              <div className="w-full border-t border-dashed border-foreground/60 pt-1">{(maxActivityToken / 1000).toFixed(1)}k tokens</div>
+              <div className="w-full border-t border-dashed border-foreground/60 pt-1">{(maxActivityToken * 0.6 / 1000).toFixed(1)}k tokens</div>
+              <div className="w-full border-t border-dashed border-foreground/60 pt-1">{(maxActivityToken * 0.2 / 1000).toFixed(1)}k tokens</div>
               <div className="w-full" />
             </div>
 
             {/* Custom SVG line or bars */}
             <div className="absolute inset-x-0 bottom-0 top-6 pointer-events-none">
-              <svg className="w-full h-full" viewBox="0 0 500 200" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-primary, #6366f1)" stopOpacity="0.2" />
-                    <stop offset="100%" stopColor="var(--color-primary, #6366f1)" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                {/* Area path */}
-                <path
-                  d="M0,200 L0,150 L50,110 L100,160 L150,90 L200,60 L250,130 L300,70 L350,50 L400,100 L450,40 L500,80 L500,200 Z"
-                  fill="url(#chart-gradient)"
-                />
-                {/* Line path */}
-                <path
-                  d="M0,150 L50,110 L100,160 L150,90 L200,60 L250,130 L300,70 L350,50 L400,100 L450,40 L500,80"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  className="text-primary"
-                />
-              </svg>
+              {activityList.length > 0 ? (
+                <svg className="w-full h-full" viewBox="0 0 500 200" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--color-primary, #6366f1)" stopOpacity="0.2" />
+                      <stop offset="100%" stopColor="var(--color-primary, #6366f1)" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  {/* Area path */}
+                  <path
+                    d={generateChartPath(true)}
+                    fill="url(#chart-gradient)"
+                  />
+                  {/* Line path */}
+                  <path
+                    d={generateChartPath(false)}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    className="text-primary"
+                  />
+                </svg>
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground">
+                  No active query logs found.
+                </div>
+              )}
             </div>
 
             {/* Chart Labels */}
             <div className="absolute inset-x-0 bottom-[-24px] flex justify-between px-2 text-[9px] text-muted-foreground font-semibold">
-              <span>08:00</span>
-              <span>12:00</span>
-              <span>16:00</span>
-              <span>20:00</span>
-              <span>00:00</span>
-              <span>04:00</span>
+              {activityList.length > 0 ? (
+                <>
+                  <span>{activityList[0]?.time}</span>
+                  <span>{activityList[Math.floor(activityList.length / 2)]?.time}</span>
+                  <span>{activityList[activityList.length - 1]?.time}</span>
+                </>
+              ) : (
+                <>
+                  <span>08:00</span>
+                  <span>16:00</span>
+                  <span>00:00</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -258,7 +310,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold">Active Agents</h2>
               <span className="text-[10px] font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                {sessionsList.filter((s: any) => s.status === "running").length} Running
+                {activeStatsObj.running} Running
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">Currently processing workflows</p>

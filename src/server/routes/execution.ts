@@ -389,4 +389,73 @@ export async function executionRoutes(
       });
     },
   );
+
+  // 7. Get Execution and Token Stats
+  app.get('/stats', async (request, reply) => {
+    try {
+      const pool = DatabaseConnection.getInstance().getPool();
+
+      // Query sessions count by status
+      const sessionsCountRes = await pool.query(`
+        SELECT status, COUNT(*) as cnt 
+        FROM sessions 
+        GROUP BY status
+      `);
+      const sessionStats = {
+        total: 0,
+        running: 0,
+        completed: 0,
+        failed: 0,
+        queued: 0,
+      };
+      sessionsCountRes.rows.forEach(row => {
+        const count = parseInt(row.cnt, 10);
+        sessionStats.total += count;
+        if (row.status === 'running') sessionStats.running = count;
+        else if (row.status === 'completed') sessionStats.completed = count;
+        else if (row.status === 'failed') sessionStats.failed = count;
+        else if (row.status === 'queued') sessionStats.queued = count;
+      });
+
+      // Query token summary
+      const tokenSummaryRes = await pool.query(`
+        SELECT COALESCE(SUM(total_tokens), 0) AS "totalTokens",
+               COALESCE(SUM(prompt_tokens), 0) AS "promptTokens",
+               COALESCE(SUM(completion_tokens), 0) AS "completionTokens"
+        FROM llm_interactions
+      `);
+      const tokenStats = {
+        total: parseInt(tokenSummaryRes.rows[0].totalTokens, 10),
+        prompt: parseInt(tokenSummaryRes.rows[0].promptTokens, 10),
+        completion: parseInt(tokenSummaryRes.rows[0].completionTokens, 10),
+      };
+
+      // Query token activity logs over time
+      const activityRes = await pool.query(`
+        SELECT date_trunc('hour', to_timestamp(timestamp / 1000)) as hr,
+               SUM(total_tokens) as tokens
+        FROM llm_interactions
+        GROUP BY hr
+        ORDER BY hr ASC
+        LIMIT 24
+      `);
+      const activity = activityRes.rows.map(row => ({
+        time: new Date(row.hr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        tokens: parseInt(row.tokens, 10),
+      }));
+
+      return {
+        success: true,
+        sessionStats,
+        tokenStats,
+        activity,
+      };
+    } catch (err) {
+      return reply.status(500).send({
+        success: false,
+        error: (err as Error).message,
+      });
+    }
+  });
 }
+

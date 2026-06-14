@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { getMemoryManager } from '../../memory/manager.js';
+import { DatabaseConnection } from '../../memory/database/connection.js';
+
 
 export async function memoryRoutes(
   app: FastifyInstance<any, any, any, any, ZodTypeProvider>,
@@ -216,4 +218,74 @@ export async function memoryRoutes(
       }
     },
   );
+
+  // 6. List Vector Memories
+  const listVectorsSchema = z.object({
+    page: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : 1)),
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : 10)),
+  });
+
+  app.get(
+    '/vectors',
+    {
+      schema: {
+        querystring: listVectorsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { page, limit } = request.query;
+      const offset = (page - 1) * limit;
+
+      try {
+        const pool = DatabaseConnection.getInstance().getPool();
+        
+        // Count total vector memories
+        const countRes = await pool.query('SELECT COUNT(*) FROM vector_memories');
+        const totalItems = parseInt(countRes.rows[0].count, 10);
+
+        // Fetch paginated memories
+        const query = `
+          SELECT id, session_id as "sessionId", domain, task_summary as "taskSummary", 
+                 context_json as "contextJson", created_at as "createdAt"
+          FROM vector_memories
+          ORDER BY created_at DESC
+          LIMIT $1 OFFSET $2
+        `;
+        const res = await pool.query(query, [limit, offset]);
+        const vectors = res.rows.map(row => ({
+          id: row.id,
+          sessionId: row.sessionId,
+          domain: row.domain,
+          taskSummary: row.taskSummary,
+          contextJson: typeof row.contextJson === 'string' ? JSON.parse(row.contextJson) : row.contextJson,
+          createdAt: Number(row.createdAt),
+        }));
+
+        const totalPages = Math.ceil(totalItems / limit);
+
+        return {
+          success: true,
+          vectors,
+          pagination: {
+            currentPage: page,
+            totalPages,
+            totalItems,
+            hasNext: page < totalPages,
+          },
+        };
+      } catch (err) {
+        return reply.status(500).send({
+          success: false,
+          error: (err as Error).message,
+        });
+      }
+    }
+  );
 }
+
