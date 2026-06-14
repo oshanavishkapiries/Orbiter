@@ -398,6 +398,19 @@ export class TaskExecutor {
           // MCP tool messages are raw browser output (snapshots, Playwright code) — skip printing
           if (!isMcp && result.message) logger.bullet(result.message);
 
+          // Capture real-time screenshot for live view and trace history
+          if (mcpClient.isConnected() && toolCall.name.startsWith('browser_') && toolCall.name !== 'browser_screenshot') {
+            try {
+              logger.debug('Capturing real-time browser screenshot for live feed...');
+              const screenshotRes = await mcpClient.callTool('browser_screenshot', {});
+              if (screenshotRes?.success && screenshotRes?.imageBase64) {
+                result.imageBase64 = screenshotRes.imageBase64;
+              }
+            } catch (err) {
+              logger.debug(`Failed to capture real-time screenshot: ${(err as Error).message}`);
+            }
+          }
+
           this.recorder.recordSuccess(
             toolCall.name,
             toolCall.arguments,

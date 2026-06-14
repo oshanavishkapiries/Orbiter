@@ -53,6 +53,79 @@ interface ExtractedData {
   data: any[]
 }
 
+function JsonColorizer({ data }: { data: any }) {
+  const jsonString = JSON.stringify(data, null, 2)
+  const regex = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g
+  
+  const parts: Array<{ text: string; className: string }> = []
+  let lastIndex = 0
+  let match
+  
+  while ((match = regex.exec(jsonString)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({
+        text: jsonString.slice(lastIndex, match.index),
+        className: "text-muted-foreground"
+      })
+    }
+    
+    const token = match[0]
+    let className = "text-foreground"
+    
+    if (token.startsWith('"')) {
+      if (token.endsWith(':')) {
+        className = "text-sky-400 font-semibold"
+      } else {
+        className = "text-emerald-400 font-semibold"
+      }
+    } else if (/^(true|false)$/.test(token)) {
+      className = "text-purple-400 font-bold"
+    } else if (token === 'null') {
+      className = "text-rose-400 italic"
+    } else {
+      className = "text-amber-400 font-bold"
+    }
+    
+    parts.push({
+      text: token,
+      className
+    })
+    
+    lastIndex = regex.lastIndex
+  }
+  
+  if (lastIndex < jsonString.length) {
+    parts.push({
+      text: jsonString.slice(lastIndex),
+      className: "text-muted-foreground"
+    })
+  }
+  
+  return (
+    <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap">
+      {parts.map((p, i) => (
+        <span key={i} className={p.className}>
+          {p.text}
+        </span>
+      ))}
+    </pre>
+  )
+}
+
+function getScreenshotFromStep(step: Step): string | null {
+  if (!step || !step.fullResult) return null;
+  if (typeof step.fullResult.imageBase64 === 'string') {
+    return step.fullResult.imageBase64;
+  }
+  if (step.fullResult.result && typeof step.fullResult.result.imageBase64 === 'string') {
+    return step.fullResult.result.imageBase64;
+  }
+  if (step.fullResult.data && typeof step.fullResult.data.imageBase64 === 'string') {
+    return step.fullResult.data.imageBase64;
+  }
+  return null;
+}
+
 function SessionsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -74,6 +147,7 @@ function SessionsContent() {
 
   // Selection state
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(initialId)
+  const [selectedStepNumber, setSelectedStepNumber] = React.useState<number | null>(null)
   
   // SSE stream local states
   const [streamLogs, setStreamLogs] = React.useState<{ type: string; message: string; timestamp: number }[]>([])
@@ -93,7 +167,7 @@ function SessionsContent() {
   })
 
   // 2. Fetch selected session details
-  const { data: detailsData, isLoading: loadingDetails, refetch: refetchDetails } = useQuery({
+  const { data: detailsData, isLoading: loadingDetails } = useQuery({
     queryKey: ["sessionDetails", selectedSessionId],
     queryFn: () => selectedSessionId ? orbiterApi.getSessionDetails(selectedSessionId, true) : Promise.resolve(null),
     enabled: !!selectedSessionId
@@ -139,10 +213,38 @@ function SessionsContent() {
   // Sync selected session ID from URL query parameters
   React.useEffect(() => {
     const id = searchParams.get("id")
-    if (id) {
-      setSelectedSessionId(id)
-    }
+    setSelectedSessionId(id)
   }, [searchParams])
+
+  // Reset selected step when selectedSessionId changes
+  React.useEffect(() => {
+    setSelectedStepNumber(null)
+  }, [selectedSessionId])
+
+  // Determine the screenshot to display
+  const displayScreenshot = React.useMemo(() => {
+    if (selectedStepNumber && detailsData?.session?.steps) {
+      const step = detailsData.session.steps.find((s: Step) => s.stepNumber === selectedStepNumber)
+      if (step) {
+        const screenshot = getScreenshotFromStep(step)
+        if (screenshot) return screenshot
+      }
+    }
+
+    const isRunning = detailsData?.session?.status === "running" || detailsData?.session?.status === "queued"
+    if (isRunning && streamScreenshot) {
+      return streamScreenshot
+    }
+
+    if (detailsData?.session?.steps) {
+      for (let i = detailsData.session.steps.length - 1; i >= 0; i--) {
+        const screenshot = getScreenshotFromStep(detailsData.session.steps[i])
+        if (screenshot) return screenshot
+      }
+    }
+
+    return streamScreenshot
+  }, [detailsData, selectedStepNumber, streamScreenshot])
 
   // SSE Stream integration for running sessions
   React.useEffect(() => {
@@ -253,31 +355,29 @@ function SessionsContent() {
 
   return (
     <div className="space-y-6 animate-fade-in relative min-h-[75vh]">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agent Sessions</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Spawn, monitor, and manage the execution lifecycles of your background agent nodes.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowSpawnModal(true)}
-          className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/95 transition-all cursor-pointer shadow-xs shadow-primary/10"
-        >
-          <Plus className="size-4" />
-          Spawn Agent Node
-        </button>
-      </div>
+      {/* ─── CASE A: NO SESSION SELECTED (LIST/GRID VIEW) ─── */}
+      {!selectedSessionId ? (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Agent Sessions</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Spawn, monitor, and manage the execution lifecycles of your background agent nodes.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSpawnModal(true)}
+              className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/95 transition-all cursor-pointer shadow-xs shadow-primary/10"
+            >
+              <Plus className="size-4" />
+              Spawn Agent Node
+            </button>
+          </div>
 
-      {/* Main Grid: Left side Sessions List, Right side Detail Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left Side: Sessions List */}
-        <div className="lg:col-span-5 space-y-4">
-          {/* Controls */}
-          <div className="p-4 rounded-xl border border-border/50 bg-card/45 backdrop-blur-md space-y-3">
-            <div className="relative">
+          {/* Search & Filter Bar */}
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between p-4 rounded-xl border border-border/50 bg-card/45 backdrop-blur-md">
+            <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <input
                 type="text"
@@ -288,7 +388,7 @@ function SessionsContent() {
               />
             </div>
 
-            <div className="flex items-center gap-1.5 bg-muted/40 p-0.5 rounded-lg border text-xs font-medium text-muted-foreground overflow-x-auto">
+            <div className="flex items-center gap-1.5 bg-muted/40 p-0.5 rounded-lg border text-xs font-medium text-muted-foreground overflow-x-auto w-full md:w-auto mt-2 md:mt-0">
               {(["All", "running", "completed", "failed"] as const).map((opt) => (
                 <button
                   key={opt}
@@ -304,319 +404,388 @@ function SessionsContent() {
             </div>
           </div>
 
-          {/* List Card */}
-          <div className="border border-border/50 bg-card/45 backdrop-blur-md rounded-xl overflow-hidden shadow-xs">
-            {loadingList ? (
-              <div className="py-20 text-center flex flex-col items-center justify-center gap-2">
-                <Loader2 className="size-6 text-primary animate-spin" />
-                <span className="text-xs text-muted-foreground">Fetching session logs...</span>
-              </div>
-            ) : filteredSessions.length > 0 ? (
-              <div className="divide-y divide-border/40 max-h-[500px] overflow-y-auto">
-                {filteredSessions.map((session: Session) => {
-                  const isSelected = selectedSessionId === session.id
-                  return (
-                    <div
-                      key={session.id}
-                      onClick={() => router.push(`/dashboard/sessions?id=${session.id}`)}
-                      className={cn(
-                        "p-4 transition-colors cursor-pointer relative",
-                        isSelected ? "bg-primary/5 border-l-2 border-primary" : "hover:bg-muted/30"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1 min-w-0 flex-1">
-                          <p className="text-xs font-bold text-foreground truncate">{session.goal}</p>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-muted-foreground font-mono">{session.id.slice(0, 13)}...</span>
-                            <span className={cn(
-                              "inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-semibold capitalize border",
-                              session.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" :
-                              session.status === "completed" ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" :
-                              session.status === "queued" ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" :
-                              "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400"
-                            )}>
-                              {session.status}
-                            </span>
-                          </div>
-                        </div>
+          {/* Sessions Grid */}
+          {loadingList ? (
+            <div className="py-20 text-center flex flex-col items-center justify-center gap-2 border border-border/50 bg-card/45 backdrop-blur-md rounded-xl">
+              <Loader2 className="size-6 text-primary animate-spin" />
+              <span className="text-xs text-muted-foreground">Fetching session logs...</span>
+            </div>
+          ) : filteredSessions.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredSessions.map((session: Session) => (
+                <div
+                  key={session.id}
+                  onClick={() => router.push(`/dashboard/sessions?id=${session.id}`)}
+                  className="p-5 border border-border/50 bg-card/45 hover:bg-card/75 hover:border-primary/45 backdrop-blur-md rounded-xl transition-all cursor-pointer relative flex flex-col justify-between min-h-[180px] group shadow-xs hover:shadow-md"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold capitalize border shrink-0",
+                        session.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" :
+                        session.status === "completed" ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" :
+                        session.status === "queued" ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" :
+                        "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400"
+                      )}>
+                        <span className={cn(
+                          "size-1.5 rounded-full",
+                          session.status === "running" ? "bg-emerald-500 animate-pulse" :
+                          session.status === "completed" ? "bg-blue-500" :
+                          session.status === "queued" ? "bg-amber-500" : "bg-rose-500"
+                        )} />
+                        {session.status}
+                      </span>
 
-                        <button
-                          onClick={(e) => handleDeleteSession(session.id, e)}
-                          className="p-1 rounded-md hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 transition-colors"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
-
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-semibold pt-2.5 mt-2 border-t border-border/20">
-                        <span className="flex items-center gap-1">
-                          <Layers className="size-3 text-primary" />
-                          {session.stepCount} steps
-                        </span>
-                        <span>{new Date(session.createdAt).toLocaleDateString()}</span>
-                      </div>
+                      <button
+                        onClick={(e) => handleDeleteSession(session.id, e)}
+                        className="p-1 rounded-md hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
                     </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="py-16 text-center text-xs text-muted-foreground">
-                No sessions found.
-              </div>
-            )}
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="p-3 border-t border-border/50 flex items-center justify-between bg-muted/10">
-                <button
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                  className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1 cursor-pointer"
-                >
-                  <ChevronLeft className="size-3" /> Prev
-                </button>
-                <span className="text-[10px] text-muted-foreground font-semibold">
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                  className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1 cursor-pointer"
-                >
-                  Next <ChevronRight className="size-3" />
-                </button>
-              </div>
-            )}
-          </div>
+                    <h3 className="text-xs font-bold text-foreground leading-relaxed line-clamp-3">
+                      {session.goal}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground font-semibold pt-3.5 mt-4 border-t border-border/20">
+                    <span className="flex items-center gap-1">
+                      <Layers className="size-3 text-primary" />
+                      {session.stepCount} steps
+                    </span>
+                    <span>{new Date(session.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-20 text-center text-xs text-muted-foreground border border-border/50 bg-card/45 backdrop-blur-md rounded-xl">
+              No active runs or session logs found.
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="p-3 border border-border/50 rounded-xl flex items-center justify-between bg-card/45 backdrop-blur-md">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+                className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+              >
+                <ChevronLeft className="size-3" /> Prev
+              </button>
+              <span className="text-[10px] text-muted-foreground font-semibold">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+                className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+              >
+                Next <ChevronRight className="size-3" />
+              </button>
+            </div>
+          )}
         </div>
-
-        {/* Right Side: Session Details / SSE stream */}
-        <div className="lg:col-span-7">
+      ) : (
+        /* ─── CASE B: SESSION SELECTED (FULL CO-CONSOLE LIVE BROWSER WORKSPACE) ─── */
+        <div className="space-y-6 animate-fade-in">
           {loadingDetails ? (
-            <div className="border border-border/50 bg-card/45 backdrop-blur-md p-20 rounded-xl flex flex-col items-center justify-center gap-3">
+            <div className="border border-border/50 bg-card/45 backdrop-blur-md p-24 rounded-xl flex flex-col items-center justify-center gap-3">
               <Loader2 className="size-7 text-primary animate-spin" />
               <span className="text-xs text-muted-foreground">Retrieving session history & trace data...</span>
             </div>
           ) : detailsData?.success ? (
-            <div className="border border-border/50 bg-card/45 backdrop-blur-md p-6 rounded-xl shadow-xs space-y-6">
-              {/* Header details */}
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-border/50 pb-4">
-                <div className="space-y-1">
-                  <span className="text-[9px] uppercase font-bold text-primary tracking-wider font-mono">
-                    Session Log UUID
-                  </span>
-                  <h3 className="text-sm font-bold text-foreground leading-snug">
-                    {detailsData.session.goal}
-                  </h3>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-muted-foreground font-semibold pt-1">
-                    <span className="flex items-center gap-1">
-                      <Cpu className="size-3" /> {detailsData.session.model || "Default Model"}
+            <div className="space-y-6">
+              {/* Header metadata bar */}
+              <div className="flex flex-col gap-3 pb-5 border-b border-border/50">
+                <button
+                  onClick={() => router.push("/dashboard/sessions")}
+                  className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer w-fit"
+                >
+                  <ChevronLeft className="size-4" />
+                  Back to Sessions
+                </button>
+
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[9px] uppercase font-bold text-primary tracking-wider font-mono">
+                      Session UUID: {detailsData.session.id}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="size-3" /> {new Date(detailsData.session.createdAt).toLocaleString()}
+                    <h1 className="text-lg font-bold text-foreground leading-snug max-w-4xl">
+                      {detailsData.session.goal}
+                    </h1>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground font-semibold pt-1">
+                      <span className="flex items-center gap-1">
+                        <Cpu className="size-3.5 text-primary" /> {detailsData.session.model || "Default Model"}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="size-3.5 text-primary" /> {new Date(detailsData.session.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={cn(
+                      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold capitalize border",
+                      detailsData.session.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" :
+                      detailsData.session.status === "completed" ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" :
+                      detailsData.session.status === "queued" ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" :
+                      "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400"
+                    )}>
+                      <span className={cn(
+                        "size-2 rounded-full",
+                        detailsData.session.status === "running" ? "bg-emerald-500 animate-pulse" :
+                        detailsData.session.status === "completed" ? "bg-blue-500" :
+                        detailsData.session.status === "queued" ? "bg-amber-500" : "bg-rose-500"
+                      )} />
+                      {detailsData.session.status}
                     </span>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border",
-                    detailsData.session.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" :
-                    detailsData.session.status === "completed" ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" :
-                    detailsData.session.status === "queued" ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" :
-                    "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400"
-                  )}>
-                    <span className={cn(
-                      "size-1.5 rounded-full",
-                      detailsData.session.status === "running" ? "bg-emerald-500 animate-pulse" :
-                      detailsData.session.status === "completed" ? "bg-blue-500" :
-                      detailsData.session.status === "queued" ? "bg-amber-500" : "bg-rose-500"
-                    )} />
-                    {detailsData.session.status}
-                  </span>
                 </div>
               </div>
 
-              {/* Live streaming preview or static snapshot screenshot */}
-              {(streamScreenshot || detailsData.session.status === "running") && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-                    <span className="flex items-center gap-1.5 text-primary">
-                      <ImageIcon className="size-4" /> Live Browser Screen
-                    </span>
-                    {streamScreenshot && (
-                      <button
-                        onClick={() => setEnlargeScreenshot(true)}
-                        className="text-[10px] text-primary hover:underline flex items-center gap-1"
-                      >
-                        <Maximize2 className="size-3" /> Enlarge
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="border border-border/50 rounded-xl overflow-hidden bg-black/10 dark:bg-black/40 aspect-video flex items-center justify-center relative">
-                    {streamScreenshot ? (
-                      <img
-                        src={streamScreenshot}
-                        alt="Browser viewport snapshot"
-                        className="w-full h-full object-contain"
-                      />
-                    ) : (
-                      <div className="text-center p-6 space-y-2">
-                        <Loader2 className="size-6 text-primary animate-spin mx-auto" />
-                        <p className="text-[10px] text-muted-foreground font-semibold">
-                          Waiting for browser viewport paint event...
-                        </p>
+              {/* Console Workspace: Viewport and Console */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* Viewport Frame */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="border border-border/50 rounded-xl overflow-hidden bg-card shadow-2xl flex flex-col">
+                    {/* Browser chrome header */}
+                    <div className="h-10 px-4 bg-muted/30 border-b border-border/50 flex items-center gap-3 select-none">
+                      <div className="flex gap-1.5 shrink-0">
+                        <span className="size-3 rounded-full bg-rose-500/80" />
+                        <span className="size-3 rounded-full bg-amber-500/80" />
+                        <span className="size-3 rounded-full bg-emerald-500/80" />
                       </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Tabs for Steps logs, trace steps, and extracted data */}
-              <div className="space-y-4">
-                <div className="flex items-center border-b border-border/50 text-xs font-semibold text-muted-foreground">
-                  <button
-                    onClick={() => setActiveTab("logs")}
-                    className={cn(
-                      "pb-2 px-4 border-b-2 transition-colors cursor-pointer",
-                      activeTab === "logs" ? "border-primary text-foreground" : "border-transparent hover:text-foreground"
-                    )}
-                  >
-                    Console Logs {streamLogs.length > 0 && `(${streamLogs.length})`}
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("steps")}
-                    className={cn(
-                      "pb-2 px-4 border-b-2 transition-colors cursor-pointer",
-                      activeTab === "steps" ? "border-primary text-foreground" : "border-transparent hover:text-foreground"
-                    )}
-                  >
-                    Trace Steps ({detailsData.session.steps.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("data")}
-                    className={cn(
-                      "pb-2 px-4 border-b-2 transition-colors cursor-pointer",
-                      activeTab === "data" ? "border-primary text-foreground" : "border-transparent hover:text-foreground"
-                    )}
-                  >
-                    Extracted Data
-                  </button>
-                </div>
-
-                {/* Tab content: Logs */}
-                {activeTab === "logs" && (
-                  <div className="bg-black/5 dark:bg-black/40 border border-border/50 rounded-xl p-4 font-mono text-[10px] text-foreground space-y-1.5 h-64 overflow-y-auto">
-                    {streamLogs.length > 0 ? (
-                      streamLogs.map((log, idx) => (
-                        <div key={idx} className="leading-relaxed break-all">
-                          <span className="text-muted-foreground select-none">
-                            [{new Date(log.timestamp).toLocaleTimeString()}]
-                          </span>{" "}
+                      <div className="flex gap-2 text-muted-foreground shrink-0 ml-2">
+                        <ChevronLeft className="size-3.5" />
+                        <ChevronRight className="size-3.5" />
+                      </div>
+                      <div className="flex-1 max-w-lg h-6.5 px-3 bg-background/50 border border-border/40 rounded-md flex items-center justify-between gap-2 text-[10px] text-muted-foreground font-mono">
+                        <div className="flex items-center gap-1.5 truncate">
                           <span className={cn(
-                            log.type === "step" ? "text-blue-500 font-bold" :
-                            log.type === "status" ? "text-amber-500 font-bold" :
-                            log.type === "system" ? "text-emerald-500" : "text-foreground"
-                          )}>
-                            {log.message}
+                            "size-2 rounded-full shrink-0",
+                            selectedStepNumber ? "bg-amber-500 animate-pulse" : "bg-emerald-500/80"
+                          )} />
+                          <span className="truncate">
+                            {selectedStepNumber 
+                              ? `Step ${selectedStepNumber} Preview: ${detailsData.session.steps.find((s: Step) => s.stepNumber === selectedStepNumber)?.toolName || ""}` 
+                              : detailsData.session.status === "running" || detailsData.session.status === "queued"
+                                ? "Orbiter Live Viewport" 
+                                : "Orbiter Viewport (Session Ended)"
+                            }
                           </span>
                         </div>
-                      ))
-                    ) : detailsData.session.status !== "running" ? (
-                      <div className="h-full flex items-center justify-center text-muted-foreground font-sans">
-                        Select an active running session to view real-time log traces.
+                        {selectedStepNumber && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedStepNumber(null)
+                            }}
+                            className="text-[8px] hover:text-foreground text-primary px-1.5 py-0.5 bg-primary/10 rounded-sm font-sans font-bold cursor-pointer transition-colors"
+                          >
+                            RESET TO LIVE
+                          </button>
+                        )}
                       </div>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground font-sans animate-pulse">
-                        Listening for live runner output events...
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Tab content: Steps */}
-                {activeTab === "steps" && (
-                  <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {detailsData.session.steps.length > 0 ? (
-                      detailsData.session.steps.map((step: Step) => (
-                        <div
-                          key={step.stepNumber}
-                          className="p-3 border border-border/40 bg-background/50 rounded-xl flex items-start justify-between gap-3 text-xs"
+                      <div className="flex-1" />
+                      {displayScreenshot && (
+                        <button
+                          onClick={() => setEnlargeScreenshot(true)}
+                          className="text-[10px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer shrink-0"
                         >
-                          <div className="space-y-1 min-w-0">
-                            <div className="flex items-center gap-2 font-semibold">
-                              <span className="bg-primary/10 text-primary px-1.5 py-0.2 rounded-sm text-[9px]">
-                                Step {step.stepNumber}
-                              </span>
-                              <span className="text-foreground truncate">{step.toolName}</span>
-                            </div>
-                            <p className="text-muted-foreground leading-normal break-words">{step.resultSummary}</p>
-                          </div>
+                          <Maximize2 className="size-3" /> Enlarge
+                        </button>
+                      )}
+                    </div>
 
-                          <div className="flex flex-col items-end shrink-0 gap-1.5 font-semibold text-[10px]">
-                            {step.success ? (
-                              <span className="text-emerald-500 flex items-center gap-0.5">
-                                <CheckCircle className="size-3" /> Success
-                              </span>
-                            ) : (
-                              <span className="text-rose-500 flex items-center gap-0.5">
-                                <XCircle className="size-3" /> Failed
-                              </span>
-                            )}
-                            <span className="text-muted-foreground font-mono">{step.duration}ms</span>
-                          </div>
+                    {/* Viewport content */}
+                    <div className="bg-black/20 dark:bg-black/50 aspect-video flex items-center justify-center relative overflow-hidden">
+                      {displayScreenshot ? (
+                        <img
+                          src={displayScreenshot.startsWith('data:') ? displayScreenshot : `data:image/png;base64,${displayScreenshot}`}
+                          alt="Browser viewport snapshot"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : detailsData.session.status === "running" ? (
+                        <div className="text-center p-6 space-y-3">
+                          <Loader2 className="size-8 text-primary animate-spin mx-auto" />
+                          <p className="text-xs text-muted-foreground font-semibold">
+                            Waiting for browser viewport paint event...
+                          </p>
                         </div>
-                      ))
-                    ) : (
-                      <div className="py-10 text-center text-xs text-muted-foreground">
-                        No steps logged yet for this session.
-                      </div>
-                    )}
+                      ) : (
+                        <div className="text-center p-8 space-y-3 text-muted-foreground">
+                          <Cpu className="size-10 text-muted-foreground/30 mx-auto" />
+                          <p className="text-xs font-semibold">Browser viewport closed</p>
+                          <p className="text-[10px] text-muted-foreground/60">This session has terminated.</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+                </div>
 
-                {/* Tab content: Data */}
-                {activeTab === "data" && (
-                  <div className="space-y-4 max-h-64 overflow-y-auto">
-                    {extractedDataResponse?.success && extractedDataResponse.records.length > 0 ? (
-                      extractedDataResponse.records.map((record: ExtractedData, idx: number) => (
-                        <div key={idx} className="border border-border/40 rounded-xl bg-background/45 p-4 space-y-3 text-xs">
-                          <div className="flex items-center justify-between border-b border-border/20 pb-2">
-                            <div className="font-semibold flex items-center gap-1.5">
-                              <FileSpreadsheet className="size-4 text-emerald-500" />
-                              <span>Step {record.stepNumber} ({record.toolName})</span>
-                            </div>
-                            <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-bold">
-                              {record.itemCount} items
+                {/* Right side Console Panel */}
+                <div className="lg:col-span-5 border border-border/50 bg-card/45 backdrop-blur-md p-6 rounded-xl shadow-xs space-y-6">
+                  {/* Tab headers */}
+                  <div className="flex items-center border-b border-border/50 text-xs font-semibold text-muted-foreground">
+                    <button
+                      onClick={() => setActiveTab("logs")}
+                      className={cn(
+                        "pb-2 px-4 border-b-2 transition-colors cursor-pointer",
+                        activeTab === "logs" ? "border-primary text-foreground" : "border-transparent hover:text-foreground"
+                      )}
+                    >
+                      Console Logs
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("steps")}
+                      className={cn(
+                        "pb-2 px-4 border-b-2 transition-colors cursor-pointer",
+                        activeTab === "steps" ? "border-primary text-foreground" : "border-transparent hover:text-foreground"
+                      )}
+                    >
+                      Trace Steps ({detailsData.session.steps.length})
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("data")}
+                      className={cn(
+                        "pb-2 px-4 border-b-2 transition-colors cursor-pointer",
+                        activeTab === "data" ? "border-primary text-foreground" : "border-transparent hover:text-foreground"
+                      )}
+                    >
+                      Extracted Data
+                    </button>
+                  </div>
+
+                  {/* Tab: Logs */}
+                  {activeTab === "logs" && (
+                    <div className="bg-black/5 dark:bg-black/40 border border-border/50 rounded-xl p-4 font-mono text-[10px] text-foreground space-y-1.5 h-96 overflow-y-auto">
+                      {streamLogs.length > 0 ? (
+                        streamLogs.map((log, idx) => (
+                          <div key={idx} className="leading-relaxed break-all">
+                            <span className="text-muted-foreground select-none">
+                              [{new Date(log.timestamp).toLocaleTimeString()}]
+                            </span>{" "}
+                            <span className={cn(
+                              log.type === "step" ? "text-blue-500 font-bold" :
+                              log.type === "status" ? "text-amber-500 font-bold" :
+                              log.type === "system" ? "text-emerald-500" : "text-foreground"
+                            )}>
+                              {log.message}
                             </span>
                           </div>
-                          <div className="overflow-x-auto max-h-40 bg-black/5 dark:bg-black/25 rounded-lg p-2.5">
-                            <pre className="font-mono text-[10px] text-foreground leading-normal whitespace-pre-wrap">
-                              {JSON.stringify(record.data, null, 2)}
-                            </pre>
-                          </div>
+                        ))
+                      ) : detailsData.session.status !== "running" ? (
+                        <div className="h-full flex items-center justify-center text-muted-foreground font-sans">
+                          No active log stream.
                         </div>
-                      ))
-                    ) : (
-                      <div className="py-12 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">
-                        <FileSpreadsheet className="size-8 text-muted-foreground/40" />
-                        <span>No JSON or structured output data collected.</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-muted-foreground font-sans animate-pulse">
+                          Listening for live runner output events...
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tab: Trace Steps */}
+                  {activeTab === "steps" && (
+                    <div className="space-y-4 h-96 overflow-y-auto pr-1">
+                      {detailsData.session.steps.length > 0 ? (
+                        detailsData.session.steps.map((step: Step) => (
+                          <div
+                            key={step.stepNumber}
+                            onClick={() => setSelectedStepNumber(step.stepNumber)}
+                            className={cn(
+                              "p-3.5 border rounded-xl flex items-start justify-between gap-3 text-xs shadow-xs transition-all cursor-pointer hover:bg-muted/40",
+                              selectedStepNumber === step.stepNumber 
+                                ? "border-primary/80 ring-1 ring-primary/30 bg-muted/20" 
+                                : "border-border/40 bg-background/50"
+                            )}
+                          >
+                            <div className="space-y-2.5 min-w-0 flex-1">
+                              <div className="flex items-center gap-2 font-semibold">
+                                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md text-[9px] font-bold">
+                                  Step {step.stepNumber}
+                                </span>
+                                <span className="text-foreground truncate font-bold">{step.toolName}</span>
+                                {getScreenshotFromStep(step) && (
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-500 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded-sm">
+                                    <ImageIcon className="size-2.5" /> Screenshot
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-muted-foreground leading-relaxed break-words text-[11px]">{step.resultSummary}</p>
+                              {step.fullResult && (
+                                <div className="mt-2.5 p-2.5 bg-black/5 dark:bg-black/35 rounded-lg overflow-x-auto border border-border/30">
+                                  <JsonColorizer data={step.fullResult} />
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-col items-end shrink-0 gap-1.5 font-semibold text-[10px]">
+                              {step.success ? (
+                                <span className="text-emerald-500 flex items-center gap-0.5 font-bold">
+                                  <CheckCircle className="size-3" /> Success
+                                </span>
+                              ) : (
+                                <span className="text-rose-500 flex items-center gap-0.5 font-bold">
+                                  <XCircle className="size-3" /> Failed
+                                </span>
+                              )}
+                              <span className="text-muted-foreground font-mono text-[9px]">{step.duration}ms</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-16 text-center text-xs text-muted-foreground">
+                          No steps logged yet for this session.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tab: Extracted Data */}
+                  {activeTab === "data" && (
+                    <div className="space-y-4 h-96 overflow-y-auto pr-1">
+                      {extractedDataResponse?.success && extractedDataResponse.records.length > 0 ? (
+                        extractedDataResponse.records.map((record: ExtractedData, idx: number) => (
+                          <div key={idx} className="border border-border/40 rounded-xl bg-background/45 p-4 space-y-3 text-xs shadow-xs">
+                            <div className="flex items-center justify-between border-b border-border/20 pb-2">
+                              <div className="font-semibold flex items-center gap-1.5">
+                                <FileSpreadsheet className="size-4 text-emerald-500" />
+                                <span>Step {record.stepNumber} ({record.toolName})</span>
+                              </div>
+                              <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-bold">
+                                {record.itemCount} items
+                              </span>
+                            </div>
+                            <div className="overflow-x-auto bg-black/5 dark:bg-black/35 rounded-lg p-3 border border-border/30">
+                              <JsonColorizer data={record.data} />
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-16 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">
+                          <FileSpreadsheet className="size-8 text-muted-foreground/40" />
+                          <span>No JSON or structured output data collected.</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
             <div className="border border-border/50 bg-card/45 backdrop-blur-md p-24 rounded-xl text-center text-muted-foreground flex flex-col items-center justify-center gap-3">
               <Terminal className="size-8 text-muted-foreground/30" />
-              <p className="text-xs">Select a session from the list to view live terminal, agent details, and execution logs.</p>
+              <p className="text-xs">Select a session to load console workspace.</p>
             </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* Spawn Modal */}
       {showSpawnModal && (
@@ -756,13 +925,17 @@ function SessionsContent() {
       )}
 
       {/* Enlarge screenshot overlay modal */}
-      {enlargeScreenshot && streamScreenshot && (
+      {enlargeScreenshot && displayScreenshot && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onClick={() => setEnlargeScreenshot(false)}
         >
-          <div className="max-w-4xl max-h-[90vh] bg-card border border-border rounded-xl overflow-hidden relative p-1.5 flex flex-col justify-between">
-            <img src={streamScreenshot} alt="Enlarged viewport paint" className="object-contain max-h-[80vh] rounded-lg" />
+          <div className="max-w-4xl max-h-[90vh] bg-card border border-border rounded-xl overflow-hidden relative p-1.5 flex flex-col justify-between" onClick={e => e.stopPropagation()}>
+            <img 
+              src={displayScreenshot.startsWith('data:') ? displayScreenshot : `data:image/png;base64,${displayScreenshot}`} 
+              alt="Enlarged viewport paint" 
+              className="object-contain max-h-[80vh] rounded-lg mx-auto" 
+            />
             <button
               onClick={() => setEnlargeScreenshot(false)}
               className="absolute top-4 right-4 bg-black/60 text-white font-bold p-1 px-2.5 rounded-full hover:bg-black text-xs cursor-pointer"
