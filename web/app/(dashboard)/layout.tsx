@@ -23,6 +23,7 @@ import {
   Sun,
   Terminal,
   User,
+  X,
   Zap
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -50,7 +51,8 @@ export default function DashboardLayout({
   const pathname = usePathname()
   const router = useRouter()
 
-  const [isCollapsed, setIsCollapsed] = React.useState(true)
+
+  const [isMobileOpen, setIsMobileOpen] = React.useState(false)
   const [showNotifications, setShowNotifications] = React.useState(false)
   const [showProfileMenu, setShowProfileMenu] = React.useState(false)
   const [unreadNotifications, setUnreadNotifications] = React.useState(3)
@@ -78,16 +80,33 @@ export default function DashboardLayout({
 
   return (
     <div className="h-screen w-screen flex bg-background text-foreground transition-colors duration-200 overflow-hidden">
+      {/* Mobile Sidebar Overlay Backdrop */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-background/80 backdrop-blur-xs z-40 md:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
       {/* SIDEBAR */}
       <aside
         className={cn(
-          "h-screen border-r border-border/50 bg-card/45 backdrop-blur-md flex flex-col transition-all duration-300 ease-in-out z-40 select-none shrink-0",
-          isCollapsed ? "w-20" : "w-64"
+          "fixed inset-y-0 left-0 z-50 w-64 border-r border-border/50 bg-card flex flex-col select-none shrink-0 transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:bg-card/45 md:backdrop-blur-md md:z-40",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Brand/Logo Header */}
-        <div className="h-16 flex items-center justify-center border-b border-border/50 px-4 shrink-0">
-          <Logo collapsed={isCollapsed} size="md" />
+        <div className="h-16 flex items-center justify-between px-4 border-b border-border/50 shrink-0 relative">
+          <div className="flex-1 flex justify-center">
+            <Logo collapsed={false} size="lg" />
+          </div>
+          <button
+            onClick={() => setIsMobileOpen(false)}
+            className="absolute right-4 md:hidden p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+            title="Close Menu"
+          >
+            <X className="size-5" />
+          </button>
         </div>
 
         {/* Navigation Items */}
@@ -99,6 +118,7 @@ export default function DashboardLayout({
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setIsMobileOpen(false)}
                 className={cn(
                   "relative flex items-center h-10 px-3 rounded-lg text-sm font-medium transition-all group/item overflow-hidden",
                   isActive
@@ -111,45 +131,28 @@ export default function DashboardLayout({
                   <div className="absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r-md bg-primary-foreground" />
                 )}
                 
-                <Icon
-                  className={cn(
-                    "size-5 shrink-0 transition-transform duration-200 group-hover/item:scale-105",
-                    isCollapsed ? "mx-auto" : "mr-3"
-                  )}
-                />
-                
-                {!isCollapsed && (
-                  <span className="truncate transition-opacity duration-200 animate-fade-in">
-                    {item.name}
-                  </span>
-                )}
-
-                {/* Collapsed Tooltip */}
-                {isCollapsed && (
-                  <div className="absolute left-20 scale-0 group-hover/item:scale-100 transition-all origin-left bg-popover text-popover-foreground text-xs font-semibold px-2.5 py-1.5 rounded-md shadow-md border border-border pointer-events-none z-50 whitespace-nowrap">
-                    {item.name}
-                  </div>
-                )}
+                <Icon className="size-5 shrink-0 mr-3 transition-transform duration-200 group-hover/item:scale-105" />
+                <span className="truncate">
+                  {item.name}
+                </span>
               </Link>
             )
           })}
         </nav>
-
-
       </aside>
 
       {/* MAIN LAYOUT WRAPPER */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* TOPBAR */}
         <header className="h-16 shrink-0 border-b border-border/50 bg-background/70 backdrop-blur-md flex items-center justify-between px-6 md:px-8 z-30">
-          {/* Left section: Collapse toggle, Search & Help Tip */}
-          <div className="flex items-center gap-4">
+          {/* Left section: Mobile Toggle & Search */}
+          <div className="flex items-center gap-2 md:gap-4">
             <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              onClick={() => setIsMobileOpen(true)}
+              className="md:hidden p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+              title="Open Menu"
             >
-              {isCollapsed ? <Menu className="size-5" /> : <ChevronLeft className="size-5" />}
+              <Menu className="size-5" />
             </button>
 
             {/* Left search */}
@@ -233,14 +236,10 @@ export default function DashboardLayout({
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-2 focus:outline-none cursor-pointer"
+                className="flex items-center focus:outline-none cursor-pointer hover:opacity-90 transition-opacity"
               >
-                <div className="size-8 rounded-lg bg-linear-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white font-bold text-sm shadow-xs">
+                <div className="size-8 rounded-full bg-linear-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white font-semibold text-xs shadow-xs border border-border/30">
                   JD
-                </div>
-                <div className="hidden sm:block text-left">
-                  <p className="text-xs font-semibold">John Doe</p>
-                  <p className="text-[10px] text-muted-foreground">Admin Workspace</p>
                 </div>
               </button>
 
@@ -283,7 +282,7 @@ export default function DashboardLayout({
         </header>
 
         {/* CONTENT AREA */}
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto bg-muted/15 dark:bg-background/20">
+        <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto bg-muted/15 dark:bg-background/20">
           <div className="max-w-7xl mx-auto animate-fade-in duration-300">
             {children}
           </div>

@@ -50,8 +50,7 @@ export default function LoginPage() {
         </div>
 
         {/* Card Container */}
-        <div className="border border-border/50 bg-card/60 backdrop-blur-xl rounded-2xl shadow-2xl p-8 dark:bg-card/30">
-          <h2 className="text-xl font-semibold mb-6 text-foreground">Welcome Back</h2>
+        <div className="">
           
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-xs font-medium">
@@ -123,19 +122,6 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-
-        {/* Footer info */}
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          By signing in, you agree to our{" "}
-          <a href="#" className="hover:text-foreground underline transition-colors">
-            Terms of Service
-          </a>{" "}
-          and{" "}
-          <a href="#" className="hover:text-foreground underline transition-colors">
-            Privacy Policy
-          </a>
-          .
-        </p>
       </div>
     </div>
   )
