@@ -1,23 +1,14 @@
-import { Oxanium, Merriweather, Fira_Code } from "next/font/google"
+import { Geist_Mono, Inter } from "next/font/google"
 import Script from "next/script"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { QueryProvider } from "@/components/query-provider"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
-const fontSans = Oxanium({
-  subsets: ["latin"],
-  variable: "--font-sans",
-})
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
-const fontSerif = Merriweather({
-  subsets: ["latin"],
-  weight: ["300", "400", "700"],
-  variable: "--font-serif",
-})
-
-const fontMono = Fira_Code({
+const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
@@ -31,12 +22,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(
-        "antialiased",
-        fontSans.variable,
-        fontSerif.variable,
-        fontMono.variable
-      )}
+      className={cn("antialiased", fontMono.variable, "font-sans", inter.variable)}
     >
       <body>
         <ThemeProvider>
