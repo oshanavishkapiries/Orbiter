@@ -24,6 +24,7 @@ import {
   Maximize2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 interface Session {
   id: string
@@ -650,23 +651,33 @@ function SessionsContent() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">LLM Engine</label>
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all font-semibold text-foreground"
-                  >
-                    {modelsData?.success && modelsData.models.length > 0 ? (
-                      modelsData.models.map((m: any) => (
-                        <option key={m.id} value={m.id} className="bg-neutral-900 text-neutral-100">
-                          {m.name}
+                  {modelsData?.provider === "openrouter" ? (
+                    <SearchableSelect
+                      options={modelsData?.success ? modelsData.models : []}
+                      value={selectedModel}
+                      onChange={setSelectedModel}
+                      placeholder="Select LLM Engine..."
+                      size="sm"
+                    />
+                  ) : (
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all font-semibold text-foreground"
+                    >
+                      {modelsData?.success && modelsData.models.length > 0 ? (
+                        modelsData.models.map((m: any) => (
+                          <option key={m.id} value={m.id} className="bg-neutral-900 text-neutral-100">
+                            {m.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="" disabled className="bg-neutral-900 text-neutral-100">
+                          No models available (check API keys)
                         </option>
-                      ))
-                    ) : (
-                      <option value="" disabled className="bg-neutral-900 text-neutral-100">
-                        No models available (check API keys)
-                      </option>
-                    )}
-                  </select>
+                      )}
+                    </select>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

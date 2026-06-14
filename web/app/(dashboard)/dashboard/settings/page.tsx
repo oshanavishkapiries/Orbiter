@@ -18,6 +18,7 @@ import {
   Activity
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 export default function SettingsPage() {
   const queryClient = useQueryClient()
@@ -282,6 +283,13 @@ export default function SettingsPage() {
                       <div className="w-full h-10 flex items-center justify-center bg-background/50 border border-border rounded-lg">
                         <Loader2 className="size-4 animate-spin text-primary" />
                       </div>
+                    ) : llmProvider === "openrouter" ? (
+                      <SearchableSelect
+                        options={modelsData?.success ? modelsData.models : []}
+                        value={llmModel}
+                        onChange={setLlmModel}
+                        placeholder="Select default model..."
+                      />
                     ) : (
                       <select
                         value={llmModel}
