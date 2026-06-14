@@ -9,7 +9,11 @@ export interface LLMInteraction {
     content: string;
     toolCalls?: any[];
     finishReason: string;
-    usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+    usage: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
   };
   durationMs: number;
 }
@@ -34,7 +38,9 @@ export class ChatLogger {
     this.sessionId = sessionId;
     this.sessionRepo = sessionRepo;
     this.callIndex = 0;
-    logger.debug(`Chat logger initialized for session: ${sessionId ?? 'no-session'}`);
+    logger.debug(
+      `Chat logger initialized for session: ${sessionId ?? 'no-session'}`,
+    );
   }
 
   async log(
@@ -60,7 +66,9 @@ export class ChatLogger {
           Date.now(),
         );
       } catch (err) {
-        logger.debug(`LLM interaction DB write failed: ${(err as Error).message}`);
+        logger.debug(
+          `LLM interaction DB write failed: ${(err as Error).message}`,
+        );
       }
     }
   }

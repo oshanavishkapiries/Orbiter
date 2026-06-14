@@ -18,7 +18,7 @@ export class EmbeddingService {
     if (this.embedder) return;
     if (this.isInitializing) {
       while (this.isInitializing) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
       return;
     }
@@ -26,7 +26,10 @@ export class EmbeddingService {
     this.isInitializing = true;
     try {
       // Using all-MiniLM-L6-v2 which produces 384-dimensional embeddings
-      this.embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+      this.embedder = await pipeline(
+        'feature-extraction',
+        'Xenova/all-MiniLM-L6-v2',
+      );
     } finally {
       this.isInitializing = false;
     }
@@ -34,9 +37,12 @@ export class EmbeddingService {
 
   async embed(text: string): Promise<number[]> {
     await this.initialize();
-    
+
     // pooling: 'mean', normalize: true -> generates standard document embeddings
-    const output = await this.embedder(text, { pooling: 'mean', normalize: true });
+    const output = await this.embedder(text, {
+      pooling: 'mean',
+      normalize: true,
+    });
     return Array.from(output.data);
   }
 }

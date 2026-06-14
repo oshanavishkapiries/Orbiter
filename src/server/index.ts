@@ -14,7 +14,8 @@ async function main() {
     logger.info('Database connected successfully.');
 
     // Initialize worker schemas and start worker
-    const { initializeWorkerSchema, startWorker, stopWorker } = await import('./worker.js');
+    const { initializeWorkerSchema, startWorker, stopWorker } =
+      await import('./worker.js');
     await initializeWorkerSchema();
     startWorker();
 

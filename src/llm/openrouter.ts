@@ -2,7 +2,10 @@ import axios, { AxiosInstance } from 'axios';
 import { config } from '../config/index.js';
 import { logger } from '../cli/ui/logger.js';
 import { OpenAICompatibleProvider } from './openai-compatible.js';
-import { fetchModelCapabilities, ModelCapabilities } from './model-capabilities.js';
+import {
+  fetchModelCapabilities,
+  ModelCapabilities,
+} from './model-capabilities.js';
 
 export class OpenRouterProvider extends OpenAICompatibleProvider {
   name = 'openrouter';
@@ -47,7 +50,9 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
     }
 
     // Fallback: capabilities not yet loaded — use name-based heuristic
-    logger.debug('Model capabilities not loaded yet, using name-based detection');
+    logger.debug(
+      'Model capabilities not loaded yet, using name-based detection',
+    );
     return isVisionModel(this.model);
   }
 
@@ -116,17 +121,17 @@ export function isVisionModel(modelId: string): boolean {
   const id = modelId.toLowerCase();
 
   // Always vision-capable
-  if (id.includes('claude')) return true;           // All Anthropic Claude models
-  if (id.includes('gemini')) return true;           // All Google Gemini models
-  if (id.includes('gpt-4o')) return true;           // OpenAI GPT-4o family
-  if (id.includes('gpt-4-vision')) return true;     // OpenAI GPT-4 Vision
-  if (id.includes('gpt-4-turbo')) return true;      // OpenAI GPT-4 Turbo (vision)
-  if (id.includes('qwen-vl')) return true;          // Qwen Vision-Language
-  if (id.includes('qwen2-vl')) return true;         // Qwen2 VL
-  if (id.includes('qwen2.5-vl')) return true;       // Qwen2.5 VL
-  if (id.includes('llava')) return true;            // LLaVA models
-  if (id.includes('pixtral')) return true;          // Mistral Pixtral
-  if (id.includes('grok-2-vision')) return true;    // xAI Grok Vision
+  if (id.includes('claude')) return true; // All Anthropic Claude models
+  if (id.includes('gemini')) return true; // All Google Gemini models
+  if (id.includes('gpt-4o')) return true; // OpenAI GPT-4o family
+  if (id.includes('gpt-4-vision')) return true; // OpenAI GPT-4 Vision
+  if (id.includes('gpt-4-turbo')) return true; // OpenAI GPT-4 Turbo (vision)
+  if (id.includes('qwen-vl')) return true; // Qwen Vision-Language
+  if (id.includes('qwen2-vl')) return true; // Qwen2 VL
+  if (id.includes('qwen2.5-vl')) return true; // Qwen2.5 VL
+  if (id.includes('llava')) return true; // LLaVA models
+  if (id.includes('pixtral')) return true; // Mistral Pixtral
+  if (id.includes('grok-2-vision')) return true; // xAI Grok Vision
   if (id.includes('llama-3.2') && id.includes('vision')) return true;
 
   // Text-only — explicitly excluded

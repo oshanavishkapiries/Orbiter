@@ -14,7 +14,9 @@ export class PatternValidator {
     const errors: string[] = [];
 
     const itemCount: number = await this.mcpClient
-      .evaluate(`document.querySelectorAll(${JSON.stringify(pattern.itemSelector)}).length`)
+      .evaluate(
+        `document.querySelectorAll(${JSON.stringify(pattern.itemSelector)}).length`,
+      )
       .catch(() => 0);
 
     if (itemCount === 0) {
@@ -30,7 +32,11 @@ export class PatternValidator {
 
     let sampleData: Record<string, any> | null = null;
     try {
-      sampleData = await this.extractItemAtIndex(0, pattern.itemSelector, pattern.extractSchema);
+      sampleData = await this.extractItemAtIndex(
+        0,
+        pattern.itemSelector,
+        pattern.extractSchema,
+      );
     } catch (error) {
       errors.push(`Extraction test failed: ${(error as Error).message}`);
     }
@@ -71,7 +77,10 @@ export class PatternValidator {
     return (result as Record<string, any>) ?? {};
   }
 
-  async extractAllItems(itemSelector: string, schema: ExtractSchema): Promise<Record<string, any>[]> {
+  async extractAllItems(
+    itemSelector: string,
+    schema: ExtractSchema,
+  ): Promise<Record<string, any>[]> {
     const schemaScript = this.buildSchemaScript(schema);
     const expression = `
       (() => {

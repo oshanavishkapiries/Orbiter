@@ -38,18 +38,18 @@ export async function initializeWorkerSchema(): Promise<void> {
 export async function enqueueJob(
   type: 'run' | 'replay',
   sessionId: string,
-  payload: any
+  payload: any,
 ): Promise<number> {
   const pool = DatabaseConnection.getInstance().getPool();
   const result = await pool.query(
     `INSERT INTO jobs (type, session_id, payload, status, created_at)
      VALUES ($1, $2, $3, 'pending', $4) RETURNING id`,
-    [type, sessionId, JSON.stringify(payload), Date.now()]
+    [type, sessionId, JSON.stringify(payload), Date.now()],
   );
-  
+
   // Trigger worker check immediately
   triggerWorker();
-  
+
   return result.rows[0].id;
 }
 
@@ -84,9 +84,10 @@ async function processNextJob(): Promise<void> {
 
   try {
     const pool = DatabaseConnection.getInstance().getPool();
-    
+
     // Atomically claim the next pending job using FOR UPDATE SKIP LOCKED
-    const claimResult = await pool.query(`
+    const claimResult = await pool.query(
+      `
       UPDATE jobs
       SET status = 'running', started_at = $1
       WHERE id = (
@@ -97,7 +98,9 @@ async function processNextJob(): Promise<void> {
         FOR UPDATE SKIP LOCKED
       )
       RETURNING *
-    `, [Date.now()]);
+    `,
+      [Date.now()],
+    );
 
     if (claimResult.rows.length === 0) {
       isProcessing = false;
@@ -107,7 +110,9 @@ async function processNextJob(): Promise<void> {
     const job = claimResult.rows[0];
     const { session_id: sessionId, type, payload } = job;
 
-    logger.info(`Processing background job ${job.id} (${type}) for session ${sessionId}...`);
+    logger.info(
+      `Processing background job ${job.id} (${type}) for session ${sessionId}...`,
+    );
     eventBus.emitStatus(sessionId, { status: 'running' });
 
     // Run the task inside AsyncLocalStorage context
@@ -122,31 +127,30 @@ async function processNextJob(): Promise<void> {
         // Update job as completed
         await pool.query(
           `UPDATE jobs SET status = 'completed', completed_at = $1 WHERE id = $2`,
-          [Date.now(), job.id]
+          [Date.now(), job.id],
         );
         eventBus.emitStatus(sessionId, { status: 'completed' });
         logger.info(`Job ${job.id} completed successfully.`);
       } catch (jobErr) {
         const errorMsg = (jobErr as Error).message || String(jobErr);
         logger.error(`Job ${job.id} failed: ${errorMsg}`);
-        
+
         await pool.query(
           `UPDATE jobs SET status = 'failed', error = $1, completed_at = $2 WHERE id = $3`,
-          [errorMsg, Date.now(), job.id]
+          [errorMsg, Date.now(), job.id],
         );
         eventBus.emitStatus(sessionId, { status: 'failed', error: errorMsg });
       }
     });
-
   } catch (err) {
     logger.error(`Worker execution error: ${(err as Error).message}`);
   } finally {
     isProcessing = false;
-    
+
     // Check if there are more jobs immediately
     const pool = DatabaseConnection.getInstance().getPool();
     const pendingCheck = await pool.query(
-      `SELECT COUNT(*) FROM jobs WHERE status = 'pending'`
+      `SELECT COUNT(*) FROM jobs WHERE status = 'pending'`,
     );
     if (parseInt(pendingCheck.rows[0].count, 10) > 0) {
       setImmediate(() => processNextJob());
@@ -156,7 +160,16 @@ async function processNextJob(): Promise<void> {
 
 // Helper: executes task run
 async function runTask(sessionId: string, payload: any): Promise<void> {
-  const { prompt, model, profile, headless, maxSteps, record, enhance, highlight } = payload;
+  const {
+    prompt,
+    model,
+    profile,
+    headless,
+    maxSteps,
+    record,
+    enhance,
+    highlight,
+  } = payload;
   const cfg = config();
   const context = new ExecutionContext();
   const mcpClient = new McpClient();
@@ -197,12 +210,14 @@ async function runTask(sessionId: string, payload: any): Promise<void> {
       activePrompt,
       modelInfo.provider,
       modelInfo.name,
-      !!highlight
+      !!highlight,
     );
 
     // Override the executor's internal sessionId to match our pre-allocated one
     (executor as any).sessionId = sessionId;
-    (executor as any).sessionRepo = new (await import('../memory/database/repositories/session-repository.js')).SessionRepository();
+    (executor as any).sessionRepo = new (
+      await import('../memory/database/repositories/session-repository.js')
+    ).SessionRepository();
     context.setSession((executor as any).sessionRepo, sessionId);
 
     if (record === false) {
@@ -221,7 +236,15 @@ async function runTask(sessionId: string, payload: any): Promise<void> {
 
 // Helper: executes flow replay
 async function replayFlow(sessionId: string, payload: any): Promise<void> {
-  const { flowPath, params, headless, profile, stopOnError, screenshotSteps, skipSteps } = payload;
+  const {
+    flowPath,
+    params,
+    headless,
+    profile,
+    stopOnError,
+    screenshotSteps,
+    skipSteps,
+  } = payload;
   const replayer = new FlowReplayer();
 
   try {

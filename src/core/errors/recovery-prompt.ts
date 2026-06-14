@@ -2,19 +2,32 @@ import { ErrorContext } from './types.js';
 
 export class RecoveryPromptBuilder {
   static build(context: ErrorContext): string {
-    const { error, failedAction, browserState, executionState, recoveryHistory } = context;
+    const {
+      error,
+      failedAction,
+      browserState,
+      executionState,
+      recoveryHistory,
+    } = context;
 
     const warnings: string[] = [];
-    if (browserState.pageFlags.hasCaptcha) warnings.push('CAPTCHA DETECTED — abort immediately');
-    if (browserState.pageFlags.hasModal)   warnings.push('A modal/dialog is open');
-    if (browserState.pageFlags.hasOverlay) warnings.push('An overlay or popup is present');
+    if (browserState.pageFlags.hasCaptcha)
+      warnings.push('CAPTCHA DETECTED — abort immediately');
+    if (browserState.pageFlags.hasModal)
+      warnings.push('A modal/dialog is open');
+    if (browserState.pageFlags.hasOverlay)
+      warnings.push('An overlay or popup is present');
 
-    const priorAttempts = recoveryHistory.length > 0
-      ? `\nPREVIOUS RECOVERY ATTEMPTS (all failed):\n` +
-        recoveryHistory.map(r =>
-          `  Attempt ${r.attemptNumber}: ${r.strategy} — ${r.reasoning}\n  Error: ${r.error}`
-        ).join('\n')
-      : '';
+    const priorAttempts =
+      recoveryHistory.length > 0
+        ? `\nPREVIOUS RECOVERY ATTEMPTS (all failed):\n` +
+          recoveryHistory
+            .map(
+              (r) =>
+                `  Attempt ${r.attemptNumber}: ${r.strategy} — ${r.reasoning}\n  Error: ${r.error}`,
+            )
+            .join('\n')
+        : '';
 
     return `You are recovering from a browser automation error.
 
@@ -31,7 +44,7 @@ FAILED ACTION
 PAGE STATE
   URL:   ${browserState.url}
   Title: ${browserState.title}
-${warnings.length ? '\nWARNINGS:\n' + warnings.map(w => '  ⚠ ' + w).join('\n') : ''}
+${warnings.length ? '\nWARNINGS:\n' + warnings.map((w) => '  ⚠ ' + w).join('\n') : ''}
 
 ACCESSIBILITY SNAPSHOT (current page):
 ${browserState.ariaSnapshot || '  (unavailable)'}
@@ -39,7 +52,7 @@ ${browserState.ariaSnapshot || '  (unavailable)'}
 EXECUTION CONTEXT
   Goal:  ${executionState.originalGoal}
   Step:  ${executionState.stepNumber}/${executionState.totalSteps}
-  Prior steps: ${executionState.previousSteps.map(s => `${s.tool}(${s.result})`).join(' → ')}
+  Prior steps: ${executionState.previousSteps.map((s) => `${s.tool}(${s.result})`).join(' → ')}
 ${priorAttempts}
 
 RECOVERY STRATEGIES (pick one):

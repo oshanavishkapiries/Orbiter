@@ -159,7 +159,9 @@ export abstract class OpenAICompatibleProvider extends BaseLLMProvider {
 
     return {
       content:
-        typeof choice.message.content === 'string' ? choice.message.content : '',
+        typeof choice.message.content === 'string'
+          ? choice.message.content
+          : '',
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       finishReason: this.mapFinishReason(choice.finish_reason),
       usage: {
@@ -182,7 +184,9 @@ export abstract class OpenAICompatibleProvider extends BaseLLMProvider {
       return new Error('Rate limit exceeded. Please try again later.');
     }
     if (status === 402) {
-      return new Error('Insufficient credits. Please add credits to your account.');
+      return new Error(
+        'Insufficient credits. Please add credits to your account.',
+      );
     }
 
     return new Error(`${this.name} API error: ${errorMsg}`);

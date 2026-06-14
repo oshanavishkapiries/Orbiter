@@ -37,7 +37,15 @@ export class DataRepository extends BaseRepository<FlowRecord> {
       `INSERT INTO flows (id, session_id, name, type, step_count, flow_data, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (id) DO UPDATE SET flow_data = EXCLUDED.flow_data, step_count = EXCLUDED.step_count`,
-      [flow.id, sessionId ?? null, flow.name, flow.type ?? 'raw', stepCount, JSON.stringify(flow), this.now()],
+      [
+        flow.id,
+        sessionId ?? null,
+        flow.name,
+        flow.type ?? 'raw',
+        stepCount,
+        JSON.stringify(flow),
+        this.now(),
+      ],
     );
     return flow.id;
   }
@@ -117,11 +125,22 @@ export class DataRepository extends BaseRepository<FlowRecord> {
 
   // ─── App Logs ─────────────────────────────────────────────
 
-  logEntry(level: string, message: string, meta?: any, sessionId?: string | null): void {
+  logEntry(
+    level: string,
+    message: string,
+    meta?: any,
+    sessionId?: string | null,
+  ): void {
     this.pool
       .query(
         `INSERT INTO app_logs (level, message, meta, session_id, created_at) VALUES ($1, $2, $3, $4, $5)`,
-        [level, String(message), meta ? JSON.stringify(meta) : null, sessionId ?? null, Date.now()],
+        [
+          level,
+          String(message),
+          meta ? JSON.stringify(meta) : null,
+          sessionId ?? null,
+          Date.now(),
+        ],
       )
       .catch(() => {});
   }
@@ -139,7 +158,15 @@ export class DataRepository extends BaseRepository<FlowRecord> {
     await this.pool.query(
       `INSERT INTO error_captures (id, session_id, error_type, error_message, url, screenshot_base64, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, sessionId, errorType, errorMessage, url, screenshotBase64, this.now()],
+      [
+        id,
+        sessionId,
+        errorType,
+        errorMessage,
+        url,
+        screenshotBase64,
+        this.now(),
+      ],
     );
   }
 
@@ -155,7 +182,14 @@ export class DataRepository extends BaseRepository<FlowRecord> {
     const result = await this.pool.query(
       `INSERT INTO reports (session_id, task_name, format, content, report_data, created_at)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [sessionId, taskName, format, content, data ? JSON.stringify(data) : null, this.now()],
+      [
+        sessionId,
+        taskName,
+        format,
+        content,
+        data ? JSON.stringify(data) : null,
+        this.now(),
+      ],
     );
     return Number(result.rows[0].id);
   }
@@ -181,7 +215,14 @@ export class DataRepository extends BaseRepository<FlowRecord> {
       `INSERT INTO settings (key, value, value_type, category, description, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, value_type = EXCLUDED.value_type, updated_at = EXCLUDED.updated_at`,
-      [key, value, valueType, category ?? null, description ?? null, this.now()],
+      [
+        key,
+        value,
+        valueType,
+        category ?? null,
+        description ?? null,
+        this.now(),
+      ],
     );
   }
 
@@ -201,31 +242,181 @@ export class DataRepository extends BaseRepository<FlowRecord> {
   }
 
   async seedSettings(cfg: any): Promise<void> {
-    const entries: Array<{ key: string; value: string; type: string; cat: string; desc: string }> = [
-      { key: 'llm.provider', value: String(cfg.llm?.provider ?? 'openrouter'), type: 'string', cat: 'llm', desc: 'LLM provider (openrouter, opencode-go, openai, anthropic)' },
-      { key: 'llm.model', value: String(cfg.llm?.model ?? 'anthropic/claude-sonnet-4'), type: 'string', cat: 'llm', desc: 'Default LLM model' },
-      { key: 'llm.maxTokens', value: String(cfg.llm?.maxTokens ?? 4096), type: 'number', cat: 'llm', desc: 'Max tokens per LLM response' },
-      { key: 'llm.temperature', value: String(cfg.llm?.temperature ?? 0.7), type: 'number', cat: 'llm', desc: 'LLM temperature (0-2)' },
-      { key: 'llm.vision', value: String(cfg.llm?.vision ?? 'auto'), type: 'string', cat: 'llm', desc: 'Vision mode: auto, enabled, disabled' },
-      { key: 'browser.headless', value: String(cfg.browser?.headless ?? false), type: 'boolean', cat: 'browser', desc: 'Run browser in headless mode' },
-      { key: 'browser.defaultTimeout', value: String(cfg.browser?.defaultTimeout ?? 30000), type: 'number', cat: 'browser', desc: 'Default browser action timeout (ms)' },
-      { key: 'browser.viewport.width', value: String(cfg.browser?.viewport?.width ?? 1280), type: 'number', cat: 'browser', desc: 'Browser viewport width (px)' },
-      { key: 'browser.viewport.height', value: String(cfg.browser?.viewport?.height ?? 720), type: 'number', cat: 'browser', desc: 'Browser viewport height (px)' },
-      { key: 'execution.maxSteps', value: String(cfg.execution?.maxSteps ?? 100), type: 'number', cat: 'execution', desc: 'Default max steps per execution run' },
-      { key: 'execution.maxRetries', value: String(cfg.execution?.maxRetries ?? 3), type: 'number', cat: 'execution', desc: 'Max tool retry attempts on failure' },
-      { key: 'execution.retryDelay', value: String(cfg.execution?.retryDelay ?? 1000), type: 'number', cat: 'execution', desc: 'Delay between retries (ms)' },
-      { key: 'execution.screenshotOnError', value: String(cfg.execution?.screenshotOnError ?? true), type: 'boolean', cat: 'execution', desc: 'Capture screenshot on tool error' },
-      { key: 'execution.screenshotOnStep', value: String(cfg.execution?.screenshotOnStep ?? false), type: 'boolean', cat: 'execution', desc: 'Capture screenshot after each step' },
-      { key: 'promptEnhancer.enabled', value: String(cfg.promptEnhancer?.enabled ?? false), type: 'boolean', cat: 'promptEnhancer', desc: 'Enable AI prompt enhancement before execution' },
-      { key: 'loop.defaultDelay.min', value: String(cfg.loop?.defaultDelay?.min ?? 800), type: 'number', cat: 'loop', desc: 'Min delay between loop iterations (ms)' },
-      { key: 'loop.defaultDelay.max', value: String(cfg.loop?.defaultDelay?.max ?? 1500), type: 'number', cat: 'loop', desc: 'Max delay between loop iterations (ms)' },
-      { key: 'loop.maxItems', value: String(cfg.loop?.maxItems ?? 100), type: 'number', cat: 'loop', desc: 'Max items to extract per loop run' },
-      { key: 'loop.scrollPauseTime', value: String(cfg.loop?.scrollPauseTime ?? 1000), type: 'number', cat: 'loop', desc: 'Pause after scroll (ms)' },
-      { key: 'recording.enabled', value: String(cfg.recording?.enabled ?? true), type: 'boolean', cat: 'recording', desc: 'Enable flow recording' },
-      { key: 'recording.includeScreenshots', value: String(cfg.recording?.includeScreenshots ?? false), type: 'boolean', cat: 'recording', desc: 'Include screenshots in flow recording' },
-      { key: 'logging.level', value: String(cfg.logging?.level ?? 'info'), type: 'string', cat: 'logging', desc: 'Log level: error, warn, info, debug, trace' },
-      { key: 'logging.console.enabled', value: String(cfg.logging?.console?.enabled ?? true), type: 'boolean', cat: 'logging', desc: 'Enable console logging' },
-      { key: 'logging.console.colorize', value: String(cfg.logging?.console?.colorize ?? true), type: 'boolean', cat: 'logging', desc: 'Colorize console output' },
+    const entries: Array<{
+      key: string;
+      value: string;
+      type: string;
+      cat: string;
+      desc: string;
+    }> = [
+      {
+        key: 'llm.provider',
+        value: String(cfg.llm?.provider ?? 'openrouter'),
+        type: 'string',
+        cat: 'llm',
+        desc: 'LLM provider (openrouter, opencode-go, openai, anthropic)',
+      },
+      {
+        key: 'llm.model',
+        value: String(cfg.llm?.model ?? 'anthropic/claude-sonnet-4'),
+        type: 'string',
+        cat: 'llm',
+        desc: 'Default LLM model',
+      },
+      {
+        key: 'llm.maxTokens',
+        value: String(cfg.llm?.maxTokens ?? 4096),
+        type: 'number',
+        cat: 'llm',
+        desc: 'Max tokens per LLM response',
+      },
+      {
+        key: 'llm.temperature',
+        value: String(cfg.llm?.temperature ?? 0.7),
+        type: 'number',
+        cat: 'llm',
+        desc: 'LLM temperature (0-2)',
+      },
+      {
+        key: 'llm.vision',
+        value: String(cfg.llm?.vision ?? 'auto'),
+        type: 'string',
+        cat: 'llm',
+        desc: 'Vision mode: auto, enabled, disabled',
+      },
+      {
+        key: 'browser.headless',
+        value: String(cfg.browser?.headless ?? false),
+        type: 'boolean',
+        cat: 'browser',
+        desc: 'Run browser in headless mode',
+      },
+      {
+        key: 'browser.defaultTimeout',
+        value: String(cfg.browser?.defaultTimeout ?? 30000),
+        type: 'number',
+        cat: 'browser',
+        desc: 'Default browser action timeout (ms)',
+      },
+      {
+        key: 'browser.viewport.width',
+        value: String(cfg.browser?.viewport?.width ?? 1280),
+        type: 'number',
+        cat: 'browser',
+        desc: 'Browser viewport width (px)',
+      },
+      {
+        key: 'browser.viewport.height',
+        value: String(cfg.browser?.viewport?.height ?? 720),
+        type: 'number',
+        cat: 'browser',
+        desc: 'Browser viewport height (px)',
+      },
+      {
+        key: 'execution.maxSteps',
+        value: String(cfg.execution?.maxSteps ?? 100),
+        type: 'number',
+        cat: 'execution',
+        desc: 'Default max steps per execution run',
+      },
+      {
+        key: 'execution.maxRetries',
+        value: String(cfg.execution?.maxRetries ?? 3),
+        type: 'number',
+        cat: 'execution',
+        desc: 'Max tool retry attempts on failure',
+      },
+      {
+        key: 'execution.retryDelay',
+        value: String(cfg.execution?.retryDelay ?? 1000),
+        type: 'number',
+        cat: 'execution',
+        desc: 'Delay between retries (ms)',
+      },
+      {
+        key: 'execution.screenshotOnError',
+        value: String(cfg.execution?.screenshotOnError ?? true),
+        type: 'boolean',
+        cat: 'execution',
+        desc: 'Capture screenshot on tool error',
+      },
+      {
+        key: 'execution.screenshotOnStep',
+        value: String(cfg.execution?.screenshotOnStep ?? false),
+        type: 'boolean',
+        cat: 'execution',
+        desc: 'Capture screenshot after each step',
+      },
+      {
+        key: 'promptEnhancer.enabled',
+        value: String(cfg.promptEnhancer?.enabled ?? false),
+        type: 'boolean',
+        cat: 'promptEnhancer',
+        desc: 'Enable AI prompt enhancement before execution',
+      },
+      {
+        key: 'loop.defaultDelay.min',
+        value: String(cfg.loop?.defaultDelay?.min ?? 800),
+        type: 'number',
+        cat: 'loop',
+        desc: 'Min delay between loop iterations (ms)',
+      },
+      {
+        key: 'loop.defaultDelay.max',
+        value: String(cfg.loop?.defaultDelay?.max ?? 1500),
+        type: 'number',
+        cat: 'loop',
+        desc: 'Max delay between loop iterations (ms)',
+      },
+      {
+        key: 'loop.maxItems',
+        value: String(cfg.loop?.maxItems ?? 100),
+        type: 'number',
+        cat: 'loop',
+        desc: 'Max items to extract per loop run',
+      },
+      {
+        key: 'loop.scrollPauseTime',
+        value: String(cfg.loop?.scrollPauseTime ?? 1000),
+        type: 'number',
+        cat: 'loop',
+        desc: 'Pause after scroll (ms)',
+      },
+      {
+        key: 'recording.enabled',
+        value: String(cfg.recording?.enabled ?? true),
+        type: 'boolean',
+        cat: 'recording',
+        desc: 'Enable flow recording',
+      },
+      {
+        key: 'recording.includeScreenshots',
+        value: String(cfg.recording?.includeScreenshots ?? false),
+        type: 'boolean',
+        cat: 'recording',
+        desc: 'Include screenshots in flow recording',
+      },
+      {
+        key: 'logging.level',
+        value: String(cfg.logging?.level ?? 'info'),
+        type: 'string',
+        cat: 'logging',
+        desc: 'Log level: error, warn, info, debug, trace',
+      },
+      {
+        key: 'logging.console.enabled',
+        value: String(cfg.logging?.console?.enabled ?? true),
+        type: 'boolean',
+        cat: 'logging',
+        desc: 'Enable console logging',
+      },
+      {
+        key: 'logging.console.colorize',
+        value: String(cfg.logging?.console?.colorize ?? true),
+        type: 'boolean',
+        cat: 'logging',
+        desc: 'Colorize console output',
+      },
     ];
 
     for (const e of entries) {

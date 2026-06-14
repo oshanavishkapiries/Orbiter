@@ -5,7 +5,12 @@ import { PatternValidator } from './pattern-validator.js';
 import { ScrollPaginationHandler } from './pagination/scroll-handler.js';
 import { ClickNextPaginationHandler } from './pagination/click-next-handler.js';
 import { UrlPaginationHandler } from './pagination/url-handler.js';
-import { LoopTask, LoopResult, ExtractedItem, PaginationConfig } from './types.js';
+import {
+  LoopTask,
+  LoopResult,
+  ExtractedItem,
+  PaginationConfig,
+} from './types.js';
 import type { McpClient } from '../mcp/client.js';
 import chalk from 'chalk';
 
@@ -25,7 +30,9 @@ export class LoopExecutor {
     console.log('\n' + chalk.cyan.bold('🔄 LOOP ENGINE ACTIVATED'));
     console.log(chalk.gray(`  Task: ${task.name}`));
     console.log(chalk.gray(`  Mode: Pattern-based extraction (No LLM calls)`));
-    console.log(chalk.gray(`  Max items: ${task.control.maxItems || 'unlimited'}`));
+    console.log(
+      chalk.gray(`  Max items: ${task.control.maxItems || 'unlimited'}`),
+    );
     console.log('');
 
     logger.info('Validating pattern...');
@@ -46,7 +53,9 @@ export class LoopExecutor {
       return this.buildResult(task, startTime, false, [errorMsg]);
     }
 
-    logger.success(`Pattern valid! Found ${validation.itemCount} items on first page`);
+    logger.success(
+      `Pattern valid! Found ${validation.itemCount} items on first page`,
+    );
 
     if (validation.sampleData) {
       console.log(chalk.gray('  Sample extraction:'));
@@ -65,7 +74,8 @@ export class LoopExecutor {
 
   private async runExtractionLoop(task: LoopTask): Promise<void> {
     const maxItems = task.control.maxItems || Infinity;
-    const hasPagination = task.pattern.pagination && task.pattern.pagination.type !== 'none';
+    const hasPagination =
+      task.pattern.pagination && task.pattern.pagination.type !== 'none';
 
     const progress = createProgressBar(
       maxItems === Infinity ? 100 : maxItems,
@@ -83,7 +93,9 @@ export class LoopExecutor {
         task.pattern.extractSchema,
       );
 
-      logger.debug(`Page ${this.pagesProcessed}: found ${pageItems.length} items`);
+      logger.debug(
+        `Page ${this.pagesProcessed}: found ${pageItems.length} items`,
+      );
 
       for (let i = 0; i < pageItems.length; i++) {
         if (this.results.length >= maxItems) {
@@ -92,13 +104,20 @@ export class LoopExecutor {
         }
 
         const itemIndex = this.results.length + 1;
-        progress.update(Math.min(this.results.length, maxItems as number), `Item ${itemIndex}: extracting...`);
+        progress.update(
+          Math.min(this.results.length, maxItems as number),
+          `Item ${itemIndex}: extracting...`,
+        );
 
         try {
           let data = pageItems[i];
 
           if (task.pattern.detailAction) {
-            const detailData = await this.extractDetailPage(i, task.pattern.detailAction, itemIndex);
+            const detailData = await this.extractDetailPage(
+              i,
+              task.pattern.detailAction,
+              itemIndex,
+            );
             if (detailData) {
               data = { ...data, ...detailData };
             }
@@ -113,7 +132,10 @@ export class LoopExecutor {
             extractedAt: Date.now(),
           });
 
-          progress.update(this.results.length, `Extracted: ${this.getDisplayValue(data)}`);
+          progress.update(
+            this.results.length,
+            `Extracted: ${this.getDisplayValue(data)}`,
+          );
         } catch (error) {
           const errorMsg = `Item ${itemIndex} failed: ${(error as Error).message}`;
           this.errors.push(errorMsg);
@@ -131,7 +153,9 @@ export class LoopExecutor {
       // Check stop condition
       if (task.control.stopCondition) {
         const stopFound: boolean = await this.mcpClient
-          .evaluate(`!!document.querySelector(${JSON.stringify(task.control.stopCondition)})`)
+          .evaluate(
+            `!!document.querySelector(${JSON.stringify(task.control.stopCondition)})`,
+          )
           .catch(() => false);
         if (stopFound) {
           logger.debug(`Stop condition met: ${task.control.stopCondition}`);
@@ -140,7 +164,10 @@ export class LoopExecutor {
       }
 
       if (continueLoop && hasPagination) {
-        const hasMore = await this.handlePagination(task.pattern.pagination!, this.results.length);
+        const hasMore = await this.handlePagination(
+          task.pattern.pagination!,
+          this.results.length,
+        );
         if (!hasMore) continueLoop = false;
       } else {
         continueLoop = false;
@@ -175,8 +202,12 @@ export class LoopExecutor {
         return null;
       }
 
-      await this.mcpClient.callTool('browser_click', { element: detailAction.clickSelector });
-      await this.mcpClient.callTool('browser_wait_for', { selector: detailAction.waitForSelector });
+      await this.mcpClient.callTool('browser_click', {
+        element: detailAction.clickSelector,
+      });
+      await this.mcpClient.callTool('browser_wait_for', {
+        selector: detailAction.waitForSelector,
+      });
       await this.mcpClient.delay(500);
 
       const detailData = await this.validator.extractItemAtIndex(
@@ -192,7 +223,9 @@ export class LoopExecutor {
       } else {
         // Try custom back selector first, fall back to navigate back
         try {
-          await this.mcpClient.callTool('browser_click', { element: detailAction.backAction });
+          await this.mcpClient.callTool('browser_click', {
+            element: detailAction.backAction,
+          });
         } catch {
           await this.mcpClient.callTool('browser_navigate_back', {});
         }
@@ -203,7 +236,9 @@ export class LoopExecutor {
 
       return detailData;
     } catch (error) {
-      logger.debug(`Detail extraction failed for item ${itemIndex}: ${(error as Error).message}`);
+      logger.debug(
+        `Detail extraction failed for item ${itemIndex}: ${(error as Error).message}`,
+      );
       try {
         await this.mcpClient.callTool('browser_navigate_back', {});
       } catch {
@@ -213,14 +248,20 @@ export class LoopExecutor {
     }
   }
 
-  private async handlePagination(pagination: PaginationConfig, currentItemCount: number): Promise<boolean> {
+  private async handlePagination(
+    pagination: PaginationConfig,
+    currentItemCount: number,
+  ): Promise<boolean> {
     switch (pagination.type) {
       case 'scroll': {
         const handler = new ScrollPaginationHandler(this.mcpClient, pagination);
         return handler.next(currentItemCount);
       }
       case 'click-next': {
-        const handler = new ClickNextPaginationHandler(this.mcpClient, pagination);
+        const handler = new ClickNextPaginationHandler(
+          this.mcpClient,
+          pagination,
+        );
         return handler.next();
       }
       case 'url-based': {
@@ -253,14 +294,22 @@ export class LoopExecutor {
     return 'extracted';
   }
 
-  private buildResult(task: LoopTask, startTime: number, success: boolean, errors: string[]): LoopResult {
+  private buildResult(
+    task: LoopTask,
+    startTime: number,
+    success: boolean,
+    errors: string[],
+  ): LoopResult {
     const duration = Date.now() - startTime;
     const successfulItems = this.results.length;
     const failedItems = errors.length;
 
     const traditionalCost = (successfulItems * 1500 * 3) / 1_000_000;
     const ourCost = (2000 * 3) / 1_000_000;
-    const savings = (((traditionalCost - ourCost) / Math.max(traditionalCost, 0.001)) * 100).toFixed(1);
+    const savings = (
+      ((traditionalCost - ourCost) / Math.max(traditionalCost, 0.001)) *
+      100
+    ).toFixed(1);
 
     return {
       taskId: task.id,
@@ -291,10 +340,14 @@ export class LoopExecutor {
     console.log(chalk.bold('\nPerformance:'));
     console.log(`  LLM calls in loop: ${chalk.green('0')}`);
     console.log(`  Loop cost: ${chalk.green('$0.00')}`);
-    console.log(`  Estimated savings vs traditional: ${chalk.green(result.estimatedSavings)} 💰`);
+    console.log(
+      `  Estimated savings vs traditional: ${chalk.green(result.estimatedSavings)} 💰`,
+    );
     if (result.errors.length > 0) {
       console.log(chalk.bold('\nErrors:'));
-      result.errors.slice(0, 5).forEach((e) => console.log(`  ${chalk.red('✖')} ${e}`));
+      result.errors
+        .slice(0, 5)
+        .forEach((e) => console.log(`  ${chalk.red('✖')} ${e}`));
       if (result.errors.length > 5) {
         console.log(chalk.gray(`  ... and ${result.errors.length - 5} more`));
       }

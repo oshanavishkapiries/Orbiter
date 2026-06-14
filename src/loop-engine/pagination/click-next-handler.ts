@@ -20,7 +20,8 @@ export class ClickNextPaginationHandler {
     }
 
     try {
-      const buttonInfo: { exists: boolean; disabled: boolean } = await this.mcpClient.evaluate(`
+      const buttonInfo: { exists: boolean; disabled: boolean } = await this
+        .mcpClient.evaluate(`
         (() => {
           const btn = document.querySelector(${JSON.stringify(this.config.nextButtonSelector)});
           if (!btn) return { exists: false, disabled: false };

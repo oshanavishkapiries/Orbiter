@@ -23,12 +23,22 @@ export function runCommand() {
     .option('-p, --profile <path>', 'Browser profile path')
     .option('--headless', 'Run browser in headless mode')
     .option('--no-record', 'Disable flow recording')
-    .option('--max-steps <number>', 'Maximum steps to execute (default: reads from DB settings)')
+    .option(
+      '--max-steps <number>',
+      'Maximum steps to execute (default: reads from DB settings)',
+    )
     .option('--report', 'Generate execution report')
-    .option('--report-format <format>', 'Report format: markdown or json', 'markdown')
+    .option(
+      '--report-format <format>',
+      'Report format: markdown or json',
+      'markdown',
+    )
     .option('-e, --enhance', 'Enhance the prompt with AI before execution')
     .option('--no-enhance', 'Disable prompt enhancement for this run')
-    .option('--highlight', 'Highlight interactive elements in the browser after each step')
+    .option(
+      '--highlight',
+      'Highlight interactive elements in the browser after each step',
+    )
     .action(async (prompt, options) => {
       console.log(banners.run(prompt));
 
@@ -89,7 +99,11 @@ export function runCommand() {
           `Ready (${modelInfo.provider}/${modelInfo.name}) vision=${visionEnabled ? 'on' : 'off'}`,
         );
 
-        timeline.add({ type: 'step', status: 'success', message: 'Initialization complete' });
+        timeline.add({
+          type: 'step',
+          status: 'success',
+          message: 'Initialization complete',
+        });
 
         let activePrompt = prompt;
 
@@ -98,18 +112,30 @@ export function runCommand() {
           const enhanceSp = spinner('Enhancing prompt...').start();
           const enhancer = new PromptEnhancer(llm);
           const enhanceResult = await enhancer.enhance(prompt);
-          enhanceSp.succeed(`Prompt enhanced (${enhanceResult.tokensUsed} tokens)`);
+          enhanceSp.succeed(
+            `Prompt enhanced (${enhanceResult.tokensUsed} tokens)`,
+          );
 
-          console.log(chalk.gray('\n  Original: ') + chalk.dim(enhanceResult.original));
+          console.log(
+            chalk.gray('\n  Original: ') + chalk.dim(enhanceResult.original),
+          );
           console.log(
             chalk.cyan('\n  Enhanced:\n') +
-            chalk.white(
-              enhanceResult.enhanced.split('\n').map((line) => `  ${line}`).join('\n'),
-            ) + '\n',
+              chalk.white(
+                enhanceResult.enhanced
+                  .split('\n')
+                  .map((line) => `  ${line}`)
+                  .join('\n'),
+              ) +
+              '\n',
           );
 
           activePrompt = enhanceResult.enhanced;
-          timeline.add({ type: 'step', status: 'success', message: 'Prompt enhanced' });
+          timeline.add({
+            type: 'step',
+            status: 'success',
+            message: 'Prompt enhanced',
+          });
         }
 
         logger.phase('EXECUTION');
@@ -123,7 +149,9 @@ export function runCommand() {
           !!options.highlight,
         );
 
-        const result = await executor.execute(options.maxSteps ? parseInt(options.maxSteps) : undefined);
+        const result = await executor.execute(
+          options.maxSteps ? parseInt(options.maxSteps) : undefined,
+        );
 
         for (const step of result.steps) {
           timeline.add({
@@ -145,8 +173,10 @@ export function runCommand() {
 
         const caps = (llm as any).getCapabilities?.();
         const estimatedCost = caps
-          ? (result.summary.inputTokens / 1_000_000) * caps.inputPricePerMToken +
-            (result.summary.outputTokens / 1_000_000) * caps.outputPricePerMToken
+          ? (result.summary.inputTokens / 1_000_000) *
+              caps.inputPricePerMToken +
+            (result.summary.outputTokens / 1_000_000) *
+              caps.outputPricePerMToken
           : (result.summary.tokensUsed / 1_000_000) * 3;
 
         const summaryData: ExecutionSummary = {
@@ -175,21 +205,27 @@ export function runCommand() {
             successfulSteps: result.summary.successfulSteps,
             failedSteps: result.summary.failedSteps,
             recoveredSteps: 0,
-            steps: result.steps.map((s): ReportStep => ({
-              id: s.stepNumber,
-              tool: s.toolName,
-              params: s.params,
-              status: s.success ? 'success' : 'failed',
-              duration: s.duration,
-              error: s.error,
-            })),
+            steps: result.steps.map(
+              (s): ReportStep => ({
+                id: s.stepNumber,
+                tool: s.toolName,
+                params: s.params,
+                status: s.success ? 'success' : 'failed',
+                duration: s.duration,
+                error: s.error,
+              }),
+            ),
             tokensUsed: result.summary.tokensUsed,
             estimatedCost,
             flowId: result.flowId,
             outputs: result.outputs,
             errors,
           };
-          await reportGen.save(reportData, options.reportFormat, result.sessionId);
+          await reportGen.save(
+            reportData,
+            options.reportFormat,
+            result.sessionId,
+          );
         }
       } catch (error) {
         const err = error as Error;
@@ -198,7 +234,11 @@ export function runCommand() {
         console.log(banners.error(err.message));
 
         if (err.message.includes('API key')) {
-          console.log(chalk.yellow('\nTip: Set LLM_PROVIDER and the matching API key in your .env file'));
+          console.log(
+            chalk.yellow(
+              '\nTip: Set LLM_PROVIDER and the matching API key in your .env file',
+            ),
+          );
         }
 
         process.exit(1);

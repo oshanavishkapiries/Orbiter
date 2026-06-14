@@ -23,19 +23,35 @@ export class RecoveryEngine {
     error?: string;
   }> {
     if (errorContext.recoveryHistory.length >= this.MAX_ATTEMPTS) {
-      return { success: false, shouldAbort: true, abortReason: `Max recovery attempts (${this.MAX_ATTEMPTS}) reached` };
+      return {
+        success: false,
+        shouldAbort: true,
+        abortReason: `Max recovery attempts (${this.MAX_ATTEMPTS}) reached`,
+      };
     }
     if (errorContext.browserState.pageFlags.hasCaptcha) {
-      return { success: false, shouldAbort: true, abortReason: 'CAPTCHA detected — cannot recover automatically' };
+      return {
+        success: false,
+        shouldAbort: true,
+        abortReason: 'CAPTCHA detected — cannot recover automatically',
+      };
     }
     if (errorContext.error.severity === 'critical') {
-      return { success: false, shouldAbort: true, abortReason: 'Critical error — stopping' };
+      return {
+        success: false,
+        shouldAbort: true,
+        abortReason: 'Critical error — stopping',
+      };
     }
     if (errorContext.error.type === 'selector_mismatch') {
       // Wrong selectors — retrying same params won't help; signal retry-loop to break
       // so the LLM can re-probe the DOM and try a different approach.
       this.displayErrorContext(errorContext);
-      return { success: false, shouldAbort: false, error: `INVALID_RECOVERY_PLAN: ${errorContext.error.message}` };
+      return {
+        success: false,
+        shouldAbort: false,
+        error: `INVALID_RECOVERY_PLAN: ${errorContext.error.message}`,
+      };
     }
 
     logger.info('Analyzing error for recovery...');
@@ -43,13 +59,21 @@ export class RecoveryEngine {
 
     const plan = await this.getLLMRecoveryPlan(errorContext);
     if (!plan) {
-      return { success: false, shouldAbort: false, error: 'No valid recovery plan from LLM' };
+      return {
+        success: false,
+        shouldAbort: false,
+        error: 'No valid recovery plan from LLM',
+      };
     }
 
     this.displayRecoveryPlan(plan);
 
     if (plan.shouldAbort) {
-      return { success: false, shouldAbort: true, abortReason: plan.abortReason || plan.reasoning };
+      return {
+        success: false,
+        shouldAbort: true,
+        abortReason: plan.abortReason || plan.reasoning,
+      };
     }
 
     const result = await this.executeRecoveryAction(plan, errorContext);
@@ -68,17 +92,25 @@ export class RecoveryEngine {
     if (result.success) logger.success('Recovery successful');
     else logger.warn(`Recovery failed: ${result.error}`);
 
-    return { success: result.success, result: result.data, shouldAbort: false, error: result.error };
+    return {
+      success: result.success,
+      result: result.data,
+      shouldAbort: false,
+      error: result.error,
+    };
   }
 
-  private async getLLMRecoveryPlan(errorContext: ErrorContext): Promise<RecoveryPlan | null> {
+  private async getLLMRecoveryPlan(
+    errorContext: ErrorContext,
+  ): Promise<RecoveryPlan | null> {
     const RECOVERY_LLM_TIMEOUT = 15000;
 
     const llmCall = this.llm
       .chat([
         {
           role: 'system',
-          content: 'You are a browser automation error recovery specialist. Respond only with valid JSON.',
+          content:
+            'You are a browser automation error recovery specialist. Respond only with valid JSON.',
         },
         { role: 'user', content: RecoveryPromptBuilder.build(errorContext) },
       ])
@@ -102,14 +134,16 @@ export class RecoveryEngine {
       if (flags.hasModal || flags.hasOverlay) {
         return {
           strategy: 'dismiss_overlay',
-          reasoning: 'Recovery LLM unavailable — a modal/overlay is open, dismissing it before retry',
+          reasoning:
+            'Recovery LLM unavailable — a modal/overlay is open, dismissing it before retry',
           confidence: 'low',
           shouldAbort: false,
         } as RecoveryPlan;
       }
       return {
         strategy: 'wait_and_retry',
-        reasoning: 'Recovery analysis timed out — retrying original action after a short delay',
+        reasoning:
+          'Recovery analysis timed out — retrying original action after a short delay',
         confidence: 'low',
         shouldAbort: false,
         waitBeforeRetry: 2000,
@@ -130,7 +164,7 @@ export class RecoveryEngine {
         case 'wait_and_retry': {
           const wait = plan.waitBeforeRetry || 3000;
           logger.info(`Waiting ${wait}ms...`);
-          await new Promise(r => setTimeout(r, wait));
+          await new Promise((r) => setTimeout(r, wait));
           const target = plan.action ?? errorContext.failedAction;
           const r = await this.executeTool(target.tool, target.params);
           return { success: r.success, data: r.data, error: r.error };
@@ -150,7 +184,10 @@ export class RecoveryEngine {
 
         case 'scroll_and_retry': {
           logger.info('Scrolling down...');
-          await mcpClient.callTool('browser_scroll', { direction: 'down', coordinate: [760, 400] });
+          await mcpClient.callTool('browser_scroll', {
+            direction: 'down',
+            coordinate: [760, 400],
+          });
           await mcpClient.delay(800);
           const target = plan.action ?? errorContext.failedAction;
           const r = await this.executeTool(target.tool, target.params);
@@ -169,8 +206,12 @@ export class RecoveryEngine {
         }
 
         case 'navigate_alternative': {
-          if (!plan.action) return { success: false, error: 'No alternative URL provided' };
-          const r = await mcpClient.callTool('browser_navigate', plan.action.params);
+          if (!plan.action)
+            return { success: false, error: 'No alternative URL provided' };
+          const r = await mcpClient.callTool(
+            'browser_navigate',
+            plan.action.params,
+          );
           return { success: r.success, data: r.data, error: r.error };
         }
 
@@ -186,7 +227,10 @@ export class RecoveryEngine {
     }
   }
 
-  private async executeTool(toolName: string, params: Record<string, any>): Promise<any> {
+  private async executeTool(
+    toolName: string,
+    params: Record<string, any>,
+  ): Promise<any> {
     const mcpClient = this.context.getMcpClient();
     if (mcpClient.isMcpTool(toolName)) {
       return mcpClient.callTool(toolName, params);
@@ -197,9 +241,11 @@ export class RecoveryEngine {
   private displayErrorContext(ctx: ErrorContext): void {
     const warnings = [
       ctx.browserState.pageFlags.hasCaptcha && '⚠  CAPTCHA',
-      ctx.browserState.pageFlags.hasModal   && '⚠  MODAL OPEN',
+      ctx.browserState.pageFlags.hasModal && '⚠  MODAL OPEN',
       ctx.browserState.pageFlags.hasOverlay && '⚠  OVERLAY PRESENT',
-    ].filter(Boolean).join('  ');
+    ]
+      .filter(Boolean)
+      .join('  ');
 
     const content = [
       `Type:    ${chalk.red(ctx.error.type)}`,
@@ -210,15 +256,20 @@ export class RecoveryEngine {
       '',
       `URL:     ${chalk.gray(ctx.browserState.url)}`,
       warnings ? chalk.yellow(warnings) : '',
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
 
-    console.log('\n' + boxen(content, {
-      title: '🔴 ERROR',
-      titleAlignment: 'left',
-      padding: 1,
-      borderStyle: 'round',
-      borderColor: 'red',
-    }));
+    console.log(
+      '\n' +
+        boxen(content, {
+          title: '🔴 ERROR',
+          titleAlignment: 'left',
+          padding: 1,
+          borderStyle: 'round',
+          borderColor: 'red',
+        }),
+    );
   }
 
   private displayRecoveryPlan(plan: RecoveryPlan): void {
@@ -226,15 +277,22 @@ export class RecoveryEngine {
       `Strategy:   ${chalk.cyan(plan.strategy)}`,
       `Confidence: ${plan.confidence}`,
       `Reasoning:  ${plan.reasoning}`,
-      plan.action ? `\nAction: ${chalk.cyan(plan.action.tool)} — ${JSON.stringify(plan.action.params)}` : '',
-    ].filter(Boolean).join('\n');
+      plan.action
+        ? `\nAction: ${chalk.cyan(plan.action.tool)} — ${JSON.stringify(plan.action.params)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
 
-    console.log('\n' + boxen(content, {
-      title: '💡 RECOVERY PLAN',
-      titleAlignment: 'left',
-      padding: 1,
-      borderStyle: 'round',
-      borderColor: 'yellow',
-    }));
+    console.log(
+      '\n' +
+        boxen(content, {
+          title: '💡 RECOVERY PLAN',
+          titleAlignment: 'left',
+          padding: 1,
+          borderStyle: 'round',
+          borderColor: 'yellow',
+        }),
+    );
   }
 }

@@ -6,8 +6,9 @@ import { SessionRepository } from '../../memory/database/repositories/session-re
 import { enqueueJob } from '../worker.js';
 import { eventBus } from '../event-bus.js';
 
-export async function executionRoutes(app: FastifyInstance<any, any, any, any, ZodTypeProvider>) {
-  
+export async function executionRoutes(
+  app: FastifyInstance<any, any, any, any, ZodTypeProvider>,
+) {
   // 1. List Sessions (with Pagination)
   const listSessionsSchema = z.object({
     page: z
@@ -78,7 +79,7 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 2. Get Session Details
@@ -107,9 +108,12 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
 
       try {
         const pool = DatabaseConnection.getInstance().getPool();
-        
+
         // 1. Query session metadata
-        const sessionResult = await pool.query('SELECT * FROM sessions WHERE id = $1', [id]);
+        const sessionResult = await pool.query(
+          'SELECT * FROM sessions WHERE id = $1',
+          [id],
+        );
         if (sessionResult.rows.length === 0) {
           return reply.status(404).send({
             success: false,
@@ -138,17 +142,17 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
               duration: step.duration,
               fullResult,
             };
-          })
+          }),
         );
 
         // 3. Query extra counts
         const domResult = await pool.query(
           'SELECT COUNT(*) AS cnt FROM session_dom_snapshots WHERE session_id = $1',
-          [id]
+          [id],
         );
         const collectedResult = await pool.query(
           'SELECT COUNT(*) AS cnt FROM session_collected_data WHERE session_id = $1',
-          [id]
+          [id],
         );
 
         return {
@@ -163,7 +167,10 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
             completedAt: s.completed_at ? Number(s.completed_at) : null,
             steps: formattedSteps,
             domSnapshotsCount: parseInt(domResult.rows[0]?.cnt ?? '0', 10),
-            collectedDataCount: parseInt(collectedResult.rows[0]?.cnt ?? '0', 10),
+            collectedDataCount: parseInt(
+              collectedResult.rows[0]?.cnt ?? '0',
+              10,
+            ),
           },
         };
       } catch (err) {
@@ -172,7 +179,7 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 3. Get Session Extracted Data
@@ -201,13 +208,15 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
 
         if (json) {
           const allData = records.flatMap((r) =>
-            Array.isArray(r.data) ? r.data : [r.data]
+            Array.isArray(r.data) ? r.data : [r.data],
           );
           return allData;
         }
 
         const formattedRecords = records.map((record) => {
-          const items = Array.isArray(record.data) ? record.data : [record.data];
+          const items = Array.isArray(record.data)
+            ? record.data
+            : [record.data];
           return {
             stepNumber: record.stepNumber,
             toolName: record.toolName,
@@ -226,7 +235,7 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 4. Start Task Execution (Async Run)
@@ -254,7 +263,11 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
       try {
         // Pre-allocate session
         const repo = new SessionRepository();
-        const sessionId = await repo.createSession(body.prompt, body.model, 'openrouter');
+        const sessionId = await repo.createSession(
+          body.prompt,
+          body.model,
+          'openrouter',
+        );
 
         // Queue background job
         await enqueueJob('run', sessionId, body);
@@ -271,7 +284,7 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 5. Replay Flow
@@ -297,7 +310,11 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
 
       try {
         const repo = new SessionRepository();
-        const sessionId = await repo.createSession(`Replay flow: ${body.flowPath}`, undefined, 'replayer');
+        const sessionId = await repo.createSession(
+          `Replay flow: ${body.flowPath}`,
+          undefined,
+          'replayer',
+        );
 
         // Queue background job
         await enqueueJob('replay', sessionId, body);
@@ -314,7 +331,7 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 6. Get Live Execution Stream (SSE)
@@ -335,11 +352,13 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
       reply.raw.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
       });
 
       // Write initial establish connection message
-      reply.raw.write(`event: connected\ndata: ${JSON.stringify({ sessionId, timestamp: Date.now() })}\n\n`);
+      reply.raw.write(
+        `event: connected\ndata: ${JSON.stringify({ sessionId, timestamp: Date.now() })}\n\n`,
+      );
 
       const onStep = (data: any) => {
         reply.raw.write(`event: step\ndata: ${JSON.stringify(data)}\n\n`);
@@ -368,6 +387,6 @@ export async function executionRoutes(app: FastifyInstance<any, any, any, any, Z
         eventBus.off(`screenshot:${sessionId}`, onScreenshot);
         eventBus.off(`status:${sessionId}`, onStatus);
       });
-    }
+    },
   );
 }

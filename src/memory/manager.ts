@@ -118,34 +118,33 @@ export class MemoryManager {
     domain: string,
     taskSummary: string,
     contextJson: any,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<void> {
     logger.debug(`Remembering vector context for ${domain}: ${taskSummary}`);
-    
+
     // Generate embedding from task summary and context
     const textToEmbed = `${taskSummary}\n${JSON.stringify(contextJson)}`;
     const embedding = await this.embeddingService.embed(textToEmbed);
-    
+
     await this.vectorRepo.create({
       id,
       sessionId,
       domain,
       taskSummary,
       contextJson,
-      embedding
+      embedding,
     });
   }
 
   async searchVectorContext(
     domain: string,
     query: string,
-    limit = 3
+    limit = 3,
   ): Promise<any[]> {
     logger.debug(`Searching vector context for ${domain} with query: ${query}`);
     const embedding = await this.embeddingService.embed(query);
     return this.vectorRepo.search(domain, embedding, limit);
   }
-
 
   async getStats() {
     const dbConn = DatabaseConnection.getInstance();

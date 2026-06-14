@@ -60,7 +60,11 @@ const consoleFormat = winston.format.printf(
 // DB write side-effect format (runs at logger level for every log call)
 const dbFormat = winston.format((info) => {
   const { level, message, timestamp: _ts, ...meta } = info;
-  dbLogEntry(String(level), String(message), Object.keys(meta).length > 0 ? meta : undefined);
+  dbLogEntry(
+    String(level),
+    String(message),
+    Object.keys(meta).length > 0 ? meta : undefined,
+  );
   return info;
 })();
 

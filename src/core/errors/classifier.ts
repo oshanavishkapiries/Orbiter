@@ -4,7 +4,11 @@ export class ErrorClassifier {
   static classify(error: Error): { type: ErrorType; severity: ErrorSeverity } {
     const msg = error.message.toLowerCase();
 
-    if (msg.includes('captcha') || msg.includes('recaptcha') || msg.includes('cf-challenge')) {
+    if (
+      msg.includes('captcha') ||
+      msg.includes('recaptcha') ||
+      msg.includes('cf-challenge')
+    ) {
       return { type: 'captcha_detected', severity: 'critical' };
     }
     if (
@@ -43,7 +47,11 @@ export class ErrorClassifier {
     ) {
       return { type: 'element_not_interactable', severity: 'medium' };
     }
-    if (msg.includes('detached') || msg.includes('stale') || msg.includes('no longer exists')) {
+    if (
+      msg.includes('detached') ||
+      msg.includes('stale') ||
+      msg.includes('no longer exists')
+    ) {
       return { type: 'element_detached', severity: 'low' };
     }
     if (

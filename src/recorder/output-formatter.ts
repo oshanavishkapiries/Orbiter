@@ -23,7 +23,9 @@ export class OutputFormatter {
       sessionId,
       flowId,
     );
-    logger.success(`Data saved to database (output #${id}, ${data.length} records)`);
+    logger.success(
+      `Data saved to database (output #${id}, ${data.length} records)`,
+    );
     return `#${id}`;
   }
 
@@ -48,7 +50,9 @@ export class OutputFormatter {
       sessionId,
       flowId,
     );
-    logger.success(`CSV saved to database (output #${id}, ${data.length} records)`);
+    logger.success(
+      `CSV saved to database (output #${id}, ${data.length} records)`,
+    );
     return `#${id}`;
   }
 

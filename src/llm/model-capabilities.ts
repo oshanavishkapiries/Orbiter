@@ -4,10 +4,10 @@ import { logger } from '../cli/ui/logger.js';
 export interface ModelCapabilities {
   id: string;
   name: string;
-  supportsVision: boolean;      // input modality includes image
-  supportsFunctions: boolean;   // supports tool/function calling
+  supportsVision: boolean; // input modality includes image
+  supportsFunctions: boolean; // supports tool/function calling
   contextLength: number;
-  modality: string;             // raw string e.g. "text+image->text"
+  modality: string; // raw string e.g. "text+image->text"
   inputPricePerMToken: number;
   outputPricePerMToken: number;
 }
@@ -60,7 +60,8 @@ export async function fetchModelCapabilities(
       supportsFunctions: !modality.startsWith('image->'),
       contextLength: model.context_length ?? 0,
       inputPricePerMToken: parseFloat(model.pricing?.prompt ?? '0') * 1_000_000,
-      outputPricePerMToken: parseFloat(model.pricing?.completion ?? '0') * 1_000_000,
+      outputPricePerMToken:
+        parseFloat(model.pricing?.completion ?? '0') * 1_000_000,
     };
 
     cache.set(modelId, caps);

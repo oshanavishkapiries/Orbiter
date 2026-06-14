@@ -133,9 +133,10 @@ export const devtoolsInjectTool: ToolDefinition = {
     const mcpClient = context.getMcpClient();
     const result = await mcpClient.evaluate(MONITOR_SCRIPT);
     const status = String(result);
-    const msg = status === 'already_injected'
-      ? 'DevTools monitor already active on this page'
-      : 'DevTools monitor injected — console, network, and error capture active';
+    const msg =
+      status === 'already_injected'
+        ? 'DevTools monitor already active on this page'
+        : 'DevTools monitor injected — console, network, and error capture active';
     return { success: true, message: msg, data: { status } };
   },
 };
@@ -166,7 +167,11 @@ export const devtoolsConsoleTool: ToolDefinition = {
     required: [],
   },
   execute: async (params, context: ExecutionContext): Promise<ToolResult> => {
-    const { level = 'all', limit = 50, since } = params as {
+    const {
+      level = 'all',
+      limit = 50,
+      since,
+    } = params as {
       level?: string;
       limit?: number;
       since?: number;
@@ -183,7 +188,10 @@ export const devtoolsConsoleTool: ToolDefinition = {
     })()`);
 
     if (!isInjected(data)) {
-      return { success: false, error: 'DevTools not injected. Call devtools_inject first.' };
+      return {
+        success: false,
+        error: 'DevTools not injected. Call devtools_inject first.',
+      };
     }
 
     const logs: any[] = Array.isArray(data) ? data : [];
@@ -210,7 +218,8 @@ export const devtoolsNetworkTool: ToolDefinition = {
       filter: {
         type: 'string',
         enum: ['all', 'failed', 'success', 'pending'],
-        description: 'Filter requests. "failed" = error or status >= 400. Defaults to "all".',
+        description:
+          'Filter requests. "failed" = error or status >= 400. Defaults to "all".',
       },
       url_contains: {
         type: 'string',
@@ -224,7 +233,11 @@ export const devtoolsNetworkTool: ToolDefinition = {
     required: [],
   },
   execute: async (params, context: ExecutionContext): Promise<ToolResult> => {
-    const { filter = 'all', url_contains, limit = 50 } = params as {
+    const {
+      filter = 'all',
+      url_contains,
+      limit = 50,
+    } = params as {
       filter?: string;
       url_contains?: string;
       limit?: number;
@@ -243,11 +256,16 @@ export const devtoolsNetworkTool: ToolDefinition = {
     })()`);
 
     if (!isInjected(data)) {
-      return { success: false, error: 'DevTools not injected. Call devtools_inject first.' };
+      return {
+        success: false,
+        error: 'DevTools not injected. Call devtools_inject first.',
+      };
     }
 
     const reqs: any[] = Array.isArray(data) ? data : [];
-    const failed = reqs.filter((r) => r.error || (r.status && r.status >= 400)).length;
+    const failed = reqs.filter(
+      (r) => r.error || (r.status && r.status >= 400),
+    ).length;
     const pending = reqs.filter((r) => r.status === null && !r.error).length;
 
     return {
@@ -267,7 +285,10 @@ export const devtoolsErrorsTool: ToolDefinition = {
   parameters: {
     type: 'object',
     properties: {
-      limit: { type: 'number', description: 'Max entries to return. Defaults to 50.' },
+      limit: {
+        type: 'number',
+        description: 'Max entries to return. Defaults to 50.',
+      },
     },
     required: [],
   },
@@ -282,14 +303,20 @@ export const devtoolsErrorsTool: ToolDefinition = {
     })()`);
 
     if (!isInjected(data)) {
-      return { success: false, error: 'DevTools not injected. Call devtools_inject first.' };
+      return {
+        success: false,
+        error: 'DevTools not injected. Call devtools_inject first.',
+      };
     }
 
     const errors: any[] = Array.isArray(data) ? data : [];
     return {
       success: true,
       data: errors,
-      message: errors.length === 0 ? 'No JS errors captured' : `${errors.length} JS error(s) captured`,
+      message:
+        errors.length === 0
+          ? 'No JS errors captured'
+          : `${errors.length} JS error(s) captured`,
     };
   },
 };
@@ -344,10 +371,17 @@ export const devtoolsPerformanceTool: ToolDefinition = {
     })()`);
 
     if (!data) {
-      return { success: false, error: 'Performance API not available on this page.' };
+      return {
+        success: false,
+        error: 'Performance API not available on this page.',
+      };
     }
 
-    return { success: true, data, message: `Performance metrics for: ${(data as any).url}` };
+    return {
+      success: true,
+      data,
+      message: `Performance metrics for: ${(data as any).url}`,
+    };
   },
 };
 
@@ -428,7 +462,10 @@ export const devtoolsDomTool: ToolDefinition = {
     })()`);
 
     if (!data) {
-      return { success: false, error: `No element found for selector: "${selector}"` };
+      return {
+        success: false,
+        error: `No element found for selector: "${selector}"`,
+      };
     }
 
     const el = data as any;
@@ -451,7 +488,8 @@ export const devtoolsAccessibilityTool: ToolDefinition = {
     properties: {
       selector: {
         type: 'string',
-        description: 'CSS selector for the root element to audit. Defaults to "body".',
+        description:
+          'CSS selector for the root element to audit. Defaults to "body".',
       },
     },
     required: [],
@@ -533,12 +571,20 @@ export const devtoolsAccessibilityTool: ToolDefinition = {
     })()`);
 
     if (!data) {
-      return { success: false, error: `No element found for selector: "${selector}"` };
+      return {
+        success: false,
+        error: `No element found for selector: "${selector}"`,
+      };
     }
 
     const result = data as any;
     const { errors, warnings } = result.issueCount;
-    const status = errors > 0 ? `${errors} accessibility errors, ${warnings} warnings` : warnings > 0 ? `${warnings} warnings` : 'No accessibility issues found';
+    const status =
+      errors > 0
+        ? `${errors} accessibility errors, ${warnings} warnings`
+        : warnings > 0
+          ? `${warnings} warnings`
+          : 'No accessibility issues found';
 
     return { success: true, data: result, message: status };
   },
@@ -546,7 +592,8 @@ export const devtoolsAccessibilityTool: ToolDefinition = {
 
 export const devtoolsClearTool: ToolDefinition = {
   name: 'devtools_clear',
-  description: 'Clear all captured DevTools data (console logs, network requests, JS errors). Useful to start fresh before a specific user action you want to monitor.',
+  description:
+    'Clear all captured DevTools data (console logs, network requests, JS errors). Useful to start fresh before a specific user action you want to monitor.',
   parameters: {
     type: 'object',
     properties: {
@@ -572,7 +619,10 @@ export const devtoolsClearTool: ToolDefinition = {
     })()`);
 
     if (!isInjected(data)) {
-      return { success: false, error: 'DevTools not injected. Call devtools_inject first.' };
+      return {
+        success: false,
+        error: 'DevTools not injected. Call devtools_inject first.',
+      };
     }
 
     return { success: true, message: `DevTools data cleared (${what})` };

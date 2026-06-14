@@ -1,7 +1,12 @@
 import { logger } from '../../cli/ui/logger.js';
 import { generateErrorId } from '../../utils/id.js';
 import { ErrorClassifier } from './classifier.js';
-import { ErrorContext, BrowserStateSnapshot, ExecutionSnapshot, PageFlags } from './types.js';
+import {
+  ErrorContext,
+  BrowserStateSnapshot,
+  ExecutionSnapshot,
+  PageFlags,
+} from './types.js';
 import type { McpClient } from '../../mcp/client.js';
 import { DataRepository } from '../../memory/database/repositories/data-repository.js';
 
@@ -33,17 +38,27 @@ export class ErrorContextBuilder {
     };
   }
 
-  private async captureBrowserState(errorId: string, error: Error): Promise<BrowserStateSnapshot> {
+  private async captureBrowserState(
+    errorId: string,
+    error: Error,
+  ): Promise<BrowserStateSnapshot> {
     let url = 'unknown';
     let title = 'unknown';
     let ariaSnapshot = '';
-    let pageFlags: PageFlags = { hasModal: false, hasOverlay: false, hasCaptcha: false };
+    let pageFlags: PageFlags = {
+      hasModal: false,
+      hasOverlay: false,
+      hasCaptcha: false,
+    };
 
     try {
       url = await this.mcpClient.getCurrentUrl();
       title = await this.mcpClient.getTitle();
 
-      const snapshotResult = await this.mcpClient.callTool('browser_snapshot', {});
+      const snapshotResult = await this.mcpClient.callTool(
+        'browser_snapshot',
+        {},
+      );
       ariaSnapshot = snapshotResult.message ?? '';
 
       pageFlags = await this.detectPageFlags();
@@ -67,7 +82,11 @@ export class ErrorContextBuilder {
     }
   }
 
-  private async takeScreenshot(errorId: string, url: string, error: Error): Promise<string> {
+  private async takeScreenshot(
+    errorId: string,
+    url: string,
+    error: Error,
+  ): Promise<string> {
     try {
       const result = await this.mcpClient.callTool('browser_screenshot', {});
       if (result.imageBase64) {

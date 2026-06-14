@@ -11,7 +11,10 @@ export function viewerCommand() {
     .description('Open the Orbiter web dashboard in your browser')
     .option('-p, --port <number>', 'Port to run the web app on', '4040')
     .option('--no-open', 'Do not auto-open the browser')
-    .option('--production', 'Serve the pre-built app (next start) instead of dev server')
+    .option(
+      '--production',
+      'Serve the pre-built app (next start) instead of dev server',
+    )
     .action(async (options) => {
       const port = parseInt(options.port, 10);
       const webDir = path.resolve('./web');
@@ -21,7 +24,9 @@ export function viewerCommand() {
       // ── Prerequisite checks ────────────────────────────────────────
       if (!fs.existsSync(webDir)) {
         logger.error('Web app directory not found: ./web');
-        logger.info('Make sure you are running this command from the Orbiter project root.');
+        logger.info(
+          'Make sure you are running this command from the Orbiter project root.',
+        );
         process.exit(1);
       }
 
@@ -36,7 +41,9 @@ export function viewerCommand() {
       const useProduction = options.production && isBuilt;
 
       if (options.production && !isBuilt) {
-        logger.warn('No production build found. Run "cd web && pnpm build" first. Falling back to dev mode.');
+        logger.warn(
+          'No production build found. Run "cd web && pnpm build" first. Falling back to dev mode.',
+        );
       }
 
       const mode = useProduction ? 'start' : 'dev';
@@ -68,16 +75,12 @@ export function viewerCommand() {
       logger.info(`URL: ${url}`);
 
       // ── Spawn Next.js ──────────────────────────────────────────────
-      const child = spawn(
-        'npx',
-        ['next', mode, '--port', String(port)],
-        {
-          cwd: webDir,
-          env,
-          stdio: ['inherit', 'pipe', 'pipe'],
-          shell: process.platform === 'win32',
-        },
-      );
+      const child = spawn('npx', ['next', mode, '--port', String(port)], {
+        cwd: webDir,
+        env,
+        stdio: ['inherit', 'pipe', 'pipe'],
+        shell: process.platform === 'win32',
+      });
 
       let browserOpened = false;
 
@@ -140,8 +143,8 @@ function openBrowser(url: string) {
     platform === 'win32'
       ? `start "" "${url}"`
       : platform === 'darwin'
-      ? `open "${url}"`
-      : `xdg-open "${url}"`;
+        ? `open "${url}"`
+        : `xdg-open "${url}"`;
 
   import('child_process').then(({ exec }) => exec(cmd)).catch(() => {});
 }

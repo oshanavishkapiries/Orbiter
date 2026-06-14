@@ -1,6 +1,10 @@
 import fastify from 'fastify';
 import cors from '@fastify/cors';
-import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
+import {
+  serializerCompiler,
+  validatorCompiler,
+  ZodTypeProvider,
+} from 'fastify-type-provider-zod';
 import { systemRoutes } from './routes/system.js';
 import { memoryRoutes } from './routes/memory.js';
 import { flowsRoutes } from './routes/flows.js';
@@ -34,7 +38,7 @@ export function createServer() {
   // Global error handler
   app.setErrorHandler((error: any, request, reply) => {
     app.log.error(error);
-    
+
     if (error.validation) {
       return reply.status(400).send({
         success: false,

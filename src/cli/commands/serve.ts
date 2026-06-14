@@ -18,24 +18,24 @@ export function serveCommand() {
       // Ensure build folder exists
       const distServerIndex = path.resolve('./dist/server/index.js');
       if (!fs.existsSync(distServerIndex)) {
-        logger.error('Compiled server not found. Please run "npm run build" first.');
+        logger.error(
+          'Compiled server not found. Please run "npm run build" first.',
+        );
         process.exit(1);
       }
 
-      logger.info(`Starting Orbiter REST API server on http://${host}:${port}...`);
-
-      const child = spawn(
-        'node',
-        [distServerIndex],
-        {
-          env: {
-            ...process.env,
-            PORT: String(port),
-            HOST: host,
-          },
-          stdio: 'inherit',
-        }
+      logger.info(
+        `Starting Orbiter REST API server on http://${host}:${port}...`,
       );
+
+      const child = spawn('node', [distServerIndex], {
+        env: {
+          ...process.env,
+          PORT: String(port),
+          HOST: host,
+        },
+        stdio: 'inherit',
+      });
 
       // Handle shutdown signals in the parent CLI process
       const shutdown = () => {

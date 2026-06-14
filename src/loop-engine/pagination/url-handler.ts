@@ -23,7 +23,10 @@ export class UrlPaginationHandler {
       return false;
     }
 
-    const url = this.config.urlTemplate.replace('{{PAGE}}', String(this.currentPage));
+    const url = this.config.urlTemplate.replace(
+      '{{PAGE}}',
+      String(this.currentPage),
+    );
     logger.debug(`Navigating to page ${this.currentPage}: ${url}`);
 
     try {

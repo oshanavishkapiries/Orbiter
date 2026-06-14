@@ -53,5 +53,7 @@ export class OpenCodeGoProvider extends OpenAICompatibleProvider {
 }
 
 function normalizeModelId(model: string): string {
-  return model.startsWith('opencode-go/') ? model.slice('opencode-go/'.length) : model;
+  return model.startsWith('opencode-go/')
+    ? model.slice('opencode-go/'.length)
+    : model;
 }

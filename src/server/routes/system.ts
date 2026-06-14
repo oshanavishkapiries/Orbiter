@@ -7,7 +7,9 @@ import { LLMFactory } from '../../llm/factory.js';
 import { DataRepository } from '../../memory/database/repositories/data-repository.js';
 import { DatabaseConnection } from '../../memory/database/connection.js';
 
-export async function systemRoutes(app: FastifyInstance<any, any, any, any, ZodTypeProvider>) {
+export async function systemRoutes(
+  app: FastifyInstance<any, any, any, any, ZodTypeProvider>,
+) {
   const profileManager = new ProfileManager();
 
   // 1. Get current configuration
@@ -24,7 +26,7 @@ export async function systemRoutes(app: FastifyInstance<any, any, any, any, ZodT
       z.object({
         key: z.string(),
         value: z.string(),
-      })
+      }),
     ),
   });
 
@@ -37,7 +39,7 @@ export async function systemRoutes(app: FastifyInstance<any, any, any, any, ZodT
     },
     async (request, reply) => {
       const { settings } = request.body;
-      
+
       try {
         const repo = new DataRepository();
         for (const item of settings) {
@@ -53,7 +55,7 @@ export async function systemRoutes(app: FastifyInstance<any, any, any, any, ZodT
           error: `Failed to update settings: ${(err as Error).message}`,
         });
       }
-    }
+    },
   );
 
   // 3. List browser profiles
@@ -115,7 +117,7 @@ export async function systemRoutes(app: FastifyInstance<any, any, any, any, ZodT
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 5. Get profile details
@@ -161,7 +163,7 @@ export async function systemRoutes(app: FastifyInstance<any, any, any, any, ZodT
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 6. List available LLM models
@@ -200,6 +202,6 @@ export async function systemRoutes(app: FastifyInstance<any, any, any, any, ZodT
           error: `Failed to fetch models: ${(err as Error).message}`,
         });
       }
-    }
+    },
   );
 }

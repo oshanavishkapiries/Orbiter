@@ -112,12 +112,23 @@ export class ExecutionContext {
   }
 
   getLastSuccessfulSteps(n: number): ExecutionHistoryItem[] {
-    return this.state.history.filter((item) => item.result === 'success').slice(-n);
+    return this.state.history
+      .filter((item) => item.result === 'success')
+      .slice(-n);
   }
 
-  getSummary(): { totalSteps: number; successfulSteps: number; failedSteps: number; duration: number } {
-    const successful = this.state.history.filter((h) => h.result === 'success').length;
-    const failed = this.state.history.filter((h) => h.result === 'failed').length;
+  getSummary(): {
+    totalSteps: number;
+    successfulSteps: number;
+    failedSteps: number;
+    duration: number;
+  } {
+    const successful = this.state.history.filter(
+      (h) => h.result === 'success',
+    ).length;
+    const failed = this.state.history.filter(
+      (h) => h.result === 'failed',
+    ).length;
     return {
       totalSteps: this.state.history.length,
       successfulSteps: successful,

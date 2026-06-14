@@ -22,7 +22,9 @@ export class ScrollPaginationHandler {
 
     if (this.config.endCondition) {
       const found: boolean = await this.mcpClient
-        .evaluate(`!!document.querySelector(${JSON.stringify(this.config.endCondition)})`)
+        .evaluate(
+          `!!document.querySelector(${JSON.stringify(this.config.endCondition)})`,
+        )
         .catch(() => false);
       if (found) {
         logger.debug(`End condition found: ${this.config.endCondition}`);
@@ -53,7 +55,9 @@ export class ScrollPaginationHandler {
     }
 
     this.lastItemCount = currentItemCount;
-    logger.debug(`Scrolled ${this.scrollCount} times, items: ${currentItemCount}`);
+    logger.debug(
+      `Scrolled ${this.scrollCount} times, items: ${currentItemCount}`,
+    );
     return true;
   }
 

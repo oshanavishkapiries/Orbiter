@@ -73,7 +73,9 @@ export function modelsCommand() {
           }
 
           console.log(
-            chalk.gray('Visit https://dev.opencode.ai/docs/go/ for the supported model list'),
+            chalk.gray(
+              'Visit https://dev.opencode.ai/docs/go/ for the supported model list',
+            ),
           );
         } else {
           console.log(

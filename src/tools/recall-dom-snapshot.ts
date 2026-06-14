@@ -17,7 +17,10 @@ export const recallDomSnapshotTool: ToolDefinition = {
     },
     required: [],
   },
-  execute: async (params: { step_number?: number }, context: ExecutionContext): Promise<ToolResult> => {
+  execute: async (
+    params: { step_number?: number },
+    context: ExecutionContext,
+  ): Promise<ToolResult> => {
     const repo = context.getSessionRepo();
     const sessionId = context.getSessionId();
 
@@ -33,8 +36,10 @@ export const recallDomSnapshotTool: ToolDefinition = {
       };
     }
 
-    const content = snap.fullAnalysis ?? snap.interactiveElements ?? '(no content)';
-    const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
+    const content =
+      snap.fullAnalysis ?? snap.interactiveElements ?? '(no content)';
+    const contentStr =
+      typeof content === 'string' ? content : JSON.stringify(content);
 
     return {
       success: true,

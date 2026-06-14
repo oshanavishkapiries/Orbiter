@@ -14,7 +14,8 @@ export const saveJsonTool: ToolDefinition = {
     properties: {
       data: {
         type: 'array',
-        description: 'Array of records or any JSON-serialisable value to save directly.',
+        description:
+          'Array of records or any JSON-serialisable value to save directly.',
       },
       storageKey: {
         type: 'string',
@@ -43,16 +44,24 @@ export const saveJsonTool: ToolDefinition = {
       const raw = await mcpClient.evaluate(
         `JSON.stringify(JSON.parse(localStorage.getItem(${key}) || 'null'))`,
       );
-      await mcpClient.evaluate(`localStorage.removeItem(${key})`).catch(() => {});
+      await mcpClient
+        .evaluate(`localStorage.removeItem(${key})`)
+        .catch(() => {});
       try {
         payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
       } catch {
-        return { success: false, error: `Failed to parse localStorage data for key "${storageKey}"` };
+        return {
+          success: false,
+          error: `Failed to parse localStorage data for key "${storageKey}"`,
+        };
       }
     } else if (data !== undefined && data !== null) {
       payload = data;
     } else {
-      return { success: false, error: 'Provide "data" or "storageKey" (localStorage key).' };
+      return {
+        success: false,
+        error: 'Provide "data" or "storageKey" (localStorage key).',
+      };
     }
 
     const records = Array.isArray(payload) ? payload : [payload];
@@ -62,7 +71,8 @@ export const saveJsonTool: ToolDefinition = {
     }
 
     const formatter = new OutputFormatter();
-    const name = filename || `data-${new Date().toISOString().slice(0, 10)}-${Date.now()}`;
+    const name =
+      filename || `data-${new Date().toISOString().slice(0, 10)}-${Date.now()}`;
     const ref = await formatter.saveJson(records, name, context.getSessionId());
 
     return {

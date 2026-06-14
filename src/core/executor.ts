@@ -82,7 +82,10 @@ export class TaskExecutor {
     const mcpClient = this.context.getMcpClient();
 
     // Merge MCP tools + custom tools for the LLM
-    const allTools: Tool[] = [...mcpClient.getTools(), ...registry.getToolsForLLM()];
+    const allTools: Tool[] = [
+      ...mcpClient.getTools(),
+      ...registry.getToolsForLLM(),
+    ];
 
     // Initialize session memory (non-fatal if DB unavailable)
     let resolvedMaxSteps = maxSteps ?? 100;
@@ -95,7 +98,9 @@ export class TaskExecutor {
 
       // Read execution.maxSteps from DB when not explicitly overridden by CLI
       if (maxSteps === undefined) {
-        const dbMaxSteps = await dataRepo.getSetting('execution.maxSteps').catch(() => null);
+        const dbMaxSteps = await dataRepo
+          .getSetting('execution.maxSteps')
+          .catch(() => null);
         if (dbMaxSteps) resolvedMaxSteps = parseInt(dbMaxSteps) || 100;
       }
 
@@ -117,7 +122,9 @@ export class TaskExecutor {
       ChatLogger.getInstance().startSession(this.sessionId, this.sessionRepo);
       logger.debug(`Session started: ${this.sessionId}`);
     } catch (err) {
-      logger.debug(`Session DB unavailable, running without session memory: ${(err as Error).message}`);
+      logger.debug(
+        `Session DB unavailable, running without session memory: ${(err as Error).message}`,
+      );
       this.history = new HistoryManager(SYSTEM_PROMPT, this.goal, null, null);
       ChatLogger.getInstance().startSession(null, null);
     }
@@ -142,17 +149,27 @@ export class TaskExecutor {
       const stepsLeft = effectiveMaxSteps - stepNumber;
       if (!stepLimitWarned && stepsLeft <= 5) {
         stepLimitWarned = true;
-        logger.warn(`Only ${stepsLeft} step(s) remaining — injecting save reminder`);
+        logger.warn(
+          `Only ${stepsLeft} step(s) remaining — injecting save reminder`,
+        );
         this.history.addUserText(
           `[SYSTEM] You have only ${stepsLeft} step(s) remaining before execution stops. ` +
-          `If you have collected any data, call save_json or save_csv NOW to persist it, then stop.`,
+            `If you have collected any data, call save_json or save_csv NOW to persist it, then stop.`,
         );
       }
 
-      logger.step(stepNumber, effectiveMaxSteps, 'thinking', 'LLM deciding next action...');
+      logger.step(
+        stepNumber,
+        effectiveMaxSteps,
+        'thinking',
+        'LLM deciding next action...',
+      );
 
       try {
-        const response = await this.llm.chat(this.history.getMessages(), allTools);
+        const response = await this.llm.chat(
+          this.history.getMessages(),
+          allTools,
+        );
 
         this.totalTokens += response.usage.totalTokens;
         this.totalInputTokens += response.usage.promptTokens;
@@ -185,17 +202,26 @@ export class TaskExecutor {
 
         if (response.toolCalls && response.toolCalls.length > 0) {
           for (const toolCall of response.toolCalls) {
-            const stepResult = await this.executeToolCall(toolCall, stepNumber, effectiveMaxSteps);
+            const stepResult = await this.executeToolCall(
+              toolCall,
+              stepNumber,
+              effectiveMaxSteps,
+            );
             steps.push(stepResult);
 
             if (this.sessionId) {
               eventBus.emitStep(this.sessionId, stepResult);
               if (stepResult.result?.imageBase64) {
-                eventBus.emitScreenshot(this.sessionId, { imageBase64: stepResult.result.imageBase64 });
+                eventBus.emitScreenshot(this.sessionId, {
+                  imageBase64: stepResult.result.imageBase64,
+                });
               }
             }
 
-            if (stepResult.success && (toolCall.name === 'save_csv' || toolCall.name === 'save_json')) {
+            if (
+              stepResult.success &&
+              (toolCall.name === 'save_csv' || toolCall.name === 'save_json')
+            ) {
               const outputRef = stepResult.result?.data?.outputRef;
               const count = stepResult.result?.data?.count ?? 0;
               if (outputRef) this.outputs.push(outputRef);
@@ -219,7 +245,11 @@ export class TaskExecutor {
               break;
             }
 
-            this.history.addAssistantAction(toolCall.id, toolCall.name, toolCall.arguments);
+            this.history.addAssistantAction(
+              toolCall.id,
+              toolCall.name,
+              toolCall.arguments,
+            );
             const imageBase64 = this.llm.supportsVision()
               ? stepResult.result?.imageBase64
               : undefined;
@@ -248,7 +278,9 @@ export class TaskExecutor {
     }
 
     if (stepNumber >= effectiveMaxSteps && continueExecution) {
-      logger.warn(`Step limit reached (${effectiveMaxSteps}/${effectiveMaxSteps}). Use --max-steps <n> to increase, or update execution.maxSteps in the settings table.`);
+      logger.warn(
+        `Step limit reached (${effectiveMaxSteps}/${effectiveMaxSteps}). Use --max-steps <n> to increase, or update execution.maxSteps in the settings table.`,
+      );
     }
 
     if (this.sessionRepo && this.sessionId) {
@@ -300,15 +332,27 @@ export class TaskExecutor {
     const registry = getToolRegistry();
     const isMcp = mcpClient.isMcpTool(toolCall.name);
 
-    logger.step(stepNumber, totalSteps, toolCall.name, `Executing ${toolCall.name}...`);
+    logger.step(
+      stepNumber,
+      totalSteps,
+      toolCall.name,
+      `Executing ${toolCall.name}...`,
+    );
     logger.bullet(`Tool: ${chalk.cyan(toolCall.name)}`);
 
     // In debug mode, print tool arguments so scripts/selectors are visible
     if (toolCall.name === 'browser_evaluate' && toolCall.arguments?.function) {
       const script = String(toolCall.arguments.function);
-      logger.debug(`  ${chalk.gray('script:')} ${chalk.dim(script.length > 500 ? script.slice(0, 500) + '…' : script)}`);
-    } else if (toolCall.arguments && Object.keys(toolCall.arguments).length > 0) {
-      logger.debug(`  ${chalk.gray('args:')} ${chalk.dim(JSON.stringify(toolCall.arguments).slice(0, 300))}`);
+      logger.debug(
+        `  ${chalk.gray('script:')} ${chalk.dim(script.length > 500 ? script.slice(0, 500) + '…' : script)}`,
+      );
+    } else if (
+      toolCall.arguments &&
+      Object.keys(toolCall.arguments).length > 0
+    ) {
+      logger.debug(
+        `  ${chalk.gray('args:')} ${chalk.dim(JSON.stringify(toolCall.arguments).slice(0, 300))}`,
+      );
     }
 
     // Only validate custom tools — MCP tools are validated server-side
@@ -339,12 +383,18 @@ export class TaskExecutor {
       try {
         const result = isMcp
           ? await mcpClient.callTool(toolCall.name, toolCall.arguments)
-          : await registry.execute(toolCall.name, toolCall.arguments, this.context);
+          : await registry.execute(
+              toolCall.name,
+              toolCall.arguments,
+              this.context,
+            );
 
         const duration = Date.now() - startTime;
 
         if (result.success) {
-          logger.success(`${toolCall.name} completed in ${(duration / 1000).toFixed(1)}s`);
+          logger.success(
+            `${toolCall.name} completed in ${(duration / 1000).toFixed(1)}s`,
+          );
           // MCP tool messages are raw browser output (snapshots, Playwright code) — skip printing
           if (!isMcp && result.message) logger.bullet(result.message);
 
@@ -374,13 +424,20 @@ export class TaskExecutor {
         lastError = error as Error;
 
         if (this.isInvalidToolCallError(lastError)) {
-          logger.fail(`${toolCall.name} rejected locally: ${lastError.message}`);
+          logger.fail(
+            `${toolCall.name} rejected locally: ${lastError.message}`,
+          );
           break;
         }
 
-        logger.fail(`${toolCall.name} failed (attempt ${attemptNumber}): ${lastError.message}`);
+        logger.fail(
+          `${toolCall.name} failed (attempt ${attemptNumber}): ${lastError.message}`,
+        );
 
-        const contextBuilder = new ErrorContextBuilder(mcpClient, this.sessionId);
+        const contextBuilder = new ErrorContextBuilder(
+          mcpClient,
+          this.sessionId,
+        );
         const executionSnapshot: ExecutionSnapshot = {
           originalGoal: this.goal,
           stepNumber,
@@ -423,7 +480,10 @@ export class TaskExecutor {
 
         if (recovery.success) {
           if (errorContext.recoveryHistory.length > 0) {
-            const lastAttempt = errorContext.recoveryHistory[errorContext.recoveryHistory.length - 1];
+            const lastAttempt =
+              errorContext.recoveryHistory[
+                errorContext.recoveryHistory.length - 1
+              ];
             if (lastAttempt.action) {
               toolCall.arguments = lastAttempt.action.params;
             }
@@ -432,10 +492,16 @@ export class TaskExecutor {
           const duration = Date.now() - startTime;
           this.recorder.addRecoveryAttempt({
             attempt: attemptNumber,
-            strategy: errorContext.recoveryHistory[errorContext.recoveryHistory.length - 1]?.strategy || 'unknown',
+            strategy:
+              errorContext.recoveryHistory[
+                errorContext.recoveryHistory.length - 1
+              ]?.strategy || 'unknown',
             newSelector: toolCall.arguments.selector,
             result: 'success',
-            llmReasoning: errorContext.recoveryHistory[errorContext.recoveryHistory.length - 1]?.reasoning,
+            llmReasoning:
+              errorContext.recoveryHistory[
+                errorContext.recoveryHistory.length - 1
+              ]?.reasoning,
           });
 
           return {
@@ -476,20 +542,31 @@ export class TaskExecutor {
     if (step.toolName === 'browser_navigate' && !step.success) return true;
 
     const recentSteps = this.context.getState().history.slice(-3);
-    const recentFailures = recentSteps.filter((s) => s.result === 'failed').length;
+    const recentFailures = recentSteps.filter(
+      (s) => s.result === 'failed',
+    ).length;
     if (recentFailures >= 3) return true;
 
     return false;
   }
 
   private isTaskComplete(content: string): boolean {
-    const phrases = ['task complete', 'task is complete', 'finished', 'done', 'successfully completed'];
+    const phrases = [
+      'task complete',
+      'task is complete',
+      'finished',
+      'done',
+      'successfully completed',
+    ];
     const lower = content.toLowerCase();
     return phrases.some((p) => lower.includes(p));
   }
 
   private isInvalidToolCall(step: ExecutionStep): boolean {
-    return typeof step.error === 'string' && step.error.startsWith('INVALID_TOOL_CALL:');
+    return (
+      typeof step.error === 'string' &&
+      step.error.startsWith('INVALID_TOOL_CALL:')
+    );
   }
 
   private isInvalidToolCallError(error: Error): boolean {
@@ -497,9 +574,10 @@ export class TaskExecutor {
   }
 
   private isInvalidRecoveryPlan(reason?: string): boolean {
-    return typeof reason === 'string' && reason.startsWith('INVALID_RECOVERY_PLAN:');
+    return (
+      typeof reason === 'string' && reason.startsWith('INVALID_RECOVERY_PLAN:')
+    );
   }
-
 
   getRecorderStats() {
     return this.recorder.getStats();

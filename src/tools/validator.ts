@@ -97,7 +97,11 @@ function validateToolSpecificRules(
     case 'recall_dom_snapshot':
       return validatePositiveIntegerField(toolName, 'step_number', params);
     case 'recall_step_history': {
-      const fromCheck = validatePositiveIntegerField(toolName, 'from_step', params);
+      const fromCheck = validatePositiveIntegerField(
+        toolName,
+        'from_step',
+        params,
+      );
       if (!fromCheck.valid) return fromCheck;
       const toCheck = validatePositiveIntegerField(toolName, 'to_step', params);
       if (!toCheck.valid) return toCheck;
@@ -133,12 +137,19 @@ function validateSaveParams(
       error: `Tool "${toolName}" requires either "data" or "storageKey".`,
     };
   }
-  if (hasData && params.data !== null && !Array.isArray(params.data) && toolName === 'save_csv') {
-    return { valid: false, error: 'Tool "save_csv" "data" must be an array of objects.' };
+  if (
+    hasData &&
+    params.data !== null &&
+    !Array.isArray(params.data) &&
+    toolName === 'save_csv'
+  ) {
+    return {
+      valid: false,
+      error: 'Tool "save_csv" "data" must be an array of objects.',
+    };
   }
   return { valid: true };
 }
-
 
 function validatePositiveIntegerField(
   toolName: string,
@@ -150,11 +161,7 @@ function validatePositiveIntegerField(
     return { valid: true };
   }
 
-  if (
-    typeof value !== 'number' ||
-    !Number.isInteger(value) ||
-    value <= 0
-  ) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
     return {
       valid: false,
       error: `Tool "${toolName}" field "${fieldName}" must be a positive integer when provided.`,

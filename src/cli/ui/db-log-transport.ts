@@ -30,9 +30,8 @@ export function dbLogEntry(level: string, message: string, meta?: any): void {
         String(message),
         cleanMeta ? JSON.stringify(cleanMeta) : null,
         sessionId || null,
-        Date.now()
+        Date.now(),
       ],
     )
     .catch(() => {});
 }
-

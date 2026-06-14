@@ -13,16 +13,21 @@ export const recallStepHistoryTool: ToolDefinition = {
     properties: {
       from_step: {
         type: 'number',
-        description: 'Starting step number (inclusive). Omit to start from step 1.',
+        description:
+          'Starting step number (inclusive). Omit to start from step 1.',
       },
       to_step: {
         type: 'number',
-        description: 'Ending step number (inclusive). Omit to get all steps up to now.',
+        description:
+          'Ending step number (inclusive). Omit to get all steps up to now.',
       },
     },
     required: [],
   },
-  execute: async (params: { from_step?: number; to_step?: number }, context: ExecutionContext): Promise<ToolResult> => {
+  execute: async (
+    params: { from_step?: number; to_step?: number },
+    context: ExecutionContext,
+  ): Promise<ToolResult> => {
     const repo = context.getSessionRepo();
     const sessionId = context.getSessionId();
 
@@ -33,7 +38,11 @@ export const recallStepHistoryTool: ToolDefinition = {
       };
     }
 
-    const steps = await repo.getStepHistory(sessionId, params.from_step, params.to_step);
+    const steps = await repo.getStepHistory(
+      sessionId,
+      params.from_step,
+      params.to_step,
+    );
 
     if (steps.length === 0) {
       return {

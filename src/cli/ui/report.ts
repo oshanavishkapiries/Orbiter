@@ -70,7 +70,11 @@ export class ReportGenerator {
 
     for (const step of data.steps) {
       const statusIcon =
-        step.status === 'success' ? '✓' : step.status === 'recovered' ? '↻' : '✖';
+        step.status === 'success'
+          ? '✓'
+          : step.status === 'recovered'
+            ? '↻'
+            : '✖';
 
       const notes = step.error
         ? `Error: ${step.error}`
@@ -109,7 +113,11 @@ export class ReportGenerator {
   }
 
   generateJson(data: ReportData): string {
-    return JSON.stringify({ ...data, generatedAt: Date.now(), orbiterVersion: '1.0.0' }, null, 2);
+    return JSON.stringify(
+      { ...data, generatedAt: Date.now(), orbiterVersion: '1.0.0' },
+      null,
+      2,
+    );
   }
 
   async save(
@@ -117,15 +125,26 @@ export class ReportGenerator {
     format: 'markdown' | 'json' = 'markdown',
     sessionId?: string | null,
   ): Promise<string> {
-    const content = format === 'markdown' ? this.generateMarkdown(data) : this.generateJson(data);
+    const content =
+      format === 'markdown'
+        ? this.generateMarkdown(data)
+        : this.generateJson(data);
 
     try {
       const repo = new DataRepository();
-      const id = await repo.saveReport(sessionId ?? null, data.taskName, format, content, data);
+      const id = await repo.saveReport(
+        sessionId ?? null,
+        data.taskName,
+        format,
+        content,
+        data,
+      );
       logger.success(`Report saved to database (report #${id})`);
       return `#${id}`;
     } catch (err) {
-      logger.warn(`Failed to save report to database: ${(err as Error).message}`);
+      logger.warn(
+        `Failed to save report to database: ${(err as Error).message}`,
+      );
       return '';
     }
   }

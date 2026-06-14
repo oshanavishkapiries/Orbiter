@@ -8,7 +8,9 @@ export function sessionCommand() {
   const cmd = new Command('session');
 
   cmd
-    .description('Inspect session memory — view stored steps, DOM snapshots, and extracted data')
+    .description(
+      'Inspect session memory — view stored steps, DOM snapshots, and extracted data',
+    )
     .addCommand(sessionListCommand())
     .addCommand(sessionShowCommand())
     .addCommand(sessionDataCommand());
@@ -50,28 +52,36 @@ function sessionListCommand() {
 
       for (const row of result.rows) {
         const duration = row.completed_at
-          ? ((Number(row.completed_at) - Number(row.created_at)) / 1000).toFixed(1) + 's'
+          ? (
+              (Number(row.completed_at) - Number(row.created_at)) /
+              1000
+            ).toFixed(1) + 's'
           : chalk.yellow('running');
 
         const statusColor =
           row.status === 'completed'
             ? chalk.green(row.status)
             : row.status === 'failed'
-            ? chalk.red(row.status)
-            : chalk.yellow(row.status);
+              ? chalk.red(row.status)
+              : chalk.yellow(row.status);
 
         const created = new Date(Number(row.created_at)).toLocaleString();
 
         console.log(
           `\n  ${chalk.cyan(row.id)}  ${statusColor}  ${chalk.gray(duration)}`,
         );
-        console.log(`  Goal:    ${chalk.white(row.goal.slice(0, 70))}${row.goal.length > 70 ? '…' : ''}`);
+        console.log(
+          `  Goal:    ${chalk.white(row.goal.slice(0, 70))}${row.goal.length > 70 ? '…' : ''}`,
+        );
         console.log(
           `  Model:   ${chalk.gray(row.provider + '/' + row.model)}   Steps: ${chalk.cyan(row.step_count)}   ${chalk.gray(created)}`,
         );
       }
 
-      console.log('\n' + chalk.gray('Use: orbiter session show <id>  to inspect a session'));
+      console.log(
+        '\n' +
+          chalk.gray('Use: orbiter session show <id>  to inspect a session'),
+      );
       console.log('');
     });
 }
@@ -101,7 +111,8 @@ function sessionShowCommand() {
 
       const s = sessionRow.rows[0];
       const duration = s.completed_at
-        ? ((Number(s.completed_at) - Number(s.created_at)) / 1000).toFixed(1) + 's'
+        ? ((Number(s.completed_at) - Number(s.created_at)) / 1000).toFixed(1) +
+          's'
         : 'still running';
 
       console.log('\n' + chalk.bold('Session Details'));
@@ -112,7 +123,9 @@ function sessionShowCommand() {
       console.log(
         `  Status: ${s.status === 'completed' ? chalk.green(s.status) : chalk.red(s.status)}  (${duration})`,
       );
-      console.log(`  Date:   ${chalk.gray(new Date(Number(s.created_at)).toLocaleString())}`);
+      console.log(
+        `  Date:   ${chalk.gray(new Date(Number(s.created_at)).toLocaleString())}`,
+      );
 
       // Steps
       const steps = await repo.getStepHistory(sessionId);
@@ -131,7 +144,9 @@ function sessionShowCommand() {
         if (options.full) {
           const full = await repo.getFullStepResult(sessionId, step.stepNumber);
           if (full) {
-            console.log(chalk.dim('         ' + JSON.stringify(full).slice(0, 200)));
+            console.log(
+              chalk.dim('         ' + JSON.stringify(full).slice(0, 200)),
+            );
           }
         }
       }
@@ -156,7 +171,14 @@ function sessionShowCommand() {
       console.log(`  Data extraction records: ${chalk.cyan(dataCount)}`);
 
       if (Number(dataCount) > 0) {
-        console.log('\n' + chalk.gray('  Use: orbiter session data ' + sessionId + '  to view extracted data'));
+        console.log(
+          '\n' +
+            chalk.gray(
+              '  Use: orbiter session data ' +
+                sessionId +
+                '  to view extracted data',
+            ),
+        );
       }
 
       console.log('');
@@ -219,11 +241,12 @@ function sessionDataCommand() {
         0,
       );
       console.log(
-        '\n' + chalk.bold(`Total: ${total} items across ${records.length} extraction(s)`),
+        '\n' +
+          chalk.bold(
+            `Total: ${total} items across ${records.length} extraction(s)`,
+          ),
       );
-      console.log(
-        chalk.gray('  Use --json flag to get raw JSON output'),
-      );
+      console.log(chalk.gray('  Use --json flag to get raw JSON output'));
       console.log('');
     });
 }

@@ -16,7 +16,10 @@ export class HistoryManager {
     private sessionId: string | null,
   ) {
     this.messages.push({ role: 'system', content: systemPrompt });
-    this.messages.push({ role: 'user', content: `Please accomplish this task: ${goal}` });
+    this.messages.push({
+      role: 'user',
+      content: `Please accomplish this task: ${goal}`,
+    });
   }
 
   addAssistantAction(toolCallId: string, toolName: string, args: any): void {
@@ -52,7 +55,10 @@ export class HistoryManager {
         );
 
         // Persist ariaSnapshot from navigate and snapshot tools
-        if ((toolName === 'navigate' || toolName === 'snapshot') && result?.success) {
+        if (
+          (toolName === 'navigate' || toolName === 'snapshot') &&
+          result?.success
+        ) {
           const data = result.data ?? {};
           await this.sessionRepo.storeDomSnapshot(
             this.sessionId,
@@ -64,22 +70,41 @@ export class HistoryManager {
           );
         }
 
-        if ((toolName === 'save_csv' || toolName === 'save_json') && result?.success && result?.data) {
-          await this.sessionRepo.storeCollectedData(this.sessionId, stepNumber, toolName, result.data);
+        if (
+          (toolName === 'save_csv' || toolName === 'save_json') &&
+          result?.success &&
+          result?.data
+        ) {
+          await this.sessionRepo.storeCollectedData(
+            this.sessionId,
+            stepNumber,
+            toolName,
+            result.data,
+          );
         }
       } catch (err) {
-        logger.debug(`Session DB write failed (non-fatal): ${(err as Error).message}`);
+        logger.debug(
+          `Session DB write failed (non-fatal): ${(err as Error).message}`,
+        );
       }
     }
 
-    this.messages.push({ role: 'tool', toolCallId, name: toolName, content: summary });
+    this.messages.push({
+      role: 'tool',
+      toolCallId,
+      name: toolName,
+      content: summary,
+    });
 
     if (imageBase64) {
       this.messages.push({
         role: 'user',
         content: [
           { type: 'text', text: `Tool result: ${summary}\n\nCurrent page:` },
-          { type: 'image_url', image_url: { url: imageBase64, detail: 'auto' } },
+          {
+            type: 'image_url',
+            image_url: { url: imageBase64, detail: 'auto' },
+          },
         ],
       });
     } else {
@@ -143,14 +168,18 @@ export class HistoryManager {
       case 'navigate': {
         const url = data?.url ?? params?.url ?? '?';
         const title = data?.title ? ` ("${data.title}")` : '';
-        const snap = data?.snapshot ? `\n\nPage accessibility snapshot:\n${data.snapshot}` : '';
+        const snap = data?.snapshot
+          ? `\n\nPage accessibility snapshot:\n${data.snapshot}`
+          : '';
         return `Navigated to ${url}${title}.${snap}`;
       }
 
       case 'snapshot': {
         const url = data?.url ?? '?';
         const title = data?.title ? ` "${data.title}"` : '';
-        const snap = data?.snapshot ? `\n\n${data.snapshot}` : ' (no snapshot available)';
+        const snap = data?.snapshot
+          ? `\n\n${data.snapshot}`
+          : ' (no snapshot available)';
         return `Snapshot of${title} — ${url}:${snap}`;
       }
 
@@ -178,12 +207,18 @@ export class HistoryManager {
       }
 
       case 'run_code': {
-        const preview = JSON.stringify(data ?? result.message ?? '').slice(0, 300);
+        const preview = JSON.stringify(data ?? result.message ?? '').slice(
+          0,
+          300,
+        );
         return `run_code result: ${preview}`;
       }
 
       case 'evaluate_js': {
-        const preview = JSON.stringify(data ?? result.message ?? '').slice(0, 200);
+        const preview = JSON.stringify(data ?? result.message ?? '').slice(
+          0,
+          200,
+        );
         return `JavaScript result: ${preview}`;
       }
 

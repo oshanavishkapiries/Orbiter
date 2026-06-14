@@ -3,8 +3,9 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { getMemoryManager } from '../../memory/manager.js';
 
-export async function memoryRoutes(app: FastifyInstance<any, any, any, any, ZodTypeProvider>) {
-  
+export async function memoryRoutes(
+  app: FastifyInstance<any, any, any, any, ZodTypeProvider>,
+) {
   // 1. Retrieve Selector Memories
   const retrieveSelectorsSchema = z.object({
     domain: z.string().min(1),
@@ -49,7 +50,7 @@ export async function memoryRoutes(app: FastifyInstance<any, any, any, any, ZodT
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 2. Search Selectors
@@ -87,7 +88,7 @@ export async function memoryRoutes(app: FastifyInstance<any, any, any, any, ZodT
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 3. Query Vector Memory
@@ -109,7 +110,11 @@ export async function memoryRoutes(app: FastifyInstance<any, any, any, any, ZodT
 
       try {
         const memoryManager = await getMemoryManager();
-        const results = await memoryManager.searchVectorContext(domain, query, limit);
+        const results = await memoryManager.searchVectorContext(
+          domain,
+          query,
+          limit,
+        );
 
         const formattedResults = results.map((r) => ({
           id: r.id,
@@ -130,7 +135,7 @@ export async function memoryRoutes(app: FastifyInstance<any, any, any, any, ZodT
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 4. Get Memory Statistics
@@ -209,6 +214,6 @@ export async function memoryRoutes(app: FastifyInstance<any, any, any, any, ZodT
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 }

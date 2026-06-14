@@ -94,9 +94,11 @@ export class FlowRefiner {
         `Estimated tokens: ~${Math.round(estimatedTokens).toLocaleString()}`,
       );
 
-      const confirm = !options.interactive || await this.confirmAction(
-        `Run LLM optimization? (uses ~${Math.round(estimatedTokens)} tokens) [Y/n]: `,
-      );
+      const confirm =
+        !options.interactive ||
+        (await this.confirmAction(
+          `Run LLM optimization? (uses ~${Math.round(estimatedTokens)} tokens) [Y/n]: `,
+        ));
 
       if (confirm) {
         try {
@@ -146,7 +148,8 @@ export class FlowRefiner {
 
     // ─── Build Optimized Flow ─────────────────────────────
     const reductionPercent = Math.round(
-      ((rawFlow.steps.length - currentSteps.length) / rawFlow.steps.length) * 100,
+      ((rawFlow.steps.length - currentSteps.length) / rawFlow.steps.length) *
+        100,
     );
 
     const estimatedReplayTime = currentSteps.length * 2;
@@ -217,7 +220,9 @@ export class FlowRefiner {
 
     // Fallback to file
     if (!fileExists(flowOrId)) {
-      throw new Error(`Flow not found: "${flowOrId}" (tried database and file system)`);
+      throw new Error(
+        `Flow not found: "${flowOrId}" (tried database and file system)`,
+      );
     }
 
     const flow = readJson<Flow>(flowOrId);
@@ -236,7 +241,9 @@ export class FlowRefiner {
       logger.success(`\nOptimized flow saved to database (id: ${id})`);
       return id;
     } catch (err) {
-      logger.warn(`Failed to save optimized flow to DB: ${(err as Error).message}`);
+      logger.warn(
+        `Failed to save optimized flow to DB: ${(err as Error).message}`,
+      );
       return flow.id;
     }
   }
@@ -270,7 +277,9 @@ export class FlowRefiner {
       rl.question(chalk.yellow(question), (answer: string) => {
         rl.close();
         const normalized = answer.toLowerCase().trim();
-        resolve(normalized === '' || normalized === 'y' || normalized === 'yes');
+        resolve(
+          normalized === '' || normalized === 'y' || normalized === 'yes',
+        );
       });
     });
   }
@@ -290,7 +299,9 @@ export class FlowRefiner {
       `  Steps: ${chalk.yellow(originalCount)} → ${chalk.green(finalCount)}` +
         chalk.gray(` (${reductionPercent}% reduction)`),
     );
-    console.log(`  Estimated replay time: ${chalk.green(`~${estimatedReplayTime}s`)}`);
+    console.log(
+      `  Estimated replay time: ${chalk.green(`~${estimatedReplayTime}s`)}`,
+    );
 
     console.log('\n' + chalk.bold('Output:'));
     console.log(`  📄 ${outputRef} ${chalk.dim('(database)')}`);

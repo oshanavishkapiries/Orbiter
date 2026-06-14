@@ -26,7 +26,10 @@ export const configSchema = z.object({
     }),
     profilePath: z.string().nullable().default(null),
     executablePath: z.string().nullable().default(null),
-    channel: z.enum(['chrome', 'msedge', 'firefox', 'webkit']).nullable().default(null),
+    channel: z
+      .enum(['chrome', 'msedge', 'firefox', 'webkit'])
+      .nullable()
+      .default(null),
   }),
 
   execution: z.object({

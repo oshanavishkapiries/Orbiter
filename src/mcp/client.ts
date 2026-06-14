@@ -35,7 +35,9 @@ export class McpClient {
     }));
     this.mcpToolNames = new Set(this.mcpTools.map((t) => t.name));
 
-    logger.debug(`MCP connected — ${this.mcpTools.length} Playwright tools available`);
+    logger.debug(
+      `MCP connected — ${this.mcpTools.length} Playwright tools available`,
+    );
   }
 
   async disconnect(): Promise<void> {
@@ -62,7 +64,10 @@ export class McpClient {
     return this.connected;
   }
 
-  async callTool(name: string, params: Record<string, any>): Promise<ToolResult> {
+  async callTool(
+    name: string,
+    params: Record<string, any>,
+  ): Promise<ToolResult> {
     if (!this.client) {
       return { success: false, error: 'MCP client not connected' };
     }
@@ -76,7 +81,9 @@ export class McpClient {
   }
 
   async evaluate(expression: string): Promise<any> {
-    const result = await this.callTool('browser_evaluate', { function: expression });
+    const result = await this.callTool('browser_evaluate', {
+      function: expression,
+    });
     if (!result.success) throw new Error(result.error ?? 'Evaluate failed');
     const text = result.data ?? result.message ?? '';
     return this.parseMcpValue(text);
@@ -120,10 +127,14 @@ export class McpClient {
 
     if (options.headless) args.push('--headless');
     if (options.userDataDir) args.push('--user-data-dir', options.userDataDir);
-    if (options.executablePath) args.push('--executable-path', options.executablePath);
+    if (options.executablePath)
+      args.push('--executable-path', options.executablePath);
     if (options.browser) args.push('--browser', options.browser);
     if (options.viewport) {
-      args.push('--viewport-size', `${options.viewport.width}x${options.viewport.height}`);
+      args.push(
+        '--viewport-size',
+        `${options.viewport.width}x${options.viewport.height}`,
+      );
     }
     if (options.outputDir) args.push('--output-dir', options.outputDir);
 
@@ -131,18 +142,25 @@ export class McpClient {
   }
 
   private convertResult(raw: any): ToolResult {
-    const content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> =
-      raw?.content ?? [];
+    const content: Array<{
+      type: string;
+      text?: string;
+      data?: string;
+      mimeType?: string;
+    }> = raw?.content ?? [];
 
     if (raw?.isError) {
-      const errorText = content
-        .filter((c) => c.type === 'text')
-        .map((c) => c.text)
-        .join('\n') || 'Tool execution failed';
+      const errorText =
+        content
+          .filter((c) => c.type === 'text')
+          .map((c) => c.text)
+          .join('\n') || 'Tool execution failed';
       return { success: false, error: errorText };
     }
 
-    const textParts = content.filter((c) => c.type === 'text').map((c) => c.text ?? '');
+    const textParts = content
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text ?? '');
     const textContent = textParts.join('\n');
 
     const imageItem = content.find((c) => c.type === 'image');

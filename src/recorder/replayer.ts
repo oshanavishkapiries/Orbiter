@@ -35,7 +35,9 @@ export class FlowReplayer {
         if (flow) {
           logger.info(`Flow loaded from database: ${flow.name}`);
           logger.bullet(`Steps: ${flow.steps.length}`);
-          logger.bullet(`Created: ${new Date(flow.createdAt).toLocaleString()}`);
+          logger.bullet(
+            `Created: ${new Date(flow.createdAt).toLocaleString()}`,
+          );
           logger.bullet(`Type: ${flow.type}`);
           return flow as Flow;
         }
@@ -46,7 +48,9 @@ export class FlowReplayer {
 
     // Fallback to file
     if (!fileExists(flowOrId)) {
-      throw new Error(`Flow not found: "${flowOrId}" (tried database and file system)`);
+      throw new Error(
+        `Flow not found: "${flowOrId}" (tried database and file system)`,
+      );
     }
 
     const flow = readJson<Flow>(flowOrId);
@@ -63,7 +67,10 @@ export class FlowReplayer {
     return flow;
   }
 
-  async replay(flowOrId: string, options: ReplayOptions = {}): Promise<ReplayResult> {
+  async replay(
+    flowOrId: string,
+    options: ReplayOptions = {},
+  ): Promise<ReplayResult> {
     const startTime = Date.now();
     const cfg = config();
 
@@ -107,7 +114,9 @@ export class FlowReplayer {
     logger.info(`Total steps: ${flow.steps.length}`);
 
     if (flow.parameters.length > 0) {
-      logger.info(`Parameters: ${flow.parameters.map((p) => p.name).join(', ')}`);
+      logger.info(
+        `Parameters: ${flow.parameters.map((p) => p.name).join(', ')}`,
+      );
     }
 
     console.log('');
@@ -140,7 +149,10 @@ export class FlowReplayer {
         const result = await this.executeStep(step, params);
         stepsExecuted++;
 
-        if ((step.tool === 'save_csv' || step.tool === 'save_json') && result?.data) {
+        if (
+          (step.tool === 'save_csv' || step.tool === 'save_json') &&
+          result?.data
+        ) {
           if (Array.isArray(result.data)) {
             extractedData.push(...result.data);
           } else {
@@ -193,7 +205,10 @@ export class FlowReplayer {
     return result;
   }
 
-  private async executeStep(step: FlowStep, params: Record<string, any>): Promise<any> {
+  private async executeStep(
+    step: FlowStep,
+    params: Record<string, any>,
+  ): Promise<any> {
     const registry = getToolRegistry();
     const startTime = Date.now();
 
@@ -214,8 +229,11 @@ export class FlowReplayer {
     const duration = Date.now() - startTime;
 
     if (toolResult.success) {
-      logger.success(`${step.tool} completed in ${(duration / 1000).toFixed(1)}s`);
-      if (!this.mcpClient.isMcpTool(step.tool) && toolResult.message) logger.bullet(toolResult.message);
+      logger.success(
+        `${step.tool} completed in ${(duration / 1000).toFixed(1)}s`,
+      );
+      if (!this.mcpClient.isMcpTool(step.tool) && toolResult.message)
+        logger.bullet(toolResult.message);
     } else {
       throw new Error(toolResult.error || `Tool ${step.tool} failed`);
     }
@@ -241,7 +259,9 @@ export class FlowReplayer {
     }
 
     if (result.extractedData && result.extractedData.length > 0) {
-      console.log(`  ${chalk.green('Items extracted:')} ${result.extractedData.length}`);
+      console.log(
+        `  ${chalk.green('Items extracted:')} ${result.extractedData.length}`,
+      );
     }
 
     if (result.outputFiles && result.outputFiles.length > 0) {
@@ -266,8 +286,12 @@ export class FlowReplayer {
     const originalCost = flow.metadata?.estimatedCost;
     if (originalCost) {
       console.log(chalk.bold('vs. Original LLM execution:'));
-      console.log(`  Original cost: ${chalk.yellow(`$${originalCost.toFixed(4)}`)}`);
-      console.log(`  Original tokens: ${chalk.yellow(flow.metadata.totalTokensUsed?.toLocaleString() || '0')}`);
+      console.log(
+        `  Original cost: ${chalk.yellow(`$${originalCost.toFixed(4)}`)}`,
+      );
+      console.log(
+        `  Original tokens: ${chalk.yellow(flow.metadata.totalTokensUsed?.toLocaleString() || '0')}`,
+      );
       console.log(`  ${chalk.green('Cost saved: 100% 💰')}\n`);
     }
   }

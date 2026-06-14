@@ -220,7 +220,9 @@ export class FlowRecorder {
         );
         return id;
       } catch (err) {
-        logger.warn(`Failed to save flow to database: ${(err as Error).message}`);
+        logger.warn(
+          `Failed to save flow to database: ${(err as Error).message}`,
+        );
       }
     }
 

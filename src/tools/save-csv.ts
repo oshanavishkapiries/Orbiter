@@ -14,7 +14,8 @@ export const saveCsvTool: ToolDefinition = {
     properties: {
       data: {
         type: 'array',
-        description: 'Array of plain objects to save. Columns inferred from object keys.',
+        description:
+          'Array of plain objects to save. Columns inferred from object keys.',
       },
       storageKey: {
         type: 'string',
@@ -43,16 +44,29 @@ export const saveCsvTool: ToolDefinition = {
       const raw = await mcpClient.evaluate(
         `JSON.stringify(JSON.parse(localStorage.getItem(${key}) || '[]'))`,
       );
-      await mcpClient.evaluate(`localStorage.removeItem(${key})`).catch(() => {});
+      await mcpClient
+        .evaluate(`localStorage.removeItem(${key})`)
+        .catch(() => {});
       try {
-        records = typeof raw === 'string' ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
+        records =
+          typeof raw === 'string'
+            ? JSON.parse(raw)
+            : Array.isArray(raw)
+              ? raw
+              : [];
       } catch {
-        return { success: false, error: `Failed to parse localStorage data for key "${storageKey}"` };
+        return {
+          success: false,
+          error: `Failed to parse localStorage data for key "${storageKey}"`,
+        };
       }
     } else if (Array.isArray(data)) {
       records = data;
     } else {
-      return { success: false, error: 'Provide "data" (array) or "storageKey" (localStorage key).' };
+      return {
+        success: false,
+        error: 'Provide "data" (array) or "storageKey" (localStorage key).',
+      };
     }
 
     if (records.length === 0) {
@@ -60,7 +74,8 @@ export const saveCsvTool: ToolDefinition = {
     }
 
     const formatter = new OutputFormatter();
-    const name = filename || `data-${new Date().toISOString().slice(0, 10)}-${Date.now()}`;
+    const name =
+      filename || `data-${new Date().toISOString().slice(0, 10)}-${Date.now()}`;
     const ref = await formatter.saveCsv(records, name, context.getSessionId());
 
     if (!ref) {

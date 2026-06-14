@@ -1,7 +1,10 @@
 // A single part in a multimodal message
 export type ContentPart =
   | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
+  | {
+      type: 'image_url';
+      image_url: { url: string; detail?: 'low' | 'high' | 'auto' };
+    };
 
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';

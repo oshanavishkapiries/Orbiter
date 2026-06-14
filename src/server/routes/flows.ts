@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { DatabaseConnection } from '../../memory/database/connection.js';
 import { FlowRefiner } from '../../recorder/refiner/flow-refiner.js';
 
-export async function flowsRoutes(app: FastifyInstance<any, any, any, any, ZodTypeProvider>) {
-  
+export async function flowsRoutes(
+  app: FastifyInstance<any, any, any, any, ZodTypeProvider>,
+) {
   // 1. List Flows (with Pagination)
   const listFlowsSchema = z.object({
     page: z
@@ -81,7 +82,7 @@ export async function flowsRoutes(app: FastifyInstance<any, any, any, any, ZodTy
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 
   // 2. Refine Flow
@@ -91,12 +92,14 @@ export async function flowsRoutes(app: FastifyInstance<any, any, any, any, ZodTy
 
   const refineFlowBodySchema = z.object({
     mode: z.enum(['auto', 'llm', 'interactive']),
-    options: z.object({
-      removeFailures: z.boolean().optional(),
-      mergeSteps: z.boolean().optional(),
-      outputPath: z.string().optional(),
-      dryRun: z.boolean().optional(),
-    }).optional(),
+    options: z
+      .object({
+        removeFailures: z.boolean().optional(),
+        mergeSteps: z.boolean().optional(),
+        outputPath: z.string().optional(),
+        dryRun: z.boolean().optional(),
+      })
+      .optional(),
   });
 
   app.post(
@@ -113,7 +116,7 @@ export async function flowsRoutes(app: FastifyInstance<any, any, any, any, ZodTy
 
       try {
         const refiner = new FlowRefiner();
-        
+
         const refineOptions = {
           autoClean: mode === 'auto' || (options?.removeFailures ?? true),
           llmOptimize: mode === 'llm' || (options?.mergeSteps ?? true),
@@ -135,6 +138,6 @@ export async function flowsRoutes(app: FastifyInstance<any, any, any, any, ZodTy
           error: (err as Error).message,
         });
       }
-    }
+    },
   );
 }

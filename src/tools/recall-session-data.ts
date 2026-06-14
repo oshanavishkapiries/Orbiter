@@ -12,7 +12,10 @@ export const recallSessionDataTool: ToolDefinition = {
     properties: {},
     required: [],
   },
-  execute: async (_params: Record<string, never>, context: ExecutionContext): Promise<ToolResult> => {
+  execute: async (
+    _params: Record<string, never>,
+    context: ExecutionContext,
+  ): Promise<ToolResult> => {
     const repo = context.getSessionRepo();
     const sessionId = context.getSessionId();
 

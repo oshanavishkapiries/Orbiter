@@ -91,4 +91,3 @@ export function getUserPrompt(userGoal: string): string {
 
 Accomplish this using the available tools. Be concise — state what you are doing and report the result.`;
 }
-

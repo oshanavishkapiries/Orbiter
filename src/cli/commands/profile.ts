@@ -7,7 +7,9 @@ export function profileCommand() {
   const cmd = new Command('profile');
 
   cmd
-    .description('Manage browser profiles (persistent login sessions per site/account)')
+    .description(
+      'Manage browser profiles (persistent login sessions per site/account)',
+    )
     .addCommand(profileListCommand())
     .addCommand(profileCreateCommand())
     .addCommand(profileInfoCommand());
@@ -52,9 +54,19 @@ function profileListCommand() {
       }
 
       console.log(chalk.gray('Usage:'));
-      console.log(chalk.gray('  orbiter run "task" -p default          # default profile'));
-      console.log(chalk.gray('  orbiter run "task" -p work             # named profile'));
-      console.log(chalk.gray('  orbiter profile create <name>          # create a new profile'));
+      console.log(
+        chalk.gray(
+          '  orbiter run "task" -p default          # default profile',
+        ),
+      );
+      console.log(
+        chalk.gray('  orbiter run "task" -p work             # named profile'),
+      );
+      console.log(
+        chalk.gray(
+          '  orbiter profile create <name>          # create a new profile',
+        ),
+      );
       console.log('');
     });
 }
@@ -82,11 +94,13 @@ function profileCreateCommand() {
           chalk.white(`  orbiter run "your task" -p ${profile.name}`),
         );
         console.log('');
-        console.log(chalk.gray(
-          '  On the first run it will open a fresh browser. Log in to your\n' +
-          '  sites manually or via automation. From the second run onward,\n' +
-          '  Orbiter will reuse those saved sessions — no login needed.',
-        ));
+        console.log(
+          chalk.gray(
+            '  On the first run it will open a fresh browser. Log in to your\n' +
+              '  sites manually or via automation. From the second run onward,\n' +
+              '  Orbiter will reuse those saved sessions — no login needed.',
+          ),
+        );
         console.log('');
       } catch (err) {
         logger.error((err as Error).message);
@@ -116,13 +130,19 @@ function profileInfoCommand() {
       console.log('\n' + chalk.bold(`Profile: ${profile.name}`));
       console.log(chalk.gray('─'.repeat(50)));
       console.log(`  Path:        ${chalk.dim(profile.path)}`);
-      console.log(`  Saved state: ${hasSaved ? chalk.green('yes — cookies & sessions stored') : chalk.gray('none yet')}`);
+      console.log(
+        `  Saved state: ${hasSaved ? chalk.green('yes — cookies & sessions stored') : chalk.gray('none yet')}`,
+      );
 
       if (profile.createdAt) {
-        console.log(`  Created:     ${chalk.gray(new Date(profile.createdAt).toLocaleString())}`);
+        console.log(
+          `  Created:     ${chalk.gray(new Date(profile.createdAt).toLocaleString())}`,
+        );
       }
       if (profile.lastUsedAt) {
-        console.log(`  Last used:   ${chalk.gray(new Date(profile.lastUsedAt).toLocaleString())}`);
+        console.log(
+          `  Last used:   ${chalk.gray(new Date(profile.lastUsedAt).toLocaleString())}`,
+        );
       }
       if (profile.description) {
         console.log(`  Description: ${chalk.gray(profile.description)}`);
@@ -130,12 +150,16 @@ function profileInfoCommand() {
 
       console.log('');
       console.log(chalk.gray('How browser persistence works:'));
-      console.log(chalk.gray(
-        '  Playwright stores cookies, localStorage, IndexedDB, and\n' +
-        '  session tokens in this directory. Every time you run with\n' +
-        '  -p ' + name + ', the browser restores this state — just like\n' +
-        '  Chrome remembers your logins across restarts.',
-      ));
+      console.log(
+        chalk.gray(
+          '  Playwright stores cookies, localStorage, IndexedDB, and\n' +
+            '  session tokens in this directory. Every time you run with\n' +
+            '  -p ' +
+            name +
+            ', the browser restores this state — just like\n' +
+            '  Chrome remembers your logins across restarts.',
+        ),
+      );
       console.log('');
     });
 }

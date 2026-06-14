@@ -20,7 +20,8 @@ export class DatabaseConnection {
 
   private constructor() {
     const connString = getConnectionString();
-    const isLocal = connString.includes('localhost') || connString.includes('127.0.0.1');
+    const isLocal =
+      connString.includes('localhost') || connString.includes('127.0.0.1');
     this.pool = new Pool({
       connectionString: connString,
       ssl: isLocal ? false : { rejectUnauthorized: false },
