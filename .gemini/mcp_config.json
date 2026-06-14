@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://neondb_owner:npg_Tdb27EKIjaBL@ep-withered-band-aqlw2je3-pooler.c-8.us-east-1.aws.neon.tech/neondb"
+      ]
+    }
+  }
+}
