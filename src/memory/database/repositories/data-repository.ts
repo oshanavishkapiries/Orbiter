@@ -285,6 +285,20 @@ export class DataRepository extends BaseRepository<FlowRecord> {
         desc: 'Vision mode: auto, enabled, disabled',
       },
       {
+        key: 'llm.openrouterApiKey',
+        value: String(cfg.llm?.openrouterApiKey ?? ''),
+        type: 'string',
+        cat: 'llm',
+        desc: 'OpenRouter API Key',
+      },
+      {
+        key: 'llm.opencodeApiKey',
+        value: String(cfg.llm?.opencodeApiKey ?? ''),
+        type: 'string',
+        cat: 'llm',
+        desc: 'OpenCode Go API Key',
+      },
+      {
         key: 'browser.headless',
         value: String(cfg.browser?.headless ?? false),
         type: 'boolean',
@@ -471,6 +485,20 @@ export class DataRepository extends BaseRepository<FlowRecord> {
         type: 'string',
         cat: 'llm',
         desc: 'Vision mode: auto, enabled, disabled',
+      },
+      {
+        key: 'llm.openrouterApiKey',
+        value: String(cfg.llm?.openrouterApiKey ?? ''),
+        type: 'string',
+        cat: 'llm',
+        desc: 'OpenRouter API Key',
+      },
+      {
+        key: 'llm.opencodeApiKey',
+        value: String(cfg.llm?.opencodeApiKey ?? ''),
+        type: 'string',
+        cat: 'llm',
+        desc: 'OpenCode Go API Key',
       },
       {
         key: 'browser.headless',

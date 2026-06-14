@@ -653,13 +653,19 @@ function SessionsContent() {
                   <select
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all font-semibold"
+                    className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all font-semibold text-foreground"
                   >
-                    {modelsData?.success && modelsData.models.map((m: any) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
+                    {modelsData?.success && modelsData.models.length > 0 ? (
+                      modelsData.models.map((m: any) => (
+                        <option key={m.id} value={m.id} className="bg-neutral-900 text-neutral-100">
+                          {m.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled className="bg-neutral-900 text-neutral-100">
+                        No models available (check API keys)
                       </option>
-                    ))}
+                    )}
                   </select>
                 </div>
 
@@ -668,13 +674,19 @@ function SessionsContent() {
                   <select
                     value={selectedProfile}
                     onChange={(e) => setSelectedProfile(e.target.value)}
-                    className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all font-semibold"
+                    className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all font-semibold text-foreground"
                   >
-                    {profilesData?.success && profilesData.profiles.map((p: any) => (
-                      <option key={p.name} value={p.name}>
-                        {p.name}
+                    {profilesData?.success && profilesData.profiles.length > 0 ? (
+                      profilesData.profiles.map((p: any) => (
+                        <option key={p.name} value={p.name} className="bg-neutral-900 text-neutral-100">
+                          {p.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="default" className="bg-neutral-900 text-neutral-100">
+                        default
                       </option>
-                    ))}
+                    )}
                   </select>
                 </div>
               </div>

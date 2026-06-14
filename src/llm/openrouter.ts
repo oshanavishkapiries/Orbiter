@@ -14,12 +14,12 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
 
   constructor(apiKey?: string, model?: string, cfg?: any) {
     const activeCfg = cfg || config();
-    const resolvedApiKey = apiKey || process.env.OPENROUTER_API_KEY || '';
+    const resolvedApiKey = apiKey || activeCfg.llm.openrouterApiKey || process.env.OPENROUTER_API_KEY || '';
     const resolvedModel = model || activeCfg.llm.model;
 
     if (!resolvedApiKey) {
       throw new Error(
-        'OpenRouter API key not found. Set OPENROUTER_API_KEY environment variable.',
+        'OpenRouter API key not found. Please set it in Settings on the web dashboard or via environment variable.',
       );
     }
 

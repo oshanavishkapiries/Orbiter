@@ -213,9 +213,11 @@ export async function systemRoutes(
     },
     async (request, reply) => {
       const { provider } = request.query;
+      const userId = (request as any).user?.id;
 
       try {
-        const llmProvider = LLMFactory.create(provider);
+        const cfg = userId ? await getUserConfig(userId) : config();
+        const llmProvider = LLMFactory.create(provider, undefined, cfg);
         const models = await (llmProvider as any).getModels();
 
         const formattedModels = models.map((m: any) => ({

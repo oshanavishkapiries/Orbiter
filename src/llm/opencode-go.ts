@@ -6,12 +6,12 @@ export class OpenCodeGoProvider extends OpenAICompatibleProvider {
 
   constructor(apiKey?: string, model?: string, cfg?: any) {
     const activeCfg = cfg || config();
-    const resolvedApiKey = apiKey || process.env.OPENCODE_GO_API_KEY || '';
+    const resolvedApiKey = apiKey || activeCfg.llm.opencodeApiKey || process.env.OPENCODE_GO_API_KEY || '';
     const resolvedModel = model || activeCfg.llm.model;
 
     if (!resolvedApiKey) {
       throw new Error(
-        'OpenCode Go API key not found. Set OPENCODE_GO_API_KEY environment variable.',
+        'OpenCode Go API key not found. Please set it in Settings on the web dashboard or via environment variable.',
       );
     }
 

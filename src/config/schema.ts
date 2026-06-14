@@ -15,6 +15,8 @@ export const configSchema = z.object({
     maxTokens: z.number().default(4096),
     temperature: z.number().min(0).max(2).default(0.7),
     vision: z.enum(['auto', 'enabled', 'disabled']).default('auto'),
+    openrouterApiKey: z.string().default(''),
+    opencodeApiKey: z.string().default(''),
   }),
 
   browser: z.object({

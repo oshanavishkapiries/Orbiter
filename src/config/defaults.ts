@@ -8,6 +8,8 @@ export const defaults: OrbiterConfig = {
   llm: {
     provider: 'openrouter',
     model: 'anthropic/claude-sonnet-4',
+    openrouterApiKey: '',
+    opencodeApiKey: '',
     maxTokens: 4096,
     temperature: 0.7,
     vision: 'auto',

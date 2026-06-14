@@ -27,6 +27,8 @@ export default function SettingsPage() {
   // --- State for all dynamic settings ---
   const [llmProvider, setLlmProvider] = React.useState("openrouter")
   const [llmModel, setLlmModel] = React.useState("anthropic/claude-sonnet-4")
+  const [llmOpenrouterApiKey, setLlmOpenrouterApiKey] = React.useState("")
+  const [llmOpencodeApiKey, setLlmOpencodeApiKey] = React.useState("")
   const [llmMaxTokens, setLlmMaxTokens] = React.useState(4096)
   const [llmTemperature, setLlmTemperature] = React.useState(0.7)
   const [llmVision, setLlmVision] = React.useState("auto")
@@ -108,6 +110,8 @@ export default function SettingsPage() {
 
       setLlmProvider(getStr("llm.provider", "openrouter"))
       setLlmModel(getStr("llm.model", "anthropic/claude-sonnet-4"))
+      setLlmOpenrouterApiKey(getStr("llm.openrouterApiKey", ""))
+      setLlmOpencodeApiKey(getStr("llm.opencodeApiKey", ""))
       setLlmMaxTokens(getNum("llm.maxTokens", 4096))
       setLlmTemperature(getFloat("llm.temperature", 0.7))
       setLlmVision(getStr("llm.vision", "auto"))
@@ -154,6 +158,8 @@ export default function SettingsPage() {
     const payload = [
       { key: "llm.provider", value: llmProvider },
       { key: "llm.model", value: llmModel },
+      { key: "llm.openrouterApiKey", value: llmOpenrouterApiKey },
+      { key: "llm.opencodeApiKey", value: llmOpencodeApiKey },
       { key: "llm.maxTokens", value: llmMaxTokens.toString() },
       { key: "llm.temperature", value: llmTemperature.toString() },
       { key: "llm.vision", value: llmVision },
@@ -263,10 +269,10 @@ export default function SettingsPage() {
                     <select
                       value={llmProvider}
                       onChange={(e) => setLlmProvider(e.target.value)}
-                      className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold"
+                      className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
                     >
-                      <option value="openrouter">OpenRouter</option>
-                      <option value="opencode-go">OpenCode Go</option>
+                      <option value="openrouter" className="bg-neutral-900 text-neutral-100">OpenRouter</option>
+                      <option value="opencode-go" className="bg-neutral-900 text-neutral-100">OpenCode Go</option>
                     </select>
                   </div>
 
@@ -280,15 +286,45 @@ export default function SettingsPage() {
                       <select
                         value={llmModel}
                         onChange={(e) => setLlmModel(e.target.value)}
-                        className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold"
+                        className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
                       >
-                        {modelsData?.success && modelsData.models.map((m: any) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name}
+                        {modelsData?.success && modelsData.models.length > 0 ? (
+                          modelsData.models.map((m: any) => (
+                            <option key={m.id} value={m.id} className="bg-neutral-900 text-neutral-100">
+                              {m.name}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled className="bg-neutral-900 text-neutral-100">
+                            No models available (check API keys)
                           </option>
-                        ))}
+                        )}
                       </select>
                     )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">OpenRouter API Key</label>
+                    <input
+                      type="password"
+                      value={llmOpenrouterApiKey}
+                      onChange={(e) => setLlmOpenrouterApiKey(e.target.value)}
+                      placeholder="sk-or-..."
+                      className="w-full h-10 px-3.5 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">OpenCode API Key</label>
+                    <input
+                      type="password"
+                      value={llmOpencodeApiKey}
+                      onChange={(e) => setLlmOpencodeApiKey(e.target.value)}
+                      placeholder="sk-oc-..."
+                      className="w-full h-10 px-3.5 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
+                    />
                   </div>
                 </div>
 
@@ -297,11 +333,11 @@ export default function SettingsPage() {
                   <select
                     value={llmVision}
                     onChange={(e) => setLlmVision(e.target.value)}
-                    className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold"
+                    className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
                   >
-                    <option value="auto">Auto (Detect modal abilities dynamically)</option>
-                    <option value="enabled">Enabled (Force capture & vision updates)</option>
-                    <option value="disabled">Disabled (Text-only run context)</option>
+                    <option value="auto" className="bg-neutral-900 text-neutral-100">Auto (Detect modal abilities dynamically)</option>
+                    <option value="enabled" className="bg-neutral-900 text-neutral-100">Enabled (Force capture & vision updates)</option>
+                    <option value="disabled" className="bg-neutral-900 text-neutral-100">Disabled (Text-only run context)</option>
                   </select>
                 </div>
 
@@ -571,13 +607,13 @@ export default function SettingsPage() {
                     <select
                       value={logLevel}
                       onChange={(e) => setLogLevel(e.target.value)}
-                      className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold"
+                      className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
                     >
-                      <option value="error">Error</option>
-                      <option value="warn">Warn</option>
-                      <option value="info">Info</option>
-                      <option value="debug">Debug</option>
-                      <option value="trace">Trace</option>
+                      <option value="error" className="bg-neutral-900 text-neutral-100">Error</option>
+                      <option value="warn" className="bg-neutral-900 text-neutral-100">Warn</option>
+                      <option value="info" className="bg-neutral-900 text-neutral-100">Info</option>
+                      <option value="debug" className="bg-neutral-900 text-neutral-100">Debug</option>
+                      <option value="trace" className="bg-neutral-900 text-neutral-100">Trace</option>
                     </select>
                   </div>
 
