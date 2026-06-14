@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { config } from '../../config/index.js';
+import { config, getUserConfig } from '../../config/index.js';
 import { ProfileManager } from '../../browser/profile-manager.js';
 import { LLMFactory } from '../../llm/factory.js';
 import { DataRepository } from '../../memory/database/repositories/data-repository.js';
@@ -13,14 +13,41 @@ export async function systemRoutes(
   const profileManager = new ProfileManager();
 
   // 1. Get current configuration
-  app.get('/config', async () => {
+  app.get('/config', async (request, reply) => {
+    const userId = (request as any).user?.id;
+    const cfg = userId ? await getUserConfig(userId) : config();
     return {
       success: true,
-      config: config(),
+      config: cfg,
     };
   });
 
-  // 2. Update settings in database
+  // 2. Get user specific settings list
+  app.get('/settings', async (request, reply) => {
+    const userId = (request as any).user?.id;
+    if (!userId) {
+      return reply.status(401).send({
+        success: false,
+        error: 'Unauthorized',
+      });
+    }
+
+    try {
+      const repo = new DataRepository();
+      const settings = await repo.getUserSettings(userId);
+      return {
+        success: true,
+        settings,
+      };
+    } catch (err) {
+      return reply.status(500).send({
+        success: false,
+        error: `Failed to fetch settings: ${(err as Error).message}`,
+      });
+    }
+  });
+
+  // 3. Update settings in database
   const updateSettingsSchema = z.object({
     settings: z.array(
       z.object({
@@ -39,12 +66,18 @@ export async function systemRoutes(
     },
     async (request, reply) => {
       const { settings } = request.body;
+      const userId = (request as any).user?.id;
+
+      if (!userId) {
+        return reply.status(401).send({
+          success: false,
+          error: 'Unauthorized',
+        });
+      }
 
       try {
         const repo = new DataRepository();
-        for (const item of settings) {
-          await repo.setSetting(item.key, item.value);
-        }
+        await repo.updateUserSettings(userId, settings);
         return {
           success: true,
           message: 'Settings updated successfully',

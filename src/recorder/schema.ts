@@ -165,6 +165,7 @@ export interface ReplayOptions {
   skipSteps?: number[];
   stopOnError?: boolean;
   screenshotOnStep?: boolean;
+  config?: any;
 }
 
 export interface ReplayResult {

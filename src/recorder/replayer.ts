@@ -72,7 +72,7 @@ export class FlowReplayer {
     options: ReplayOptions = {},
   ): Promise<ReplayResult> {
     const startTime = Date.now();
-    const cfg = config();
+    const cfg = options.config || config();
 
     console.log('\n' + chalk.cyan.bold('🔄 ORBITER - Flow Replay') + '\n');
     console.log(chalk.gray('─'.repeat(60)) + '\n');

@@ -4,16 +4,16 @@ import { OpenRouterProvider } from './openrouter.js';
 import { OpenCodeGoProvider } from './opencode-go.js';
 
 export class LLMFactory {
-  static create(providerName?: string, model?: string): LLMProvider {
-    const cfg = config();
-    const provider = providerName || cfg.llm.provider;
+  static create(providerName?: string, model?: string, cfg?: any): LLMProvider {
+    const activeCfg = cfg || config();
+    const provider = providerName || activeCfg.llm.provider;
 
     switch (provider) {
       case 'openrouter':
-        return new OpenRouterProvider(undefined, model);
+        return new OpenRouterProvider(undefined, model, activeCfg);
 
       case 'opencode-go':
-        return new OpenCodeGoProvider(undefined, model);
+        return new OpenCodeGoProvider(undefined, model, activeCfg);
 
       // Future providers
       case 'openai':

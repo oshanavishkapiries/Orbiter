@@ -12,10 +12,10 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
   // Populated by loadCapabilities(); null means "not yet fetched"
   private capabilities: ModelCapabilities | null = null;
 
-  constructor(apiKey?: string, model?: string) {
-    const cfg = config();
+  constructor(apiKey?: string, model?: string, cfg?: any) {
+    const activeCfg = cfg || config();
     const resolvedApiKey = apiKey || process.env.OPENROUTER_API_KEY || '';
-    const resolvedModel = model || cfg.llm.model;
+    const resolvedModel = model || activeCfg.llm.model;
 
     if (!resolvedApiKey) {
       throw new Error(
@@ -30,6 +30,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
       baseURL: 'https://openrouter.ai/api/v1',
       referer: 'https://github.com/orbiter-ai',
       title: 'Orbiter Browser Automation',
+      config: activeCfg,
     });
   }
 
@@ -38,7 +39,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
   }
 
   supportsVision(): boolean {
-    const cfg = config();
+    const cfg = this.config || config();
 
     // Explicit config override always wins
     if (cfg.llm.vision === 'enabled') return true;
@@ -61,7 +62,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
    * Safe to call multiple times — only one API call is made per model.
    */
   async loadCapabilities(): Promise<void> {
-    const cfg = config();
+    const cfg = this.config || config();
     if (cfg.llm.vision === 'enabled' || cfg.llm.vision === 'disabled') {
       // No need to hit the API if user forced a value
       return;

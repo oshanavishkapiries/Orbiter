@@ -248,6 +248,11 @@ export const orbiterApi = {
     return handleResponse<any>(res);
   },
 
+  async getSettings() {
+    const res = await authFetch(ENDPOINTS.SYSTEM_SETTINGS);
+    return handleResponse<any>(res);
+  },
+
   async updateSettings(settings: { key: string; value: string }[]) {
     const res = await authFetch(ENDPOINTS.SYSTEM_SETTINGS, {
       method: 'PUT',

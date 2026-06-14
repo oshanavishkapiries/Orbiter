@@ -4,10 +4,10 @@ import { OpenAICompatibleProvider } from './openai-compatible.js';
 export class OpenCodeGoProvider extends OpenAICompatibleProvider {
   name = 'opencode-go';
 
-  constructor(apiKey?: string, model?: string) {
-    const cfg = config();
+  constructor(apiKey?: string, model?: string, cfg?: any) {
+    const activeCfg = cfg || config();
     const resolvedApiKey = apiKey || process.env.OPENCODE_GO_API_KEY || '';
-    const resolvedModel = model || cfg.llm.model;
+    const resolvedModel = model || activeCfg.llm.model;
 
     if (!resolvedApiKey) {
       throw new Error(
@@ -21,6 +21,7 @@ export class OpenCodeGoProvider extends OpenAICompatibleProvider {
       apiKey: resolvedApiKey,
       baseURL: 'https://opencode.ai/zen/go/v1',
       title: 'Orbiter Browser Automation',
+      config: activeCfg,
     });
   }
 

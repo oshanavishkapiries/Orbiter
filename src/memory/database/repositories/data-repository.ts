@@ -428,4 +428,213 @@ export class DataRepository extends BaseRepository<FlowRecord> {
       );
     }
   }
+
+  async seedUserSettings(userId: string, cfg: any): Promise<void> {
+    const entries: Array<{
+      key: string;
+      value: string;
+      type: string;
+      cat: string;
+      desc: string;
+    }> = [
+      {
+        key: 'llm.provider',
+        value: String(cfg.llm?.provider ?? 'openrouter'),
+        type: 'string',
+        cat: 'llm',
+        desc: 'LLM provider (openrouter, opencode-go, openai, anthropic)',
+      },
+      {
+        key: 'llm.model',
+        value: String(cfg.llm?.model ?? 'anthropic/claude-sonnet-4'),
+        type: 'string',
+        cat: 'llm',
+        desc: 'Default LLM model',
+      },
+      {
+        key: 'llm.maxTokens',
+        value: String(cfg.llm?.maxTokens ?? 4096),
+        type: 'number',
+        cat: 'llm',
+        desc: 'Max tokens per LLM response',
+      },
+      {
+        key: 'llm.temperature',
+        value: String(cfg.llm?.temperature ?? 0.7),
+        type: 'number',
+        cat: 'llm',
+        desc: 'LLM temperature (0-2)',
+      },
+      {
+        key: 'llm.vision',
+        value: String(cfg.llm?.vision ?? 'auto'),
+        type: 'string',
+        cat: 'llm',
+        desc: 'Vision mode: auto, enabled, disabled',
+      },
+      {
+        key: 'browser.headless',
+        value: String(cfg.browser?.headless ?? false),
+        type: 'boolean',
+        cat: 'browser',
+        desc: 'Run browser in headless mode',
+      },
+      {
+        key: 'browser.defaultTimeout',
+        value: String(cfg.browser?.defaultTimeout ?? 30000),
+        type: 'number',
+        cat: 'browser',
+        desc: 'Default browser action timeout (ms)',
+      },
+      {
+        key: 'browser.viewport.width',
+        value: String(cfg.browser?.viewport?.width ?? 1280),
+        type: 'number',
+        cat: 'browser',
+        desc: 'Browser viewport width (px)',
+      },
+      {
+        key: 'browser.viewport.height',
+        value: String(cfg.browser?.viewport?.height ?? 720),
+        type: 'number',
+        cat: 'browser',
+        desc: 'Browser viewport height (px)',
+      },
+      {
+        key: 'execution.maxSteps',
+        value: String(cfg.execution?.maxSteps ?? 100),
+        type: 'number',
+        cat: 'execution',
+        desc: 'Default max steps per execution run',
+      },
+      {
+        key: 'execution.maxRetries',
+        value: String(cfg.execution?.maxRetries ?? 3),
+        type: 'number',
+        cat: 'execution',
+        desc: 'Max tool retry attempts on failure',
+      },
+      {
+        key: 'execution.retryDelay',
+        value: String(cfg.execution?.retryDelay ?? 1000),
+        type: 'number',
+        cat: 'execution',
+        desc: 'Delay between retries (ms)',
+      },
+      {
+        key: 'execution.screenshotOnError',
+        value: String(cfg.execution?.screenshotOnError ?? true),
+        type: 'boolean',
+        cat: 'execution',
+        desc: 'Capture screenshot on tool error',
+      },
+      {
+        key: 'execution.screenshotOnStep',
+        value: String(cfg.execution?.screenshotOnStep ?? false),
+        type: 'boolean',
+        cat: 'execution',
+        desc: 'Capture screenshot after each step',
+      },
+      {
+        key: 'promptEnhancer.enabled',
+        value: String(cfg.promptEnhancer?.enabled ?? false),
+        type: 'boolean',
+        cat: 'promptEnhancer',
+        desc: 'Enable AI prompt enhancement before execution',
+      },
+      {
+        key: 'loop.defaultDelay.min',
+        value: String(cfg.loop?.defaultDelay?.min ?? 800),
+        type: 'number',
+        cat: 'loop',
+        desc: 'Min delay between loop iterations (ms)',
+      },
+      {
+        key: 'loop.defaultDelay.max',
+        value: String(cfg.loop?.defaultDelay?.max ?? 1500),
+        type: 'number',
+        cat: 'loop',
+        desc: 'Max delay between loop iterations (ms)',
+      },
+      {
+        key: 'loop.maxItems',
+        value: String(cfg.loop?.maxItems ?? 100),
+        type: 'number',
+        cat: 'loop',
+        desc: 'Max items to extract per loop run',
+      },
+      {
+        key: 'loop.scrollPauseTime',
+        value: String(cfg.loop?.scrollPauseTime ?? 1000),
+        type: 'number',
+        cat: 'loop',
+        desc: 'Pause after scroll (ms)',
+      },
+      {
+        key: 'recording.enabled',
+        value: String(cfg.recording?.enabled ?? true),
+        type: 'boolean',
+        cat: 'recording',
+        desc: 'Enable flow recording',
+      },
+      {
+        key: 'recording.includeScreenshots',
+        value: String(cfg.recording?.includeScreenshots ?? false),
+        type: 'boolean',
+        cat: 'recording',
+        desc: 'Include screenshots in flow recording',
+      },
+      {
+        key: 'logging.level',
+        value: String(cfg.logging?.level ?? 'info'),
+        type: 'string',
+        cat: 'logging',
+        desc: 'Log level: error, warn, info, debug, trace',
+      },
+      {
+        key: 'logging.console.enabled',
+        value: String(cfg.logging?.console?.enabled ?? true),
+        type: 'boolean',
+        cat: 'logging',
+        desc: 'Enable console logging',
+      },
+      {
+        key: 'logging.console.colorize',
+        value: String(cfg.logging?.console?.colorize ?? true),
+        type: 'boolean',
+        cat: 'logging',
+        desc: 'Colorize console output',
+      },
+    ];
+
+    for (const e of entries) {
+      await this.pool.query(
+        `INSERT INTO user_settings (user_id, key, value, value_type, category, description, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (user_id, key) DO NOTHING`,
+        [userId, e.key, e.value, e.type, e.cat, e.desc, this.now()],
+      );
+    }
+  }
+
+  async getUserSettings(userId: string): Promise<SettingRecord[]> {
+    const res = await this.pool.query(
+      `SELECT key, value, value_type as "valueType", category, description, updated_at as "updatedAt" 
+       FROM user_settings WHERE user_id = $1`,
+      [userId]
+    );
+    return res.rows;
+  }
+
+  async updateUserSettings(userId: string, settings: { key: string; value: string }[]): Promise<void> {
+    const timestamp = Date.now();
+    for (const s of settings) {
+      await this.pool.query(
+        `INSERT INTO user_settings (user_id, key, value, updated_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
+        [userId, s.key, s.value, timestamp]
+      );
+    }
+  }
 }

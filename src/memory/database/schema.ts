@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 
 export const CREATE_TABLES_SQL = `
@@ -380,6 +380,26 @@ export const MIGRATIONS: Record<number, string> = {
       password TEXT NOT NULL,
       created_at BIGINT NOT NULL
     );
+  `,
+
+  7: `
+    -- ═══════════════════════════════════════════════════════
+    -- USER SETTINGS & USER ASSOCIATION (v7)
+    -- ═══════════════════════════════════════════════════════
+
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      value_type TEXT NOT NULL DEFAULT 'string',
+      category TEXT,
+      description TEXT,
+      updated_at BIGINT NOT NULL,
+      PRIMARY KEY (user_id, key)
+    );
+
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE flows ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
   `,
 };
 

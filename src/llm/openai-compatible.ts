@@ -13,6 +13,7 @@ export interface OpenAICompatibleProviderOptions {
   title: string;
   referer?: string;
   timeout?: number;
+  config?: any;
 }
 
 export abstract class OpenAICompatibleProvider extends BaseLLMProvider {
@@ -20,6 +21,7 @@ export abstract class OpenAICompatibleProvider extends BaseLLMProvider {
   protected client: AxiosInstance;
   protected model: string;
   protected apiKey: string;
+  protected config: any;
 
   constructor(options: OpenAICompatibleProviderOptions) {
     super();
@@ -27,6 +29,7 @@ export abstract class OpenAICompatibleProvider extends BaseLLMProvider {
     this.name = options.providerName;
     this.model = options.model;
     this.apiKey = options.apiKey;
+    this.config = options.config;
 
     this.client = axios.create({
       baseURL: options.baseURL,
@@ -51,7 +54,7 @@ export abstract class OpenAICompatibleProvider extends BaseLLMProvider {
   async chat(messages: Message[], tools?: Tool[]): Promise<LLMResponse> {
     this.validateTools(tools);
 
-    const cfg = config();
+    const cfg = this.config || config();
     const callStart = Date.now();
     const payload: any = {
       model: this.model,

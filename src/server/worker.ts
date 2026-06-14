@@ -7,7 +7,7 @@ import { PromptEnhancer } from '../core/prompt-enhancer.js';
 import { LLMFactory } from '../llm/factory.js';
 import { initializeTools } from '../tools/index.js';
 import { McpClient } from '../mcp/client.js';
-import { config } from '../config/index.js';
+import { config, getUserConfig } from '../config/index.js';
 import { FlowReplayer } from '../recorder/replayer.js';
 import { logger } from '../cli/ui/logger.js';
 
@@ -170,7 +170,11 @@ async function runTask(sessionId: string, payload: any): Promise<void> {
     enhance,
     highlight,
   } = payload;
-  const cfg = config();
+  const pool = DatabaseConnection.getInstance().getPool();
+  const sessionRes = await pool.query('SELECT user_id FROM sessions WHERE id = $1', [sessionId]);
+  const userId = sessionRes.rows[0]?.user_id;
+  const cfg = userId ? await getUserConfig(userId) : config();
+
   const context = new ExecutionContext();
   const mcpClient = new McpClient();
 
@@ -188,7 +192,7 @@ async function runTask(sessionId: string, payload: any): Promise<void> {
     await mcpClient.connect(mcpOptions);
     context.setMcpClient(mcpClient);
 
-    const llm = LLMFactory.create(undefined, model);
+    const llm = LLMFactory.create(undefined, model, cfg);
     await llm.loadCapabilities();
 
     let activePrompt = prompt;
@@ -245,6 +249,12 @@ async function replayFlow(sessionId: string, payload: any): Promise<void> {
     screenshotSteps,
     skipSteps,
   } = payload;
+
+  const pool = DatabaseConnection.getInstance().getPool();
+  const sessionRes = await pool.query('SELECT user_id FROM sessions WHERE id = $1', [sessionId]);
+  const userId = sessionRes.rows[0]?.user_id;
+  const cfg = userId ? await getUserConfig(userId) : config();
+
   const replayer = new FlowReplayer();
 
   try {
@@ -256,6 +266,7 @@ async function replayFlow(sessionId: string, payload: any): Promise<void> {
       stopOnError,
       screenshotOnStep: screenshotSteps,
       skipSteps: skipSteps || [],
+      config: cfg,
     });
   } finally {
     await replayer.cleanup();

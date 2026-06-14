@@ -263,10 +263,12 @@ export async function executionRoutes(
       try {
         // Pre-allocate session
         const repo = new SessionRepository();
+        const userId = (request as any).user?.id;
         const sessionId = await repo.createSession(
           body.prompt,
           body.model,
           'openrouter',
+          userId,
         );
 
         // Queue background job
@@ -310,10 +312,12 @@ export async function executionRoutes(
 
       try {
         const repo = new SessionRepository();
+        const userId = (request as any).user?.id;
         const sessionId = await repo.createSession(
           `Replay flow: ${body.flowPath}`,
           undefined,
           'replayer',
+          userId,
         );
 
         // Queue background job

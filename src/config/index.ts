@@ -21,6 +21,8 @@ export class ConfigLoader {
 
   private findConfigPath(): string {
     const possiblePaths = [
+      path.join(process.cwd(), 'configuration.yml'),
+      path.join(process.cwd(), 'configuration.yaml'),
       path.join(process.cwd(), 'orbiter.yaml'),
       path.join(process.cwd(), 'orbiter.yml'),
       path.join(process.cwd(), 'config', 'default.yaml'),
@@ -34,7 +36,7 @@ export class ConfigLoader {
     }
 
     // Return default path even if doesn't exist
-    return possiblePaths[2];
+    return possiblePaths[4];
   }
 
   load(): OrbiterConfig {
@@ -131,3 +133,42 @@ export class ConfigLoader {
 }
 
 export const config = () => ConfigLoader.getInstance().getConfig();
+
+export async function getUserConfig(userId: string): Promise<OrbiterConfig> {
+  const { DataRepository } = await import('../memory/database/repositories/data-repository.js');
+  const dataRepo = new DataRepository();
+  const dbSettings = await dataRepo.getUserSettings(userId);
+  
+  // Start with default configurations
+  const baseConfig = ConfigLoader.getInstance().getConfig();
+  const merged: any = JSON.parse(JSON.stringify(baseConfig)); // deep clone
+
+  // Map flat key-value pairs back to the nested config structure
+  for (const s of dbSettings) {
+    const parts = s.key.split('.');
+    let current = merged;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!(part in current)) {
+        current[part] = {};
+      }
+      current = current[part];
+    }
+    
+    const lastPart = parts[parts.length - 1];
+    let typedValue: any = s.value;
+    if (s.valueType === 'number') {
+      typedValue = Number(s.value);
+    } else if (s.valueType === 'boolean') {
+      typedValue = s.value === 'true';
+    }
+    current[lastPart] = typedValue;
+  }
+
+  // Validate via zod schema
+  const result = configSchema.safeParse(merged);
+  if (!result.success) {
+    return baseConfig;
+  }
+  return result.data;
+}

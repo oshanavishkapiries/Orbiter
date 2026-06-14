@@ -57,12 +57,13 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     goal: string,
     model?: string,
     provider?: string,
+    userId?: string,
   ): Promise<string> {
     const id = this.generateId('sess');
     await this.pool.query(
-      `INSERT INTO sessions (id, goal, model, provider, status, created_at)
-       VALUES ($1, $2, $3, $4, 'running', $5)`,
-      [id, goal, model ?? null, provider ?? null, this.now()],
+      `INSERT INTO sessions (id, goal, model, provider, status, created_at, user_id)
+       VALUES ($1, $2, $3, $4, 'running', $5, $6)`,
+      [id, goal, model ?? null, provider ?? null, this.now(), userId ?? null],
     );
     return id;
   }
