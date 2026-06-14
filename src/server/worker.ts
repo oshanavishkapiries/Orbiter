@@ -14,7 +14,7 @@ import { logger } from '../cli/ui/logger.js';
 let workerInterval: NodeJS.Timeout | null = null;
 let isProcessing = false;
 
-// 1. Ensure jobs table exists
+// 1. Ensure jobs table exists and clean up dangling executions from crashes
 export async function initializeWorkerSchema(): Promise<void> {
   const pool = DatabaseConnection.getInstance().getPool();
   await pool.query(`
@@ -32,6 +32,36 @@ export async function initializeWorkerSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_orbiter_jobs_status ON orbiter_jobs(status);
     CREATE INDEX IF NOT EXISTS idx_orbiter_jobs_session_id ON orbiter_jobs(session_id);
   `);
+
+  logger.info('Checking for dangling background jobs and sessions from a previous crash...');
+  const now = Date.now();
+
+  // 1. Mark any running jobs as failed
+  const jobsCleanup = await pool.query(
+    `UPDATE orbiter_jobs 
+     SET status = 'failed', error = 'Backend server crashed or restarted', completed_at = $1 
+     WHERE status = 'running'`,
+    [now]
+  );
+  if (jobsCleanup.rowCount && jobsCleanup.rowCount > 0) {
+    logger.info(`Marked ${jobsCleanup.rowCount} dangling background jobs as failed.`);
+  }
+
+  // 2. Mark running sessions as failed (unless they are linked to a still pending job)
+  const sessionsCleanup = await pool.query(
+    `UPDATE orbiter_sessions 
+     SET status = 'failed', completed_at = $1 
+     WHERE status = 'running' 
+       AND id NOT IN (
+         SELECT DISTINCT session_id 
+         FROM orbiter_jobs 
+         WHERE status = 'pending'
+       )`,
+    [now]
+  );
+  if (sessionsCleanup.rowCount && sessionsCleanup.rowCount > 0) {
+    logger.info(`Marked ${sessionsCleanup.rowCount} dangling sessions as failed.`);
+  }
 }
 
 // 2. Enqueue a new background job
