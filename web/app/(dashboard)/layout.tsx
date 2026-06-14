@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useTheme } from "next-themes"
+
 import { Logo } from "@/components/logo"
 import {
   Bell,
@@ -49,7 +49,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { theme, setTheme } = useTheme()
+
   const [isCollapsed, setIsCollapsed] = React.useState(true)
   const [showNotifications, setShowNotifications] = React.useState(false)
   const [showProfileMenu, setShowProfileMenu] = React.useState(false)
@@ -86,10 +86,8 @@ export default function DashboardLayout({
         )}
       >
         {/* Brand/Logo Header */}
-        <div className="h-16 flex items-center px-6 border-b border-border/50 justify-between">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <Logo collapsed={isCollapsed} size="md" />
-          </div>
+        <div className="h-16 flex items-center justify-center border-b border-border/50 px-4 shrink-0">
+          <Logo collapsed={isCollapsed} size="md" />
         </div>
 
         {/* Navigation Items */}
@@ -163,12 +161,6 @@ export default function DashboardLayout({
                 className="w-full pl-9 pr-4 py-1.5 text-xs bg-muted/40 border border-border rounded-lg outline-hidden focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
               />
             </div>
-
-            {/* Assistance Help Tip */}
-            <span className="text-[11px] text-muted-foreground hidden lg:inline-flex items-center gap-1.5 bg-muted/30 border border-border/30 px-2.5 py-1 rounded-lg">
-              <HelpCircle className="size-3.5 text-primary shrink-0" />
-              <span>Press <kbd className="px-1 py-0.2 bg-background border rounded text-[10px] font-mono">d</kbd> to toggle theme</span>
-            </span>
           </div>
           <div className="md:hidden flex items-center gap-2">
             <span className="font-semibold text-sm">Orbiter</span>
@@ -176,20 +168,7 @@ export default function DashboardLayout({
 
           {/* Right Controls */}
           <div className="flex items-center gap-4">
-            {/* Theme Toggle Button */}
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Toggle Theme"
-            >
-              {!mounted ? (
-                <div className="size-5" />
-              ) : theme === "dark" ? (
-                <Sun className="size-5" />
-              ) : (
-                <Moon className="size-5" />
-              )}
-            </button>
+
 
             {/* Notification Bell */}
             <div className="relative" onClick={(e) => e.stopPropagation()}>
