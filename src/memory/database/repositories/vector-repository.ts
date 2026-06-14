@@ -15,7 +15,7 @@ export class VectorRepository {
     try {
       const embeddingStr = `[${input.embedding.join(',')}]`;
       const query = `
-        INSERT INTO vector_memories (
+        INSERT INTO orbiter_vector_memories (
           id, session_id, domain, task_summary, context_json, embedding, created_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       `;
@@ -43,7 +43,7 @@ export class VectorRepository {
         SELECT 
           id, session_id, domain, task_summary, context_json,
           1 - (embedding <=> $1::vector) as similarity
-        FROM vector_memories
+        FROM orbiter_vector_memories
         WHERE domain = $2
         ORDER BY embedding <=> $1::vector
         LIMIT $3

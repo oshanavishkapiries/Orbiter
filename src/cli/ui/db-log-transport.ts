@@ -24,7 +24,7 @@ export function dbLogEntry(level: string, message: string, meta?: any): void {
   const cleanMeta = Object.keys(rest).length > 0 ? rest : null;
   _pool
     .query(
-      `INSERT INTO app_logs (level, message, meta, session_id, created_at) VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO orbiter_app_logs (level, message, meta, session_id, created_at) VALUES ($1, $2, $3, $4, $5)`,
       [
         String(level),
         String(message),

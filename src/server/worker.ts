@@ -18,7 +18,7 @@ let isProcessing = false;
 export async function initializeWorkerSchema(): Promise<void> {
   const pool = DatabaseConnection.getInstance().getPool();
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS jobs (
+    CREATE TABLE IF NOT EXISTS orbiter_jobs (
       id SERIAL PRIMARY KEY,
       type TEXT NOT NULL,
       session_id TEXT NOT NULL,
@@ -29,8 +29,8 @@ export async function initializeWorkerSchema(): Promise<void> {
       started_at BIGINT,
       completed_at BIGINT
     );
-    CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-    CREATE INDEX IF NOT EXISTS idx_jobs_session_id ON jobs(session_id);
+    CREATE INDEX IF NOT EXISTS idx_orbiter_jobs_status ON orbiter_jobs(status);
+    CREATE INDEX IF NOT EXISTS idx_orbiter_jobs_session_id ON orbiter_jobs(session_id);
   `);
 }
 
@@ -42,7 +42,7 @@ export async function enqueueJob(
 ): Promise<number> {
   const pool = DatabaseConnection.getInstance().getPool();
   const result = await pool.query(
-    `INSERT INTO jobs (type, session_id, payload, status, created_at)
+    `INSERT INTO orbiter_jobs (type, session_id, payload, status, created_at)
      VALUES ($1, $2, $3, 'pending', $4) RETURNING id`,
     [type, sessionId, JSON.stringify(payload), Date.now()],
   );
@@ -88,10 +88,10 @@ async function processNextJob(): Promise<void> {
     // Atomically claim the next pending job using FOR UPDATE SKIP LOCKED
     const claimResult = await pool.query(
       `
-      UPDATE jobs
+      UPDATE orbiter_jobs
       SET status = 'running', started_at = $1
       WHERE id = (
-        SELECT id FROM jobs
+        SELECT id FROM orbiter_jobs
         WHERE status = 'pending'
         ORDER BY id ASC
         LIMIT 1
@@ -126,7 +126,7 @@ async function processNextJob(): Promise<void> {
 
         // Update job as completed
         await pool.query(
-          `UPDATE jobs SET status = 'completed', completed_at = $1 WHERE id = $2`,
+          `UPDATE orbiter_jobs SET status = 'completed', completed_at = $1 WHERE id = $2`,
           [Date.now(), job.id],
         );
         eventBus.emitStatus(sessionId, { status: 'completed' });
@@ -136,7 +136,7 @@ async function processNextJob(): Promise<void> {
         logger.error(`Job ${job.id} failed: ${errorMsg}`);
 
         await pool.query(
-          `UPDATE jobs SET status = 'failed', error = $1, completed_at = $2 WHERE id = $3`,
+          `UPDATE orbiter_jobs SET status = 'failed', error = $1, completed_at = $2 WHERE id = $3`,
           [errorMsg, Date.now(), job.id],
         );
         eventBus.emitStatus(sessionId, { status: 'failed', error: errorMsg });
@@ -150,7 +150,7 @@ async function processNextJob(): Promise<void> {
     // Check if there are more jobs immediately
     const pool = DatabaseConnection.getInstance().getPool();
     const pendingCheck = await pool.query(
-      `SELECT COUNT(*) FROM jobs WHERE status = 'pending'`,
+      `SELECT COUNT(*) FROM orbiter_jobs WHERE status = 'pending'`,
     );
     if (parseInt(pendingCheck.rows[0].count, 10) > 0) {
       setImmediate(() => processNextJob());
@@ -171,7 +171,7 @@ async function runTask(sessionId: string, payload: any): Promise<void> {
     highlight,
   } = payload;
   const pool = DatabaseConnection.getInstance().getPool();
-  const sessionRes = await pool.query('SELECT user_id FROM sessions WHERE id = $1', [sessionId]);
+  const sessionRes = await pool.query('SELECT user_id FROM orbiter_sessions WHERE id = $1', [sessionId]);
   const userId = sessionRes.rows[0]?.user_id;
   const cfg = userId ? await getUserConfig(userId) : config();
 
@@ -251,7 +251,7 @@ async function replayFlow(sessionId: string, payload: any): Promise<void> {
   } = payload;
 
   const pool = DatabaseConnection.getInstance().getPool();
-  const sessionRes = await pool.query('SELECT user_id FROM sessions WHERE id = $1', [sessionId]);
+  const sessionRes = await pool.query('SELECT user_id FROM orbiter_sessions WHERE id = $1', [sessionId]);
   const userId = sessionRes.rows[0]?.user_id;
   const cfg = userId ? await getUserConfig(userId) : config();
 

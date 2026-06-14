@@ -36,15 +36,15 @@ export async function executionRoutes(
         const pool = DatabaseConnection.getInstance().getPool();
 
         // 1. Query total sessions count
-        const countResult = await pool.query('SELECT COUNT(*) FROM sessions');
+        const countResult = await pool.query('SELECT COUNT(*) FROM orbiter_sessions');
         const totalItems = parseInt(countResult.rows[0].count, 10);
 
         // 2. Query sessions list with step counts
         const query = `
           SELECT s.id, s.goal, s.model, s.provider, s.status, s.created_at as "createdAt", s.completed_at as "completedAt",
                  COUNT(st.id) AS "stepCount"
-          FROM sessions s
-          LEFT JOIN session_steps st ON st.session_id = s.id
+          FROM orbiter_sessions s
+          LEFT JOIN orbiter_session_steps st ON st.session_id = s.id
           GROUP BY s.id
           ORDER BY s.created_at DESC
           LIMIT $1 OFFSET $2
@@ -111,7 +111,7 @@ export async function executionRoutes(
 
         // 1. Query session metadata
         const sessionResult = await pool.query(
-          'SELECT * FROM sessions WHERE id = $1',
+          'SELECT * FROM orbiter_sessions WHERE id = $1',
           [id],
         );
         if (sessionResult.rows.length === 0) {
@@ -147,11 +147,11 @@ export async function executionRoutes(
 
         // 3. Query extra counts
         const domResult = await pool.query(
-          'SELECT COUNT(*) AS cnt FROM session_dom_snapshots WHERE session_id = $1',
+          'SELECT COUNT(*) AS cnt FROM orbiter_session_dom_snapshots WHERE session_id = $1',
           [id],
         );
         const collectedResult = await pool.query(
-          'SELECT COUNT(*) AS cnt FROM session_collected_data WHERE session_id = $1',
+          'SELECT COUNT(*) AS cnt FROM orbiter_session_collected_data WHERE session_id = $1',
           [id],
         );
 
@@ -402,7 +402,7 @@ export async function executionRoutes(
       // Query sessions count by status
       const sessionsCountRes = await pool.query(`
         SELECT status, COUNT(*) as cnt 
-        FROM sessions 
+        FROM orbiter_sessions 
         GROUP BY status
       `);
       const sessionStats = {
@@ -426,7 +426,7 @@ export async function executionRoutes(
         SELECT COALESCE(SUM(total_tokens), 0) AS "totalTokens",
                COALESCE(SUM(prompt_tokens), 0) AS "promptTokens",
                COALESCE(SUM(completion_tokens), 0) AS "completionTokens"
-        FROM llm_interactions
+        FROM orbiter_llm_interactions
       `);
       const tokenStats = {
         total: parseInt(tokenSummaryRes.rows[0].totalTokens, 10),
@@ -438,7 +438,7 @@ export async function executionRoutes(
       const activityRes = await pool.query(`
         SELECT date_trunc('hour', to_timestamp(timestamp / 1000)) as hr,
                SUM(total_tokens) as tokens
-        FROM llm_interactions
+        FROM orbiter_llm_interactions
         GROUP BY hr
         ORDER BY hr ASC
         LIMIT 24

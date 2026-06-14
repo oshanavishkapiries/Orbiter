@@ -57,7 +57,7 @@ export class ErrorPatternRepository extends BaseRepository<ErrorPatternRow> {
     const id = this.generateId('err');
 
     await this.pool.query(
-      `INSERT INTO error_patterns (
+      `INSERT INTO orbiter_error_patterns (
         id, memory_id, domain, error_type, failed_selector, failed_tool,
         working_selector, recovery_strategy, context, page_url_pattern, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
@@ -81,7 +81,7 @@ export class ErrorPatternRepository extends BaseRepository<ErrorPatternRow> {
 
   async findById(id: string): Promise<ErrorPatternWithConfidence | null> {
     const result = await this.pool.query(
-      'SELECT * FROM error_patterns WHERE id = $1',
+      'SELECT * FROM orbiter_error_patterns WHERE id = $1',
       [id],
     );
     const pattern = result.rows[0] as ErrorPatternRow | undefined;
@@ -96,8 +96,8 @@ export class ErrorPatternRepository extends BaseRepository<ErrorPatternRow> {
   ): Promise<ErrorPatternWithConfidence | null> {
     if (failedSelector) {
       const exact = await this.pool.query(
-        `SELECT ep.* FROM error_patterns ep
-         JOIN memories m ON ep.memory_id = m.id
+        `SELECT ep.* FROM orbiter_error_patterns ep
+         JOIN orbiter_memories m ON ep.memory_id = m.id
          WHERE ep.domain = $1 AND ep.error_type = $2 AND ep.failed_selector = $3
            AND m.is_active = 1
          ORDER BY m.confidence DESC
@@ -110,8 +110,8 @@ export class ErrorPatternRepository extends BaseRepository<ErrorPatternRow> {
     }
 
     const typeMatch = await this.pool.query(
-      `SELECT ep.* FROM error_patterns ep
-       JOIN memories m ON ep.memory_id = m.id
+      `SELECT ep.* FROM orbiter_error_patterns ep
+       JOIN orbiter_memories m ON ep.memory_id = m.id
        WHERE ep.domain = $1 AND ep.error_type = $2 AND m.is_active = 1
        ORDER BY m.confidence DESC
        LIMIT 1`,
@@ -126,8 +126,8 @@ export class ErrorPatternRepository extends BaseRepository<ErrorPatternRow> {
 
   async findByDomain(domain: string): Promise<ErrorPatternWithConfidence[]> {
     const result = await this.pool.query(
-      `SELECT ep.* FROM error_patterns ep
-       JOIN memories m ON ep.memory_id = m.id
+      `SELECT ep.* FROM orbiter_error_patterns ep
+       JOIN orbiter_memories m ON ep.memory_id = m.id
        WHERE ep.domain = $1 AND m.is_active = 1
        ORDER BY m.confidence DESC`,
       [domain],
@@ -139,7 +139,7 @@ export class ErrorPatternRepository extends BaseRepository<ErrorPatternRow> {
 
   async recordSuccess(id: string): Promise<void> {
     const result = await this.pool.query(
-      'SELECT memory_id FROM error_patterns WHERE id = $1',
+      'SELECT memory_id FROM orbiter_error_patterns WHERE id = $1',
       [id],
     );
     if (result.rows[0]) {

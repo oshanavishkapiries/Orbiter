@@ -61,7 +61,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
   ): Promise<string> {
     const id = this.generateId('sess');
     await this.pool.query(
-      `INSERT INTO sessions (id, goal, model, provider, status, created_at, user_id)
+      `INSERT INTO orbiter_sessions (id, goal, model, provider, status, created_at, user_id)
        VALUES ($1, $2, $3, $4, 'running', $5, $6)`,
       [id, goal, model ?? null, provider ?? null, this.now(), userId ?? null],
     );
@@ -73,7 +73,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     status: 'completed' | 'failed' = 'completed',
   ): Promise<void> {
     await this.pool.query(
-      `UPDATE sessions SET status = $1, completed_at = $2 WHERE id = $3`,
+      `UPDATE orbiter_sessions SET status = $1, completed_at = $2 WHERE id = $3`,
       [status, this.now(), sessionId],
     );
   }
@@ -89,7 +89,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     duration?: number,
   ): Promise<void> {
     await this.pool.query(
-      `INSERT INTO session_steps
+      `INSERT INTO orbiter_session_steps
          (session_id, step_number, tool_name, params, result_summary, full_result, success, duration, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
@@ -115,7 +115,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     fullAnalysis: any,
   ): Promise<void> {
     await this.pool.query(
-      `INSERT INTO session_dom_snapshots
+      `INSERT INTO orbiter_session_dom_snapshots
          (session_id, step_number, url, title, interactive_elements, full_analysis, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
@@ -137,7 +137,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     data: any,
   ): Promise<void> {
     await this.pool.query(
-      `INSERT INTO session_collected_data (session_id, step_number, tool_name, data, created_at)
+      `INSERT INTO orbiter_session_collected_data (session_id, step_number, tool_name, data, created_at)
        VALUES ($1, $2, $3, $4, $5)`,
       [sessionId, stepNumber, toolName, JSON.stringify(data), this.now()],
     );
@@ -150,7 +150,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
   ): Promise<StepRecord[]> {
     let query = `
       SELECT step_number, tool_name, params, result_summary, success, duration, created_at
-      FROM session_steps
+      FROM orbiter_session_steps
       WHERE session_id = $1
     `;
     const values: any[] = [sessionId];
@@ -183,7 +183,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     stepNumber: number,
   ): Promise<any | null> {
     const result = await this.pool.query(
-      `SELECT full_result FROM session_steps WHERE session_id = $1 AND step_number = $2`,
+      `SELECT full_result FROM orbiter_session_steps WHERE session_id = $1 AND step_number = $2`,
       [sessionId, stepNumber],
     );
     return result.rows[0]?.full_result ?? null;
@@ -195,7 +195,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
   ): Promise<DomSnapshot | null> {
     let query = `
       SELECT step_number, url, title, interactive_elements, full_analysis, created_at
-      FROM session_dom_snapshots
+      FROM orbiter_session_dom_snapshots
       WHERE session_id = $1
     `;
     const values: any[] = [sessionId];
@@ -224,7 +224,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
   async getAllCollectedData(sessionId: string): Promise<CollectedDataRecord[]> {
     const result = await this.pool.query(
       `SELECT step_number, tool_name, data, created_at
-       FROM session_collected_data
+       FROM orbiter_session_collected_data
        WHERE session_id = $1
        ORDER BY step_number ASC`,
       [sessionId],
@@ -253,7 +253,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     timestamp: number,
   ): Promise<void> {
     await this.pool.query(
-      `INSERT INTO llm_interactions
+      `INSERT INTO orbiter_llm_interactions
          (session_id, call_index, full_messages, response_content, tool_calls,
           finish_reason, prompt_tokens, completion_tokens, total_tokens, duration_ms, timestamp)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
@@ -278,7 +278,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
       `SELECT id, session_id, call_index, full_messages, response_content,
               tool_calls, finish_reason, prompt_tokens, completion_tokens,
               total_tokens, duration_ms, timestamp
-       FROM llm_interactions
+       FROM orbiter_llm_interactions
        WHERE session_id = $1
        ORDER BY call_index ASC`,
       [sessionId],
@@ -302,7 +302,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
   async listSessions(limit = 50): Promise<SessionRecord[]> {
     const result = await this.pool.query(
       `SELECT id, goal, model, provider, status, created_at, completed_at
-       FROM sessions
+       FROM orbiter_sessions
        ORDER BY created_at DESC
        LIMIT $1`,
       [limit],

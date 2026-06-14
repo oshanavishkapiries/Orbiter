@@ -25,7 +25,7 @@ export async function authRoutes(
 
       try {
         const pool = DatabaseConnection.getInstance().getPool();
-        const res = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+        const res = await pool.query('SELECT * FROM orbiter_users WHERE username = $1', [username]);
 
         if (res.rows.length === 0 || res.rows[0].password !== password) {
           return reply.status(401).send({

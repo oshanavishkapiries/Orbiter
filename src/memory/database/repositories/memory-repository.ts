@@ -34,7 +34,7 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
     const now = this.now();
 
     await this.pool.query(
-      `INSERT INTO memories (
+      `INSERT INTO orbiter_memories (
         id, type, domain, url_pattern, key, confidence,
         usage_count, success_count, failure_count, learned_from,
         created_at, updated_at, is_active
@@ -61,7 +61,7 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
 
   async findById(id: string): Promise<MemoryRow | null> {
     const result = await this.pool.query(
-      'SELECT * FROM memories WHERE id = $1',
+      'SELECT * FROM orbiter_memories WHERE id = $1',
       [id],
     );
     return (result.rows[0] as MemoryRow) || null;
@@ -72,7 +72,7 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
     type: string,
   ): Promise<MemoryRow[]> {
     const result = await this.pool.query(
-      `SELECT * FROM memories
+      `SELECT * FROM orbiter_memories
        WHERE domain = $1 AND type = $2 AND is_active = 1
        ORDER BY confidence DESC, last_used_at DESC`,
       [domain, type],
@@ -86,7 +86,7 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
     key: string,
   ): Promise<MemoryRow | null> {
     const result = await this.pool.query(
-      `SELECT * FROM memories
+      `SELECT * FROM orbiter_memories
        WHERE domain = $1 AND type = $2 AND key = $3 AND is_active = 1`,
       [domain, type, key],
     );
@@ -99,7 +99,7 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
     limit: number = 10,
   ): Promise<MemoryRow[]> {
     const result = await this.pool.query(
-      `SELECT * FROM memories
+      `SELECT * FROM orbiter_memories
        WHERE domain = $1 AND key LIKE $2 AND is_active = 1
        ORDER BY confidence DESC
        LIMIT $3`,
@@ -111,7 +111,7 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
   async recordSuccess(id: string): Promise<void> {
     const now = this.now();
     await this.pool.query(
-      `UPDATE memories SET
+      `UPDATE orbiter_memories SET
         usage_count = usage_count + 1,
         success_count = success_count + 1,
         last_used_at = $1,
@@ -130,7 +130,7 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
   async recordFailure(id: string): Promise<void> {
     const now = this.now();
     await this.pool.query(
-      `UPDATE memories SET
+      `UPDATE orbiter_memories SET
         usage_count = usage_count + 1,
         failure_count = failure_count + 1,
         last_used_at = $1,
@@ -147,28 +147,28 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
 
   async updateConfidence(id: string, confidence: number): Promise<void> {
     await this.pool.query(
-      'UPDATE memories SET confidence = $1, updated_at = $2 WHERE id = $3',
+      'UPDATE orbiter_memories SET confidence = $1, updated_at = $2 WHERE id = $3',
       [confidence, this.now(), id],
     );
   }
 
   async deactivate(id: string): Promise<void> {
     await this.pool.query(
-      'UPDATE memories SET is_active = 0, updated_at = $1 WHERE id = $2',
+      'UPDATE orbiter_memories SET is_active = 0, updated_at = $1 WHERE id = $2',
       [this.now(), id],
     );
   }
 
   async deleteByDomain(domain: string): Promise<number> {
     const result = await this.pool.query(
-      'DELETE FROM memories WHERE domain = $1',
+      'DELETE FROM orbiter_memories WHERE domain = $1',
       [domain],
     );
     return result.rowCount || 0;
   }
 
   async deleteAll(): Promise<number> {
-    const result = await this.pool.query('DELETE FROM memories');
+    const result = await this.pool.query('DELETE FROM orbiter_memories');
     return result.rowCount || 0;
   }
 
@@ -179,13 +179,13 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
     averageConfidence: number;
   }> {
     const totalResult = await this.pool.query(
-      'SELECT COUNT(*) as count FROM memories WHERE is_active = 1',
+      'SELECT COUNT(*) as count FROM orbiter_memories WHERE is_active = 1',
     );
     const total = parseInt(totalResult.rows[0].count, 10);
 
     const byType: Record<string, number> = {};
     const typeRows = await this.pool.query(
-      'SELECT type, COUNT(*) as count FROM memories WHERE is_active = 1 GROUP BY type',
+      'SELECT type, COUNT(*) as count FROM orbiter_memories WHERE is_active = 1 GROUP BY type',
     );
     for (const row of typeRows.rows) {
       byType[row.type] = parseInt(row.count, 10);
@@ -193,7 +193,7 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
 
     const byDomain: Record<string, number> = {};
     const domainRows = await this.pool.query(
-      `SELECT domain, COUNT(*) as count FROM memories
+      `SELECT domain, COUNT(*) as count FROM orbiter_memories
        WHERE is_active = 1 GROUP BY domain ORDER BY count DESC LIMIT 20`,
     );
     for (const row of domainRows.rows) {
@@ -201,7 +201,7 @@ export class MemoryRepository extends BaseRepository<MemoryRow> {
     }
 
     const avgResult = await this.pool.query(
-      'SELECT AVG(confidence) as avg FROM memories WHERE is_active = 1',
+      'SELECT AVG(confidence) as avg FROM orbiter_memories WHERE is_active = 1',
     );
     const averageConfidence = parseFloat(avgResult.rows[0].avg) || 0;
 

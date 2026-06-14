@@ -246,14 +246,14 @@ export async function memoryRoutes(
         const pool = DatabaseConnection.getInstance().getPool();
         
         // Count total vector memories
-        const countRes = await pool.query('SELECT COUNT(*) FROM vector_memories');
+        const countRes = await pool.query('SELECT COUNT(*) FROM orbiter_vector_memories');
         const totalItems = parseInt(countRes.rows[0].count, 10);
 
         // Fetch paginated memories
         const query = `
           SELECT id, session_id as "sessionId", domain, task_summary as "taskSummary", 
                  context_json as "contextJson", created_at as "createdAt"
-          FROM vector_memories
+          FROM orbiter_vector_memories
           ORDER BY created_at DESC
           LIMIT $1 OFFSET $2
         `;

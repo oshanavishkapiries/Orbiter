@@ -63,7 +63,7 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
     const selectorId = this.generateId('sel');
 
     await this.pool.query(
-      `INSERT INTO selectors (
+      `INSERT INTO orbiter_selectors (
         id, memory_id, domain, element_name, element_type,
         primary_selector, page_url_pattern, description,
         created_at, updated_at
@@ -85,7 +85,7 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
     if (input.fallbacks && input.fallbacks.length > 0) {
       for (let i = 0; i < input.fallbacks.length; i++) {
         await this.pool.query(
-          'INSERT INTO selector_fallbacks (selector_id, fallback_selector, priority) VALUES ($1, $2, $3)',
+          'INSERT INTO orbiter_selector_fallbacks (selector_id, fallback_selector, priority) VALUES ($1, $2, $3)',
           [selectorId, input.fallbacks[i], i],
         );
       }
@@ -96,7 +96,7 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
 
   async findById(id: string): Promise<SelectorWithFallbacks | null> {
     const result = await this.pool.query(
-      'SELECT * FROM selectors WHERE id = $1',
+      'SELECT * FROM orbiter_selectors WHERE id = $1',
       [id],
     );
     const selector = result.rows[0] as SelectorRow | undefined;
@@ -109,8 +109,8 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
     elementName: string,
   ): Promise<SelectorWithFallbacks | null> {
     const result = await this.pool.query(
-      `SELECT s.* FROM selectors s
-       JOIN memories m ON s.memory_id = m.id
+      `SELECT s.* FROM orbiter_selectors s
+       JOIN orbiter_memories m ON s.memory_id = m.id
        WHERE s.domain = $1 AND s.element_name = $2 AND m.is_active = 1
        ORDER BY m.confidence DESC
        LIMIT 1`,
@@ -126,8 +126,8 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
     elementType: string,
   ): Promise<SelectorWithFallbacks[]> {
     const result = await this.pool.query(
-      `SELECT s.* FROM selectors s
-       JOIN memories m ON s.memory_id = m.id
+      `SELECT s.* FROM orbiter_selectors s
+       JOIN orbiter_memories m ON s.memory_id = m.id
        WHERE s.domain = $1 AND s.element_type = $2 AND m.is_active = 1
        ORDER BY m.confidence DESC`,
       [domain, elementType],
@@ -139,8 +139,8 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
 
   async findByDomain(domain: string): Promise<SelectorWithFallbacks[]> {
     const result = await this.pool.query(
-      `SELECT s.* FROM selectors s
-       JOIN memories m ON s.memory_id = m.id
+      `SELECT s.* FROM orbiter_selectors s
+       JOIN orbiter_memories m ON s.memory_id = m.id
        WHERE s.domain = $1 AND m.is_active = 1
        ORDER BY m.confidence DESC`,
       [domain],
@@ -155,8 +155,8 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
     namePattern: string,
   ): Promise<SelectorWithFallbacks[]> {
     const result = await this.pool.query(
-      `SELECT s.* FROM selectors s
-       JOIN memories m ON s.memory_id = m.id
+      `SELECT s.* FROM orbiter_selectors s
+       JOIN orbiter_memories m ON s.memory_id = m.id
        WHERE s.domain = $1 AND s.element_name LIKE $2 AND m.is_active = 1
        ORDER BY m.confidence DESC
        LIMIT 10`,
@@ -169,7 +169,7 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
 
   async updatePrimarySelector(id: string, newSelector: string): Promise<void> {
     await this.pool.query(
-      'UPDATE selectors SET primary_selector = $1, updated_at = $2 WHERE id = $3',
+      'UPDATE orbiter_selectors SET primary_selector = $1, updated_at = $2 WHERE id = $3',
       [newSelector, this.now(), id],
     );
   }
@@ -179,20 +179,20 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
     fallbackSelector: string,
   ): Promise<void> {
     const maxResult = await this.pool.query(
-      'SELECT MAX(priority) as max FROM selector_fallbacks WHERE selector_id = $1',
+      'SELECT MAX(priority) as max FROM orbiter_selector_fallbacks WHERE selector_id = $1',
       [selectorId],
     );
     const maxPriority = maxResult.rows[0]?.max || 0;
 
     await this.pool.query(
-      'INSERT INTO selector_fallbacks (selector_id, fallback_selector, priority) VALUES ($1, $2, $3)',
+      'INSERT INTO orbiter_selector_fallbacks (selector_id, fallback_selector, priority) VALUES ($1, $2, $3)',
       [selectorId, fallbackSelector, maxPriority + 1],
     );
   }
 
   async recordSuccess(selectorId: string): Promise<void> {
     const result = await this.pool.query(
-      'SELECT memory_id FROM selectors WHERE id = $1',
+      'SELECT memory_id FROM orbiter_selectors WHERE id = $1',
       [selectorId],
     );
     if (result.rows[0]) {
@@ -202,7 +202,7 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
 
   async recordFailure(selectorId: string): Promise<void> {
     const result = await this.pool.query(
-      'SELECT memory_id FROM selectors WHERE id = $1',
+      'SELECT memory_id FROM orbiter_selectors WHERE id = $1',
       [selectorId],
     );
     if (result.rows[0]) {
@@ -215,7 +215,7 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
     fallbackSelector: string,
   ): Promise<void> {
     await this.pool.query(
-      `UPDATE selector_fallbacks
+      `UPDATE orbiter_selector_fallbacks
        SET success_count = success_count + 1
        WHERE selector_id = $1 AND fallback_selector = $2`,
       [selectorId, fallbackSelector],
@@ -226,7 +226,7 @@ export class SelectorRepository extends BaseRepository<SelectorRow> {
     selector: SelectorRow,
   ): Promise<SelectorWithFallbacks> {
     const fallbackResult = await this.pool.query(
-      `SELECT * FROM selector_fallbacks
+      `SELECT * FROM orbiter_selector_fallbacks
        WHERE selector_id = $1
        ORDER BY priority`,
       [selector.id],

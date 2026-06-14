@@ -34,7 +34,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
   async saveFlow(flow: any, sessionId?: string | null): Promise<string> {
     const stepCount = Array.isArray(flow.steps) ? flow.steps.length : 0;
     await this.pool.query(
-      `INSERT INTO flows (id, session_id, name, type, step_count, flow_data, created_at)
+      `INSERT INTO orbiter_flows (id, session_id, name, type, step_count, flow_data, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (id) DO UPDATE SET flow_data = EXCLUDED.flow_data, step_count = EXCLUDED.step_count`,
       [
@@ -52,7 +52,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
 
   async loadFlow(id: string): Promise<any | null> {
     const result = await this.pool.query(
-      `SELECT flow_data FROM flows WHERE id = $1`,
+      `SELECT flow_data FROM orbiter_flows WHERE id = $1`,
       [id],
     );
     return result.rows[0]?.flow_data ?? null;
@@ -61,7 +61,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
   async listFlows(limit = 50): Promise<FlowRecord[]> {
     const result = await this.pool.query(
       `SELECT id, session_id, name, type, step_count, created_at
-       FROM flows ORDER BY created_at DESC LIMIT $1`,
+       FROM orbiter_flows ORDER BY created_at DESC LIMIT $1`,
       [limit],
     );
     return result.rows.map((row) => ({
@@ -86,7 +86,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
     flowId?: string | null,
   ): Promise<number> {
     const result = await this.pool.query(
-      `INSERT INTO outputs (session_id, flow_id, name, format, record_count, data, csv_content, created_at)
+      `INSERT INTO orbiter_outputs (session_id, flow_id, name, format, record_count, data, csv_content, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
       [
         sessionId ?? null,
@@ -104,7 +104,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
 
   async listOutputs(sessionId?: string, limit = 50): Promise<OutputRecord[]> {
     const values: any[] = [];
-    let query = `SELECT id, session_id, flow_id, name, format, record_count, created_at FROM outputs`;
+    let query = `SELECT id, session_id, flow_id, name, format, record_count, created_at FROM orbiter_outputs`;
     if (sessionId) {
       query += ` WHERE session_id = $1`;
       values.push(sessionId);
@@ -133,7 +133,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
   ): void {
     this.pool
       .query(
-        `INSERT INTO app_logs (level, message, meta, session_id, created_at) VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO orbiter_app_logs (level, message, meta, session_id, created_at) VALUES ($1, $2, $3, $4, $5)`,
         [
           level,
           String(message),
@@ -156,7 +156,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
     screenshotBase64: string | null,
   ): Promise<void> {
     await this.pool.query(
-      `INSERT INTO error_captures (id, session_id, error_type, error_message, url, screenshot_base64, created_at)
+      `INSERT INTO orbiter_error_captures (id, session_id, error_type, error_message, url, screenshot_base64, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
         id,
@@ -180,7 +180,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
     data: any,
   ): Promise<number> {
     const result = await this.pool.query(
-      `INSERT INTO reports (session_id, task_name, format, content, report_data, created_at)
+      `INSERT INTO orbiter_reports (session_id, task_name, format, content, report_data, created_at)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
       [
         sessionId,
@@ -198,7 +198,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
 
   async getSetting(key: string): Promise<string | null> {
     const result = await this.pool.query(
-      `SELECT value FROM settings WHERE key = $1`,
+      `SELECT value FROM orbiter_settings WHERE key = $1`,
       [key],
     );
     return result.rows[0]?.value ?? null;
@@ -212,7 +212,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
     description?: string,
   ): Promise<void> {
     await this.pool.query(
-      `INSERT INTO settings (key, value, value_type, category, description, updated_at)
+      `INSERT INTO orbiter_settings (key, value, value_type, category, description, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, value_type = EXCLUDED.value_type, updated_at = EXCLUDED.updated_at`,
       [
@@ -229,7 +229,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
   async getAllSettings(): Promise<SettingRecord[]> {
     const result = await this.pool.query(
       `SELECT key, value, value_type, category, description, updated_at
-       FROM settings ORDER BY category, key`,
+       FROM orbiter_settings ORDER BY category, key`,
     );
     return result.rows.map((row) => ({
       key: row.key,
@@ -421,7 +421,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
 
     for (const e of entries) {
       await this.pool.query(
-        `INSERT INTO settings (key, value, value_type, category, description, updated_at)
+        `INSERT INTO orbiter_settings (key, value, value_type, category, description, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (key) DO NOTHING`,
         [e.key, e.value, e.type, e.cat, e.desc, this.now()],
@@ -609,7 +609,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
 
     for (const e of entries) {
       await this.pool.query(
-        `INSERT INTO user_settings (user_id, key, value, value_type, category, description, updated_at)
+        `INSERT INTO orbiter_user_settings (user_id, key, value, value_type, category, description, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (user_id, key) DO NOTHING`,
         [userId, e.key, e.value, e.type, e.cat, e.desc, this.now()],
@@ -620,7 +620,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
   async getUserSettings(userId: string): Promise<SettingRecord[]> {
     const res = await this.pool.query(
       `SELECT key, value, value_type as "valueType", category, description, updated_at as "updatedAt" 
-       FROM user_settings WHERE user_id = $1`,
+       FROM orbiter_user_settings WHERE user_id = $1`,
       [userId]
     );
     return res.rows;
@@ -630,7 +630,7 @@ export class DataRepository extends BaseRepository<FlowRecord> {
     const timestamp = Date.now();
     for (const s of settings) {
       await this.pool.query(
-        `INSERT INTO user_settings (user_id, key, value, updated_at)
+        `INSERT INTO orbiter_user_settings (user_id, key, value, updated_at)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
         [userId, s.key, s.value, timestamp]

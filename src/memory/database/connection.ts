@@ -75,7 +75,7 @@ export class DatabaseConnection {
         logger.debug(`Applying migration to version ${version}`);
         await client.query(migration);
         await client.query(
-          'INSERT INTO schema_version (version, applied_at) VALUES ($1, $2)',
+          'INSERT INTO orbiter_schema_version (version, applied_at) VALUES ($1, $2)',
           [version, Date.now()],
         );
       }
@@ -85,7 +85,7 @@ export class DatabaseConnection {
   private async getCurrentSchemaVersion(client: PoolClient): Promise<number> {
     try {
       const result = await client.query(
-        'SELECT MAX(version) as version FROM schema_version',
+        'SELECT MAX(version) as version FROM orbiter_schema_version',
       );
       return result.rows[0]?.version || 0;
     } catch {
@@ -128,23 +128,23 @@ export class DatabaseConnection {
     const url = new URL(getConnectionString());
 
     const tableNames = [
-      'memories',
-      'selectors',
-      'selector_fallbacks',
-      'error_patterns',
-      'site_behaviors',
-      'page_structures',
-      'successful_flows',
-      'usage_logs',
-      'sessions',
-      'session_steps',
-      'llm_interactions',
-      'flows',
-      'outputs',
-      'app_logs',
-      'error_captures',
-      'reports',
-      'settings',
+      'orbiter_memories',
+      'orbiter_selectors',
+      'orbiter_selector_fallbacks',
+      'orbiter_error_patterns',
+      'orbiter_sessions',
+      'orbiter_session_steps',
+      'orbiter_llm_interactions',
+      'orbiter_flows',
+      'orbiter_outputs',
+      'orbiter_app_logs',
+      'orbiter_error_captures',
+      'orbiter_reports',
+      'orbiter_settings',
+      'orbiter_vector_memories',
+      'orbiter_users',
+      'orbiter_user_settings',
+      'orbiter_jobs',
     ];
 
     const tables: Record<string, number> = {};

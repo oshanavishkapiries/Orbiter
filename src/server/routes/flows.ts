@@ -35,7 +35,7 @@ export async function flowsRoutes(
         const pool = DatabaseConnection.getInstance().getPool();
 
         // 1. Query matching count
-        let countQuery = `SELECT COUNT(*) FROM flows`;
+        let countQuery = `SELECT COUNT(*) FROM orbiter_flows`;
         const countParams: any[] = [];
         if (type) {
           countQuery += ` WHERE type = $1`;
@@ -45,7 +45,7 @@ export async function flowsRoutes(
         const totalItems = parseInt(countResult.rows[0].count, 10);
 
         // 2. Query items
-        let query = `SELECT id, session_id as "sessionId", name, type, step_count as "stepCount", created_at as "createdAt" FROM flows`;
+        let query = `SELECT id, session_id as "sessionId", name, type, step_count as "stepCount", created_at as "createdAt" FROM orbiter_flows`;
         const queryParams: any[] = [];
         if (type) {
           query += ` WHERE type = $1`;

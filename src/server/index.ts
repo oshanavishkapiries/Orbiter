@@ -27,13 +27,13 @@ async function main() {
     const adminUsername = process.env.ADMIN_USERNAME || 'admin';
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin';
 
-    const checkRes = await pool.query('SELECT * FROM users WHERE username = $1', [adminUsername]);
+    const checkRes = await pool.query('SELECT * FROM orbiter_users WHERE username = $1', [adminUsername]);
     let adminUserId = '';
     if (checkRes.rows.length === 0) {
       logger.info(`Seeding default admin user: ${adminUsername}...`);
       adminUserId = `usr_${Math.random().toString(36).substring(2, 12)}`;
       await pool.query(
-        'INSERT INTO users (id, username, password, created_at) VALUES ($1, $2, $3, $4)',
+        'INSERT INTO orbiter_users (id, username, password, created_at) VALUES ($1, $2, $3, $4)',
         [adminUserId, adminUsername, adminPassword, Date.now()]
       );
       logger.info('Admin user seeded successfully.');
@@ -42,7 +42,7 @@ async function main() {
       if (checkRes.rows[0].password !== adminPassword) {
         logger.info(`Updating admin user password to match environment config...`);
         await pool.query(
-          'UPDATE users SET password = $1 WHERE username = $2',
+          'UPDATE orbiter_users SET password = $1 WHERE username = $2',
           [adminPassword, adminUsername]
         );
         logger.info('Admin user password updated.');

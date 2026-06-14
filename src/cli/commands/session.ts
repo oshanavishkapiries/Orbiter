@@ -34,8 +34,8 @@ function sessionListCommand() {
       const result = await pool.query(
         `SELECT s.id, s.goal, s.model, s.provider, s.status, s.created_at, s.completed_at,
                 COUNT(st.id) AS step_count
-         FROM sessions s
-         LEFT JOIN session_steps st ON st.session_id = s.id
+         FROM orbiter_sessions s
+         LEFT JOIN orbiter_session_steps st ON st.session_id = s.id
          GROUP BY s.id
          ORDER BY s.created_at DESC
          LIMIT $1`,
@@ -100,7 +100,7 @@ function sessionShowCommand() {
       // Session header
       const pool = DatabaseConnection.getInstance().getPool();
       const sessionRow = await pool.query(
-        'SELECT * FROM sessions WHERE id = $1',
+        'SELECT * FROM orbiter_sessions WHERE id = $1',
         [sessionId],
       );
 
@@ -153,14 +153,14 @@ function sessionShowCommand() {
 
       // DOM snapshots summary
       const domResult = await pool.query(
-        'SELECT COUNT(*) AS cnt FROM session_dom_snapshots WHERE session_id = $1',
+        'SELECT COUNT(*) AS cnt FROM orbiter_session_dom_snapshots WHERE session_id = $1',
         [sessionId],
       );
       const domCount = domResult.rows[0]?.cnt ?? 0;
 
       // Collected data summary
       const dataResult = await pool.query(
-        'SELECT COUNT(*) AS cnt FROM session_collected_data WHERE session_id = $1',
+        'SELECT COUNT(*) AS cnt FROM orbiter_session_collected_data WHERE session_id = $1',
         [sessionId],
       );
       const dataCount = dataResult.rows[0]?.cnt ?? 0;
