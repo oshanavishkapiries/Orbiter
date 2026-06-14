@@ -2,33 +2,48 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Lock, Mail } from "lucide-react"
+import { Eye, EyeOff, Lock, User } from "lucide-react"
 import { Logo } from "@/components/logo"
+import { orbiterApi } from "../lib/endpoint"
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = React.useState("")
+  const [username, setUsername] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [showPassword, setShowPassword] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  React.useEffect(() => {
+    // If already logged in, redirect directly to dashboard
+    if (orbiterApi.isAuthenticated()) {
+      router.push("/dashboard")
+    }
+  }, [router])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
-    if (!email || !password) {
+    if (!username || !password) {
       setError("Please fill in all fields")
       return
     }
 
     setIsLoading(true)
 
-    // Bypass authentication logic and redirect to dashboard
-    setTimeout(() => {
+    try {
+      const data = await orbiterApi.login({ username, password })
+      if (data.success) {
+        router.push("/dashboard")
+      } else {
+        setError(data.error || "Invalid username or password")
+      }
+    } catch (err: any) {
+      setError(err.message || "Invalid credentials or login failed")
+    } finally {
       setIsLoading(false)
-      router.push("/dashboard")
-    }, 800)
+    }
   }
 
   return (
@@ -50,8 +65,7 @@ export default function LoginPage() {
         </div>
 
         {/* Card Container */}
-        <div className="">
-          
+        <div>
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-xs font-medium">
               {error}
@@ -59,21 +73,21 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email Field */}
+            {/* Username Field */}
             <div className="space-y-1.5">
-              <label htmlFor="email" className="text-xs font-medium text-muted-foreground">
-                Email Address
+              <label htmlFor="username" className="text-xs font-medium text-muted-foreground">
+                Username
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-primary transition-colors">
-                  <Mail className="size-4" />
+                  <User className="size-4" />
                 </div>
                 <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@company.com"
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Username"
                   className="block w-full pl-10 pr-3 py-2 text-sm bg-background/50 border border-border rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all dark:bg-background/25"
                   required
                 />

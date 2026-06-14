@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
 import { Logo } from "@/components/logo"
+import { orbiterApi } from "@/lib/endpoint"
 import {
   Bell,
   Brain,
@@ -57,10 +58,16 @@ export default function DashboardLayout({
   const [showProfileMenu, setShowProfileMenu] = React.useState(false)
   const [unreadNotifications, setUnreadNotifications] = React.useState(3)
   const [mounted, setMounted] = React.useState(false)
+  const [user, setUser] = React.useState<{ username: string } | null>(null)
 
   React.useEffect(() => {
-    setMounted(true)
-  }, [])
+    if (!orbiterApi.isAuthenticated()) {
+      router.push("/")
+    } else {
+      setUser(orbiterApi.getCurrentUser())
+      setMounted(true)
+    }
+  }, [router])
 
   const notifications = [
     { id: 1, title: "Flow Completed", desc: "Ingest-User-Data executed successfully", time: "5m ago", type: "success" },
@@ -77,6 +84,16 @@ export default function DashboardLayout({
     window.addEventListener("click", handleClickOutside)
     return () => window.removeEventListener("click", handleClickOutside)
   }, [])
+
+  if (!mounted) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background">
+        <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  const userInitials = user ? user.username.substring(0, 2).toUpperCase() : "US"
 
   return (
     <div className="h-screen w-screen flex bg-background text-foreground transition-colors duration-200 overflow-hidden">
@@ -239,7 +256,7 @@ export default function DashboardLayout({
                 className="flex items-center focus:outline-none cursor-pointer hover:opacity-90 transition-opacity"
               >
                 <div className="size-8 rounded-full bg-linear-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white font-semibold text-xs shadow-xs border border-border/30">
-                  JD
+                  {userInitials}
                 </div>
               </button>
 
@@ -247,8 +264,8 @@ export default function DashboardLayout({
               {showProfileMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-popover text-popover-foreground border border-border rounded-xl shadow-xl z-50 overflow-hidden py-1">
                   <div className="px-4 py-2 border-b border-border/50">
-                    <p className="text-xs font-semibold">John Doe</p>
-                    <p className="text-[10px] text-muted-foreground">john@company.com</p>
+                    <p className="text-xs font-semibold">{user?.username || 'User'}</p>
+                    <p className="text-[10px] text-muted-foreground">Logged In</p>
                   </div>
                   <div className="py-1">
                     <Link
@@ -268,7 +285,7 @@ export default function DashboardLayout({
                   </div>
                   <div className="border-t border-border/50 py-1">
                     <button
-                      onClick={() => router.push("/")}
+                      onClick={() => orbiterApi.logout()}
                       className="w-full flex items-center gap-2 px-4 py-2 text-xs hover:bg-destructive/10 text-destructive hover:text-destructive transition-colors text-left cursor-pointer"
                     >
                       <LogOut className="size-3.5" />

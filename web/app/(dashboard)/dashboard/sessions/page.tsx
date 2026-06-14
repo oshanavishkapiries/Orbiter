@@ -158,7 +158,11 @@ function SessionsContent() {
     const isActive = sessObj ? (sessObj.status === "running" || sessObj.status === "queued") : true
 
     if (isActive) {
-      eventSource = new EventSource(`/api/v1/execution/stream/${selectedSessionId}`)
+      const token = typeof window !== 'undefined' ? localStorage.getItem('orbiter_token') : '';
+      const sseUrl = token
+        ? `/api/v1/execution/stream/${selectedSessionId}?token=${encodeURIComponent(token)}`
+        : `/api/v1/execution/stream/${selectedSessionId}`;
+      eventSource = new EventSource(sseUrl)
 
       eventSource.addEventListener("connected", () => {
         setStreamLogs(prev => [...prev, { type: "system", message: "SSE Connection established.", timestamp: Date.now() }])

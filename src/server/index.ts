@@ -2,6 +2,9 @@ import 'dotenv/config';
 import { createServer } from './app.js';
 import { DatabaseConnection } from '../memory/database/connection.js';
 import { logger } from '../cli/ui/logger.js';
+import { config } from '../config/index.js';
+import { DataRepository } from '../memory/database/repositories/data-repository.js';
+import { getOrGenerateKeys } from './jwt.js';
 
 const PORT = parseInt(process.env.PORT || '4040', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -12,6 +15,41 @@ async function main() {
     logger.info('Connecting to database...');
     await DatabaseConnection.getInstance().initialize();
     logger.info('Database connected successfully.');
+
+    // Seed settings from config
+    logger.info('Checking settings seeds...');
+    const dataRepo = new DataRepository();
+    await dataRepo.seedSettings(config());
+    logger.info('Settings checked/seeded successfully.');
+
+    // Seed default admin user from environment or fallbacks
+    const pool = DatabaseConnection.getInstance().getPool();
+    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin';
+
+    const checkRes = await pool.query('SELECT * FROM users WHERE username = $1', [adminUsername]);
+    if (checkRes.rows.length === 0) {
+      logger.info(`Seeding default admin user: ${adminUsername}...`);
+      await pool.query(
+        'INSERT INTO users (id, username, password, created_at) VALUES ($1, $2, $3, $4)',
+        [`usr_${Math.random().toString(36).substring(2, 12)}`, adminUsername, adminPassword, Date.now()]
+      );
+      logger.info('Admin user seeded successfully.');
+    } else if (checkRes.rows[0].password !== adminPassword) {
+      logger.info(`Updating admin user password to match environment config...`);
+      await pool.query(
+        'UPDATE users SET password = $1 WHERE username = $2',
+        [adminPassword, adminUsername]
+      );
+      logger.info('Admin user password updated.');
+    } else {
+      logger.info(`Admin user "${adminUsername}" already exists and matches configuration.`);
+    }
+
+    // Seed/check JWT keys
+    logger.info('Checking JWT cryptographic keys...');
+    await getOrGenerateKeys();
+    logger.info('JWT keys checked/initialized successfully.');
 
     // Initialize worker schemas and start worker
     const { initializeWorkerSchema, startWorker, stopWorker } =

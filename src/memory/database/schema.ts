@@ -1,4 +1,5 @@
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
+
 
 export const CREATE_TABLES_SQL = `
 -- ═══════════════════════════════════════════════════════
@@ -367,4 +368,18 @@ export const MIGRATIONS: Record<number, string> = {
 
     CREATE INDEX IF NOT EXISTS idx_vector_memories_domain ON vector_memories(domain);
   `,
+
+  6: `
+    -- ═══════════════════════════════════════════════════════
+    -- USER AUTH TABLES (v6)
+    -- ═══════════════════════════════════════════════════════
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      created_at BIGINT NOT NULL
+    );
+  `,
 };
+
