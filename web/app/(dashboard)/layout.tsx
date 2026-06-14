@@ -15,6 +15,7 @@ import {
   HelpCircle,
   LayoutDashboard,
   LogOut,
+  Menu,
   Moon,
   Search,
   Settings,
@@ -136,42 +137,40 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        {/* Sidebar Footer Controls */}
-        <div className="p-3 border-t border-border/50 space-y-2">
-          {!isCollapsed && (
-            <div className="p-3 rounded-xl bg-muted/30 border border-border/30 text-xs text-muted-foreground flex items-center gap-2">
-              <HelpCircle className="size-4 shrink-0 text-primary" />
-              <div>
-                <p className="font-medium text-foreground">Need Assistance?</p>
-                <p className="mt-0.5 text-[10px]">Press <kbd className="px-1 py-0.5 bg-background border rounded-sm">d</kbd> to toggle theme</p>
-              </div>
-            </div>
-          )}
 
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="w-full flex items-center justify-center h-9 rounded-lg hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-          >
-            {isCollapsed ? <ChevronRight className="size-5" /> : <ChevronLeft className="size-5" />}
-          </button>
-        </div>
       </aside>
 
       {/* MAIN LAYOUT WRAPPER */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* TOPBAR */}
         <header className="h-16 shrink-0 border-b border-border/50 bg-background/70 backdrop-blur-md flex items-center justify-between px-6 md:px-8 z-30">
-          {/* Left search */}
-          <div className="relative w-64 max-w-xs hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search workspaces..."
-              className="w-full pl-9 pr-4 py-1.5 text-xs bg-muted/40 border border-border rounded-lg outline-hidden focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
-            />
+          {/* Left section: Collapse toggle, Search & Help Tip */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isCollapsed ? <Menu className="size-5" /> : <ChevronLeft className="size-5" />}
+            </button>
+
+            {/* Left search */}
+            <div className="relative w-64 max-w-xs hidden md:block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search workspaces..."
+                className="w-full pl-9 pr-4 py-1.5 text-xs bg-muted/40 border border-border rounded-lg outline-hidden focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
+              />
+            </div>
+
+            {/* Assistance Help Tip */}
+            <span className="text-[11px] text-muted-foreground hidden lg:inline-flex items-center gap-1.5 bg-muted/30 border border-border/30 px-2.5 py-1 rounded-lg">
+              <HelpCircle className="size-3.5 text-primary shrink-0" />
+              <span>Press <kbd className="px-1 py-0.2 bg-background border rounded text-[10px] font-mono">d</kbd> to toggle theme</span>
+            </span>
           </div>
           <div className="md:hidden flex items-center gap-2">
-            <Sparkles className="size-5 text-primary animate-pulse" />
             <span className="font-semibold text-sm">Orbiter</span>
           </div>
 

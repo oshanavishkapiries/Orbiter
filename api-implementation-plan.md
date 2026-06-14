@@ -12,12 +12,13 @@ To satisfy the **resource-efficient** and **lightweight** design goals, the foll
    - **Why:** Extremely low overhead compared to Express, native JSON schema rendering/parsing (up to 2-3x faster than Express), and a smaller memory footprint.
 2. **Real-time Streaming: Server-Sent Events (SSE)**
    - **Why:** Lightweight, unidirectional HTTP-based streaming. Avoids the protocol overhead and handshake complexity of WebSockets since the browser only needs to read logs/state.
-3. **Background Job Queue: In-Memory Event Emitter Queue**
-   - **Why:** Reuses Node.js memory. Avoids setting up heavy Redis instances or external message brokers, keeping the deployment self-contained and highly efficient.
+3. **Background Job Queue: PostgreSQL DB-Backed Queue (`SELECT ... FOR UPDATE SKIP LOCKED`)**
+   - **Why:** PostgreSQL is already part of the infrastructure. Using PostgreSQL as a queue avoids external dependencies (like Redis or RabbitMQ), keeps deployment lightweight, prevents job loss on server crashes/restarts, and supports safe, concurrent worker processing using `SKIP LOCKED` natively.
 4. **Validation: Zod + Fastify Type Provider Zod**
    - **Why:** Zero runtime compilation overhead during request processing, providing clean and strict API validation.
 5. **Database Client: Reuse Existing `pg` Connection Pool**
    - **Why:** Avoids adding a heavy ORM. Reuses the existing PostgreSQL pool class already written in `src/memory/database/connection.ts`.
+
 
 ---
 
@@ -61,10 +62,12 @@ To satisfy the **resource-efficient** and **lightweight** design goals, the foll
      - `GET /api/v1/execution/sessions/:id` (Get session steps & details).
      - `GET /api/v1/execution/sessions/:id/data` (Get extracted CSV/JSON datasets).
   2. Implement async runner endpoints:
+     - Setup database queue table `jobs` schema and worker polling logic using `SKIP LOCKED`.
      - `POST /api/v1/execution/run` (Initiate a task execution background job).
      - `POST /api/v1/execution/replay` (Initiate a replay background job).
   3. Implement SSE Endpoint:
      - `GET /api/v1/execution/stream/:sessionId` (Subscribe to live step notifications, console logs, and base64 screenshots).
+
 
 ### Phase 5: CLI Integration & Production Build (Estimated: 1 Day)
 - **Tasks:**
