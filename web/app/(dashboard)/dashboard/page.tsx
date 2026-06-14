@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
+import { orbiterApi } from "@/lib/endpoint"
 import {
   Activity,
   ArrowRight,
@@ -14,25 +16,111 @@ import {
   Search,
   Sparkles,
   Terminal,
-  TrendingUp
+  TrendingUp,
+  Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+interface StatCard {
+  name: string
+  value: string | number
+  change: string
+  icon: React.ComponentType<{ className?: string }>
+  color: string
+}
 
 export default function DashboardPage() {
   const router = useRouter()
 
-  const stats = [
-    { name: "Active Sessions", value: "8 / 16", change: "+2 today", icon: Terminal, color: "text-blue-500 bg-blue-500/10" },
-    { name: "Configured Flows", value: "14", change: "+1 this week", icon: GitFork, color: "text-violet-500 bg-violet-500/10" },
-    { name: "Memory Nodes", value: "4,821", change: "+342 records", icon: Brain, color: "text-emerald-500 bg-emerald-500/10" },
-    { name: "Token Throughput", value: "248.5K", change: "+18.2% vs avg", icon: Cpu, color: "text-amber-500 bg-amber-500/10" },
+  // 1. Fetch sessions
+  const { 
+    data: sessionsData, 
+    isLoading: loadingSessions, 
+    refetch: refetchSessions,
+    isRefetching: refetchingSessions
+  } = useQuery({
+    queryKey: ["sessions", 1, 10],
+    queryFn: () => orbiterApi.getSessions(1, 10),
+  })
+
+  // 2. Fetch flows
+  const { 
+    data: flowsData, 
+    isLoading: loadingFlows, 
+    refetch: refetchFlows,
+    isRefetching: refetchingFlows
+  } = useQuery({
+    queryKey: ["flows", 1, 1],
+    queryFn: () => orbiterApi.getFlows(1, 1),
+  })
+
+  // 3. Fetch memory stats
+  const { 
+    data: memoryData, 
+    isLoading: loadingMemory, 
+    refetch: refetchMemory,
+    isRefetching: refetchingMemory
+  } = useQuery({
+    queryKey: ["memory-stats"],
+    queryFn: () => orbiterApi.getMemoryStats(),
+  })
+
+  const handleSync = () => {
+    refetchSessions()
+    refetchFlows()
+    refetchMemory()
+  }
+
+  const isLoading = loadingSessions || loadingFlows || loadingMemory
+  const isRefreshing = refetchingSessions || refetchingFlows || refetchingMemory
+
+  // Computed variables
+  const sessionsList = sessionsData?.success ? sessionsData.sessions : []
+  const runningCount = sessionsList.filter((s: any) => s.status === "running" || s.status === "queued").length
+  const totalSessions = sessionsList.length
+  const totalFlows = flowsData?.success ? (flowsData.pagination?.totalItems ?? 0) : 0
+  const memoryTotal = memoryData?.success ? (memoryData.memory?.total ?? 0) : 0
+  const dbTableCount = memoryData?.success ? (memoryData.database?.tables?.memories ?? 0) : 0
+
+  const stats: StatCard[] = [
+    {
+      name: "Active Sessions",
+      value: `${runningCount} / ${totalSessions}`,
+      change: `+${runningCount} active now`,
+      icon: Terminal,
+      color: "text-blue-500 bg-blue-500/10"
+    },
+    {
+      name: "Configured Flows",
+      value: totalFlows,
+      change: "Saved pipelines",
+      icon: GitFork,
+      color: "text-violet-500 bg-violet-500/10"
+    },
+    {
+      name: "Memory Nodes",
+      value: memoryTotal,
+      change: `${dbTableCount} vector records`,
+      icon: Brain,
+      color: "text-emerald-500 bg-emerald-500/10"
+    },
+    {
+      name: "LLM Providers",
+      value: "OpenRouter",
+      change: "Active provider",
+      icon: Cpu,
+      color: "text-amber-500 bg-amber-500/10"
+    }
   ]
 
-  const activeSessions = [
-    { id: "sess-91", name: "Data Aggregator Agent", flow: "Ingest-User-Data", status: "Running", uptime: "14m 20s", tokens: "18,401" },
-    { id: "sess-88", name: "NLP Summary Engine", flow: "Generate-Reports", status: "Idle", uptime: "2h 45m", tokens: "142,881" },
-    { id: "sess-87", name: "Auto-CodeGen Helper", flow: "Dev-Assistant-V4", status: "Error", uptime: "4h 12m", tokens: "87,204" },
-  ]
+  if (isLoading) {
+    return (
+      <div className="h-[60vh] w-full flex flex-col items-center justify-center gap-3">
+        <Loader2 className="size-8 text-primary animate-spin" />
+        <p className="text-xs text-muted-foreground font-semibold">Loading workspace overview...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -55,10 +143,11 @@ export default function DashboardPage() {
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => router.push("/dashboard/flows")}
-            className="flex items-center justify-center gap-1.5 h-9 px-3.5 border border-border rounded-lg text-xs font-semibold hover:bg-muted transition-all cursor-pointer bg-background/50 dark:bg-background/20"
+            onClick={handleSync}
+            disabled={isRefreshing}
+            className="flex items-center justify-center gap-1.5 h-9 px-3.5 border border-border rounded-lg text-xs font-semibold hover:bg-muted transition-all cursor-pointer bg-background/50 dark:bg-background/20 disabled:opacity-50"
           >
-            <RefreshCw className="size-3.5" />
+            {isRefreshing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Sync Workspace
           </button>
           <button
@@ -169,39 +258,49 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold">Active Agents</h2>
               <span className="text-[10px] font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                {activeSessions.filter(s => s.status === "Running").length} Running
+                {sessionsList.filter((s: any) => s.status === "running").length} Running
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">Currently processing workflows</p>
           </div>
 
-          <div className="space-y-3 flex-1 overflow-y-auto mt-2">
-            {activeSessions.map((session) => (
-              <div
-                key={session.id}
-                className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-background/50 hover:bg-muted/40 transition-colors"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold">{session.name}</span>
-                    <span className={cn(
-                      "text-[9px] font-medium px-1.5 py-0.2 rounded-sm border",
-                      session.status === "Running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" :
-                      session.status === "Idle" ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" :
-                      "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400"
-                    )}>
-                      {session.status}
+          <div className="space-y-3 flex-1 overflow-y-auto mt-2 max-h-64">
+            {sessionsList.length > 0 ? (
+              sessionsList.slice(0, 5).map((session: any) => (
+                <div
+                  key={session.id}
+                  onClick={() => router.push(`/dashboard/sessions?id=${session.id}`)}
+                  className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-background/50 hover:bg-muted/40 transition-colors cursor-pointer"
+                >
+                  <div className="space-y-1 min-w-0 flex-1 pr-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold truncate block">{session.goal}</span>
+                      <span className={cn(
+                        "text-[9px] font-medium px-1.5 py-0.2 rounded-sm border shrink-0 capitalize",
+                        session.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" :
+                        session.status === "completed" ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" :
+                        session.status === "queued" ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" :
+                        "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400"
+                      )}>
+                        {session.status}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground truncate">Model: {session.model}</p>
+                  </div>
+                  
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] font-medium block">{session.stepCount} steps</span>
+                    <span className="text-[9px] text-muted-foreground">
+                      {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Flow: {session.flow}</p>
                 </div>
-                
-                <div className="text-right">
-                  <span className="text-[10px] font-medium block">{session.tokens} tokens</span>
-                  <span className="text-[9px] text-muted-foreground">{session.uptime}</span>
-                </div>
+              ))
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
+                No active sessions
               </div>
-            ))}
+            )}
           </div>
 
           <button
@@ -221,7 +320,7 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
           {[
-            { title: "Synthesize Feedback", desc: "Aggregate user reviews and output a concise PDF summary", active: true },
+            { title: "Synthesize Feedback", desc: "Aggregate user reviews and output a concise JSON summary", active: true },
             { title: "Vector Knowledge Sync", desc: "Ingest latest docs updates and build memory vectors", active: true },
             { title: "Source Code Audit", desc: "Run static codebase analysis and file structural layout checks", active: false }
           ].map((flow, i) => (
@@ -235,7 +334,10 @@ export default function DashboardPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-semibold text-muted-foreground">Flow ID: fl-rec-{i+1}</span>
-                <button className="size-7 rounded-lg bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground flex items-center justify-center transition-all cursor-pointer">
+                <button
+                  onClick={() => router.push(`/dashboard/flows`)}
+                  className="size-7 rounded-lg bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground flex items-center justify-center transition-all cursor-pointer"
+                >
                   <Play className="size-3.5 fill-current" />
                 </button>
               </div>

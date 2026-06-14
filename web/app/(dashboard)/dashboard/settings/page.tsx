@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { orbiterApi } from "@/lib/endpoint"
 import {
   Check,
   Eye,
@@ -10,44 +12,112 @@ import {
   Save,
   Settings,
   Sliders,
-  Sparkles
+  Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = React.useState<"general" | "keys" | "parameters">("general")
+  
+  // Local Form state
   const [workspaceName, setWorkspaceName] = React.useState("Admin Developer Workspace")
-  const [defaultModel, setDefaultModel] = React.useState("gemini-3.5-flash")
+  const [defaultModel, setDefaultModel] = React.useState("")
   const [temperature, setTemperature] = React.useState(0.7)
   const [maxTokens, setMaxTokens] = React.useState(4096)
-
-  // API Key fields
+  
+  // API Credentials
   const [geminiKey, setGeminiKey] = React.useState("gsk_••••••••••••••••••••••••••••")
   const [showGemini, setShowGemini] = React.useState(false)
   const [openaiKey, setOpenaiKey] = React.useState("sk-proj-••••••••••••••••••••••••")
   const [showOpenai, setShowOpenai] = React.useState(false)
 
-  // Loading/Save feedback state
-  const [isSaving, setIsSaving] = React.useState(false)
-  const [showToast, setShowToast] = React.useState(false)
+  const [toastMessage, setToastMessage] = React.useState("")
+
+  // 1. Fetch Config
+  const { data: configData, isLoading: loadingConfig } = useQuery({
+    queryKey: ["systemConfig"],
+    queryFn: () => orbiterApi.getConfig(),
+  })
+
+  // 2. Fetch Models
+  const { data: modelsData, isLoading: loadingModels } = useQuery({
+    queryKey: ["systemModels"],
+    queryFn: () => orbiterApi.getModels(),
+  })
+
+  // 3. Fetch Profiles
+  const { data: profilesData } = useQuery({
+    queryKey: ["systemProfiles"],
+    queryFn: () => orbiterApi.getProfiles(),
+  })
+
+  // 4. Update Settings Mutation
+  const updateSettingsMutation = useMutation({
+    mutationFn: (settings: { key: string; value: string }[]) => orbiterApi.updateSettings(settings),
+    onSuccess: (data) => {
+      setToastMessage(data.message || "Settings updated successfully!")
+      queryClient.invalidateQueries({ queryKey: ["systemConfig"] })
+      setTimeout(() => setToastMessage(""), 3000)
+    }
+  })
+
+  // Sync details when config is loaded
+  React.useEffect(() => {
+    if (configData?.success && configData.config) {
+      const c = configData.config
+      if (c.workspaceName) setWorkspaceName(c.workspaceName)
+      if (c.llm?.defaultModel) setDefaultModel(c.llm.defaultModel)
+      if (c.llm?.temperature) setTemperature(parseFloat(c.llm.temperature))
+      if (c.llm?.maxTokens) setMaxTokens(parseInt(c.llm.maxTokens))
+    }
+  }, [configData])
+
+  React.useEffect(() => {
+    if (modelsData?.success && modelsData.models.length > 0 && !defaultModel) {
+      setDefaultModel(modelsData.models[0].id)
+    }
+  }, [modelsData, defaultModel])
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSaving(true)
-    setTimeout(() => {
-      setIsSaving(false)
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
-    }, 1000)
+
+    const payload = [
+      { key: "workspace.name", value: workspaceName },
+      { key: "llm.defaultModel", value: defaultModel },
+      { key: "llm.temperature", value: temperature.toString() },
+      { key: "llm.maxTokens", value: maxTokens.toString() }
+    ]
+
+    // Key updates if modified
+    if (!geminiKey.includes("••••")) {
+      payload.push({ key: "llm.geminiKey", value: geminiKey })
+    }
+    if (!openaiKey.includes("••••")) {
+      payload.push({ key: "llm.openaiKey", value: openaiKey })
+    }
+
+    updateSettingsMutation.mutate(payload)
+  }
+
+  const isLoading = loadingConfig || loadingModels
+
+  if (isLoading) {
+    return (
+      <div className="h-[60vh] w-full flex flex-col items-center justify-center gap-3">
+        <Loader2 className="size-8 text-primary animate-spin" />
+        <p className="text-xs text-muted-foreground font-semibold">Reading configuration settings...</p>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Toast Notification */}
-      {showToast && (
+      {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 p-4 bg-emerald-500 text-white rounded-xl shadow-xl flex items-center gap-2 border border-emerald-400/20 font-semibold text-xs animate-slide-down">
           <Check className="size-4" />
-          Settings updated successfully!
+          {toastMessage}
         </div>
       )}
 
@@ -115,13 +185,26 @@ export default function SettingsPage() {
                   <select
                     value={defaultModel}
                     onChange={(e) => setDefaultModel(e.target.value)}
-                    className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25"
+                    className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold"
                   >
-                    <option value="gemini-3.5-flash">Gemini 3.5 Flash (Default)</option>
-                    <option value="gemini-3.5-pro">Gemini 3.5 Pro</option>
-                    <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-                    <option value="gpt-4o">GPT-4o Engine</option>
+                    {modelsData?.success && modelsData.models.map((m: any) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
                   </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Available Browser Profiles</label>
+                  <div className="p-3 bg-background/30 rounded-lg border border-border/40 space-y-1 text-xs">
+                    {profilesData?.success && profilesData.profiles.map((p: any) => (
+                      <div key={p.name} className="flex justify-between font-mono text-[10px] text-muted-foreground">
+                        <span>Profile: {p.name}</span>
+                        <span>{p.hasSavedState ? "Saved state active" : "Empty profile"}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -182,7 +265,7 @@ export default function SettingsPage() {
             <div className="space-y-5">
               <div>
                 <h2 className="text-base font-semibold">Inference parameters</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Fine-tune token and heat attributes for default routing nodes.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Fine-tune token and temperature attributes for default routing nodes.</p>
               </div>
 
               <div className="space-y-5">
@@ -234,11 +317,11 @@ export default function SettingsPage() {
             
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={updateSettingsMutation.isPending}
               className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/95 transition-all disabled:opacity-60 cursor-pointer shadow-xs shadow-primary/10"
             >
-              {isSaving ? (
-                <div className="size-4 border-2 border-primary-foreground/35 border-t-primary-foreground rounded-full animate-spin" />
+              {updateSettingsMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
               ) : (
                 <Save className="size-3.5" />
               )}
