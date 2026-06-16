@@ -421,22 +421,35 @@ function SessionsContent() {
     enabled: !!selectedSessionId && (detailsData?.session?.status === "completed" || detailsData?.session?.status === "failed")
   })
 
+  // 5.5 Fetch user settings
+  const { data: settingsData } = useQuery({
+    queryKey: ["userSettings"],
+    queryFn: () => orbiterApi.getSettings()
+  })
+
+  const sMap = React.useMemo(() => {
+    const map = new Map<string, string>()
+    if (settingsData?.success && settingsData.settings) {
+      for (const s of settingsData.settings) {
+        map.set(s.key, s.value)
+      }
+    }
+    return map
+  }, [settingsData])
+
+  const currentProvider = sMap.get("llm.provider") || "openrouter"
+
   // 4. Fetch spawn models list
-  const { data: modelsData } = useQuery({
-    queryKey: ["systemModels"],
-    queryFn: () => orbiterApi.getModels()
+  const { data: modelsData, isLoading: loadingModels } = useQuery({
+    queryKey: ["systemModels", currentProvider],
+    queryFn: () => orbiterApi.getModels(currentProvider),
+    enabled: !!settingsData
   })
 
   // 5. Fetch spawn profiles list
   const { data: profilesData } = useQuery({
     queryKey: ["systemProfiles"],
     queryFn: () => orbiterApi.getProfiles()
-  })
-
-  // 5.5 Fetch user settings
-  const { data: settingsData } = useQuery({
-    queryKey: ["userSettings"],
-    queryFn: () => orbiterApi.getSettings()
   })
 
   const isInitialSyncDoneRef = React.useRef(false)
@@ -562,10 +575,13 @@ function SessionsContent() {
     renameMutation.mutate({ id: selectedSessionId, title: editedTitle.trim() })
   }
 
-  // Set default model once loaded
+  // Set default model once loaded or when provider changes
   React.useEffect(() => {
-    if (modelsData?.success && modelsData.models.length > 0 && !selectedModel) {
-      setSelectedModel(modelsData.models[0].id)
+    if (modelsData?.success && modelsData.models.length > 0) {
+      const modelIds = modelsData.models.map((m: any) => m.id)
+      if (!selectedModel || !modelIds.includes(selectedModel)) {
+        setSelectedModel(modelsData.models[0].id)
+      }
     }
   }, [modelsData, selectedModel])
 
