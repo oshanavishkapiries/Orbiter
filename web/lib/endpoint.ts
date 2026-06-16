@@ -147,6 +147,15 @@ export const orbiterApi = {
     return handleResponse<any>(res);
   },
 
+  async updateSessionTitle(id: string, title: string) {
+    const res = await authFetch(ENDPOINTS.EXECUTION_SESSION_DETAIL(id), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    return handleResponse<any>(res);
+  },
+
   async runTask(payload: {
     prompt: string;
     model?: string;
@@ -156,6 +165,7 @@ export const orbiterApi = {
     record?: boolean;
     enhance?: boolean;
     highlight?: boolean;
+    title?: string;
   }) {
     const res = await authFetch(ENDPOINTS.EXECUTION_RUN, {
       method: 'POST',

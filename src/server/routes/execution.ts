@@ -40,7 +40,7 @@ export async function executionRoutes(
         // 1. Build query strings dynamically based on parameters
         let countQuery = 'SELECT COUNT(*) FROM orbiter_sessions s';
         let query = `
-          SELECT s.id, s.goal, s.model, s.provider, s.status, s.created_at as "createdAt", s.completed_at as "completedAt",
+          SELECT s.id, s.goal, s.title, s.model, s.provider, s.status, s.created_at as "createdAt", s.completed_at as "completedAt",
                  COUNT(st.id) AS "stepCount"
           FROM orbiter_sessions s
           LEFT JOIN orbiter_session_steps st ON st.session_id = s.id
@@ -51,7 +51,7 @@ export async function executionRoutes(
 
         if (search) {
           values.push(`%${search}%`);
-          conditions.push(`(s.id ILIKE $${values.length} OR s.goal ILIKE $${values.length})`);
+          conditions.push(`(s.id ILIKE $${values.length} OR s.goal ILIKE $${values.length} OR s.title ILIKE $${values.length})`);
         }
 
         if (status && status !== 'All') {
@@ -80,6 +80,7 @@ export async function executionRoutes(
         const sessions = result.rows.map((row) => ({
           id: row.id,
           goal: row.goal,
+          title: row.title,
           model: row.model,
           provider: row.provider,
           status: row.status,
@@ -224,6 +225,7 @@ export async function executionRoutes(
           session: {
             id: s.id,
             goal: s.goal,
+            title: s.title,
             model: s.model,
             provider: s.provider,
             status: s.status,
@@ -236,6 +238,43 @@ export async function executionRoutes(
               10,
             ),
           },
+        };
+      } catch (err) {
+        return reply.status(500).send({
+          success: false,
+          error: (err as Error).message,
+        });
+      }
+    },
+  );
+
+  // 2.5 Update Session Title
+  const updateSessionParamsSchema = z.object({
+    id: z.string(),
+  });
+
+  const updateSessionBodySchema = z.object({
+    title: z.string().min(1).max(255),
+  });
+
+  app.patch(
+    '/sessions/:id',
+    {
+      schema: {
+        params: updateSessionParamsSchema,
+        body: updateSessionBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { title } = request.body;
+
+      try {
+        const repo = new SessionRepository();
+        await repo.updateSessionTitle(id, title);
+        return {
+          success: true,
+          message: 'Session title updated successfully',
         };
       } catch (err) {
         return reply.status(500).send({
@@ -312,6 +351,7 @@ export async function executionRoutes(
     record: z.boolean().optional(),
     enhance: z.boolean().optional(),
     highlight: z.boolean().optional(),
+    title: z.string().optional(),
   });
 
   app.post(
@@ -333,6 +373,7 @@ export async function executionRoutes(
           body.model,
           'openrouter',
           userId,
+          body.title,
         );
 
         // Queue background job

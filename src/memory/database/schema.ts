@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 
 export const CREATE_TABLES_SQL = `
@@ -314,6 +314,14 @@ export const MIGRATIONS: Record<number, string> = {
 
     ALTER TABLE orbiter_sessions ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES orbiter_users(id) ON DELETE SET NULL;
     ALTER TABLE orbiter_flows ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES orbiter_users(id) ON DELETE SET NULL;
+  `,
+
+  8: `
+    -- ═══════════════════════════════════════════════════════
+    -- SESSION TITLE / NAME FEATURE (v8)
+    -- ═══════════════════════════════════════════════════════
+
+    ALTER TABLE orbiter_sessions ADD COLUMN IF NOT EXISTS title TEXT;
   `,
 };
 

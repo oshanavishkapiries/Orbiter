@@ -33,6 +33,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select"
 interface Session {
   id: string
   goal: string
+  title?: string
   model: string
   provider: string
   status: "queued" | "running" | "completed" | "failed"
@@ -134,6 +135,9 @@ function SessionsContent() {
   const [maxSteps, setMaxSteps] = React.useState(20)
   const [showConfigPanel, setShowConfigPanel] = React.useState(false)
   const [isCreatingNewChat, setIsCreatingNewChat] = React.useState(false)
+  const [customTitle, setCustomTitle] = React.useState("")
+  const [isEditingTitle, setIsEditingTitle] = React.useState(false)
+  const [editedTitle, setEditedTitle] = React.useState("")
 
   // Selection state
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(initialId)
@@ -207,6 +211,7 @@ function SessionsContent() {
     mutationFn: (payload: any) => orbiterApi.runTask(payload),
     onSuccess: (data) => {
       setPrompt("")
+      setCustomTitle("")
       queryClient.invalidateQueries({ queryKey: ["sessions"] })
       router.push(`/dashboard/sessions?id=${data.sessionId}`)
     }
@@ -222,6 +227,24 @@ function SessionsContent() {
       }
     }
   })
+
+  // 7.5. Rename Session Mutation
+  const renameMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) => orbiterApi.updateSessionTitle(id, title),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] })
+      queryClient.invalidateQueries({ queryKey: ["sessionDetails", selectedSessionId] })
+      setIsEditingTitle(false)
+    }
+  })
+
+  const handleSaveTitle = () => {
+    if (!selectedSessionId || !editedTitle.trim()) {
+      setIsEditingTitle(false)
+      return
+    }
+    renameMutation.mutate({ id: selectedSessionId, title: editedTitle.trim() })
+  }
 
   // Set default model once loaded
   React.useEffect(() => {
@@ -319,7 +342,8 @@ function SessionsContent() {
       model: selectedModel || undefined,
       profile: selectedProfile || undefined,
       headless,
-      maxSteps
+      maxSteps,
+      title: customTitle.trim() || undefined
     })
   }
 
@@ -421,7 +445,7 @@ function SessionsContent() {
                           session.status === "completed" ? "bg-blue-500" :
                           session.status === "queued" ? "bg-amber-500" : "bg-rose-500"
                         )} />
-                        <span className="truncate max-w-[120px]">{session.id}</span>
+                        <span className="truncate max-w-[120px]">{session.title || session.id}</span>
                       </div>
 
                       <button
@@ -506,6 +530,16 @@ function SessionsContent() {
 
                 {showConfigPanel && (
                   <div className="grid grid-cols-2 gap-4 text-[11px] font-semibold animate-fade-in">
+                    <div className="space-y-1.5 col-span-2">
+                      <label className="text-muted-foreground">Session Name (optional)</label>
+                      <input
+                        type="text"
+                        placeholder="Give your session a short name (defaults to 'New Session')"
+                        value={customTitle}
+                        onChange={(e) => setCustomTitle(e.target.value)}
+                        className="w-full h-8 px-2 text-[11px] bg-background/50 border border-border rounded-lg text-foreground font-semibold placeholder:text-muted-foreground/50"
+                      />
+                    </div>
                     <div className="space-y-1.5">
                       <label className="text-muted-foreground">LLM Engine</label>
                       {modelsData?.provider === "openrouter" ? (
@@ -636,9 +670,32 @@ function SessionsContent() {
                     {detailsData?.session?.status}
                   </span>
                   
-                  <div className="truncate text-xs font-semibold text-muted-foreground/80 font-mono">
-                    Session: {selectedSessionId}
-                  </div>
+                  {isEditingTitle ? (
+                    <input
+                      type="text"
+                      value={editedTitle}
+                      onChange={(e) => setEditedTitle(e.target.value)}
+                      onBlur={handleSaveTitle}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveTitle()
+                        if (e.key === 'Escape') setIsEditingTitle(false)
+                      }}
+                      autoFocus
+                      className="px-2 py-0.5 text-xs bg-background border border-primary rounded-md outline-hidden font-semibold max-w-[180px] md:max-w-xs"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditedTitle(detailsData?.session?.title || detailsData?.session?.id || "")
+                        setIsEditingTitle(true)
+                      }}
+                      className="truncate text-xs font-semibold hover:text-primary hover:bg-muted/30 px-2 py-0.5 rounded-md flex items-center gap-1 transition-all text-left"
+                      title="Click to rename session"
+                    >
+                      <span>{detailsData?.session?.title || "New Session"}</span>
+                      <span className="text-[10px] text-muted-foreground/60 font-mono">({selectedSessionId})</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">

@@ -67,6 +67,7 @@ export class TaskExecutor {
     private llmProviderName: string = 'openrouter',
     private llmModelName: string = 'unknown',
     highlightEnabled: boolean = false,
+    private sessionTitle?: string,
   ) {
     this.recoveryEngine = new RecoveryEngine(llm, context);
     context.setLLM(llm);
@@ -105,11 +106,37 @@ export class TaskExecutor {
       }
 
       this.sessionRepo = new SessionRepository();
-      this.sessionId = await this.sessionRepo.createSession(
-        this.goal,
-        this.llmModelName,
-        this.llmProviderName,
-      );
+
+      let finalTitle = this.sessionTitle;
+      if (!finalTitle || finalTitle === 'New Session') {
+        try {
+          const response = await this.llm.chat([
+            {
+              role: 'system',
+              content: 'You are a session title generator. Generate a very short, concise, 2-5 word name for a browser automation session based on the user\'s goal. Do not use quotes, punctuation, or extra words. Example: "Search DeepMind Links" or "Login to GitHub".',
+            },
+            {
+              role: 'user',
+              content: `Goal: ${this.goal}`,
+            },
+          ]);
+          finalTitle = response.content.replace(/"/g, '').trim();
+        } catch (err) {
+          finalTitle = 'New Session';
+        }
+      }
+
+      if (!this.sessionId) {
+        this.sessionId = await this.sessionRepo.createSession(
+          this.goal,
+          this.llmModelName,
+          this.llmProviderName,
+          undefined,
+          finalTitle,
+        );
+      } else {
+        await this.sessionRepo.updateSessionTitle(this.sessionId, finalTitle);
+      }
       this.context.setSession(this.sessionRepo, this.sessionId);
       this.recorder.setSessionId(this.sessionId);
       this.recorder.setDataRepo(dataRepo);

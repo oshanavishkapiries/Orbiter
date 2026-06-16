@@ -3,6 +3,7 @@ import { BaseRepository } from './base-repository.js';
 export interface SessionRecord {
   id: string;
   goal: string;
+  title?: string;
   model?: string;
   provider?: string;
   status: 'running' | 'completed' | 'failed';
@@ -58,14 +59,31 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     model?: string,
     provider?: string,
     userId?: string,
+    title?: string,
   ): Promise<string> {
     const id = this.generateId('sess');
+    const finalTitle = title || 'New Session';
     await this.pool.query(
-      `INSERT INTO orbiter_sessions (id, goal, model, provider, status, created_at, user_id)
-       VALUES ($1, $2, $3, $4, 'running', $5, $6)`,
-      [id, goal, model ?? null, provider ?? null, this.now(), userId ?? null],
+      `INSERT INTO orbiter_sessions (id, goal, model, provider, status, created_at, user_id, title)
+       VALUES ($1, $2, $3, $4, 'running', $5, $6, $7)`,
+      [
+        id,
+        goal,
+        model ?? null,
+        provider ?? null,
+        this.now(),
+        userId ?? null,
+        finalTitle,
+      ],
     );
     return id;
+  }
+
+  async updateSessionTitle(sessionId: string, title: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE orbiter_sessions SET title = $1 WHERE id = $2`,
+      [title, sessionId],
+    );
   }
 
   async completeSession(
@@ -301,7 +319,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
 
   async listSessions(limit = 50): Promise<SessionRecord[]> {
     const result = await this.pool.query(
-      `SELECT id, goal, model, provider, status, created_at, completed_at
+      `SELECT id, goal, title, model, provider, status, created_at, completed_at
        FROM orbiter_sessions
        ORDER BY created_at DESC
        LIMIT $1`,
@@ -310,6 +328,7 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     return result.rows.map((row) => ({
       id: row.id,
       goal: row.goal,
+      title: row.title,
       model: row.model,
       provider: row.provider,
       status: row.status,

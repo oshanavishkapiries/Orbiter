@@ -199,6 +199,7 @@ async function runTask(sessionId: string, payload: any): Promise<void> {
     record,
     enhance,
     highlight,
+    title,
   } = payload;
   const pool = DatabaseConnection.getInstance().getPool();
   const sessionRes = await pool.query('SELECT user_id FROM orbiter_sessions WHERE id = $1', [sessionId]);
@@ -245,6 +246,7 @@ async function runTask(sessionId: string, payload: any): Promise<void> {
       modelInfo.provider,
       modelInfo.name,
       !!highlight,
+      title,
     );
 
     // Override the executor's internal sessionId to match our pre-allocated one
