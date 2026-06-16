@@ -443,61 +443,6 @@ export async function executionRoutes(
     },
   );
 
-  // 6. Get Live Execution Stream (SSE)
-  const streamParamsSchema = z.object({
-    sessionId: z.string(),
-  });
-
-  app.get(
-    '/stream/:sessionId',
-    {
-      schema: {
-        params: streamParamsSchema,
-      },
-    },
-    async (request, reply) => {
-      const { sessionId } = request.params;
-
-      reply.raw.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      });
-
-      // Write initial establish connection message
-      reply.raw.write(
-        `event: connected\ndata: ${JSON.stringify({ sessionId, timestamp: Date.now() })}\n\n`,
-      );
-
-      const onStep = (data: any) => {
-        reply.raw.write(`event: step\ndata: ${JSON.stringify(data)}\n\n`);
-      };
-
-      const onLog = (data: any) => {
-        reply.raw.write(`event: log\ndata: ${JSON.stringify(data)}\n\n`);
-      };
-
-      const onScreenshot = (data: any) => {
-        reply.raw.write(`event: screenshot\ndata: ${JSON.stringify(data)}\n\n`);
-      };
-
-      const onStatus = (data: any) => {
-        reply.raw.write(`event: status\ndata: ${JSON.stringify(data)}\n\n`);
-      };
-
-      eventBus.on(`step:${sessionId}`, onStep);
-      eventBus.on(`log:${sessionId}`, onLog);
-      eventBus.on(`screenshot:${sessionId}`, onScreenshot);
-      eventBus.on(`status:${sessionId}`, onStatus);
-
-      request.raw.on('close', () => {
-        eventBus.off(`step:${sessionId}`, onStep);
-        eventBus.off(`log:${sessionId}`, onLog);
-        eventBus.off(`screenshot:${sessionId}`, onScreenshot);
-        eventBus.off(`status:${sessionId}`, onStatus);
-      });
-    },
-  );
 
   // 7. Get Execution and Token Stats
   app.get('/stats', async (request, reply) => {

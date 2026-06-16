@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query"
+import { io, Socket } from "socket.io-client"
 import { orbiterApi } from "@/lib/endpoint"
 import {
   Activity,
@@ -272,9 +273,9 @@ function SessionsContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [streamLogs, detailsData])
 
-  // SSE Stream integration for running sessions
+  // Socket.io stream integration for running sessions
   React.useEffect(() => {
-    let eventSource: EventSource | null = null
+    let socket: Socket | null = null
 
     if (!selectedSessionId) {
       setStreamLogs([])
@@ -287,24 +288,31 @@ function SessionsContent() {
 
     if (isActive) {
       const token = typeof window !== 'undefined' ? localStorage.getItem('orbiter_token') : '';
-      const sseUrl = token
-        ? `/api/v1/execution/stream/${selectedSessionId}?token=${encodeURIComponent(token)}`
-        : `/api/v1/execution/stream/${selectedSessionId}`;
-      eventSource = new EventSource(sseUrl)
 
-      eventSource.addEventListener("connected", () => {
-        setStreamLogs(prev => [...prev, { type: "system", message: "SSE Connection established.", timestamp: Date.now() }])
+      // Establish socket connection with token authentication
+      socket = io(typeof window !== 'undefined' ? window.location.origin : '', {
+        auth: {
+          token
+        },
+        transports: ['websocket', 'polling']
       })
 
-      eventSource.addEventListener("status", (e: any) => {
-        const data = JSON.parse(e.data)
+      socket.on('connect', () => {
+        setStreamLogs(prev => [...prev, { type: "system", message: "Real-time connection established.", timestamp: Date.now() }])
+        socket?.emit('join-session', selectedSessionId)
+      })
+
+      socket.on('connect_error', (err) => {
+        setStreamLogs(prev => [...prev, { type: "system", message: `Connection error: ${err.message}`, timestamp: Date.now() }])
+      })
+
+      socket.on('status', (data) => {
         setStreamLogs(prev => [...prev, { type: "status", message: `Status updated: ${data.status}`, timestamp: Date.now() }])
         queryClient.invalidateQueries({ queryKey: ["sessions"] })
         queryClient.invalidateQueries({ queryKey: ["sessionDetails", selectedSessionId] })
       })
 
-      eventSource.addEventListener("step", (e: any) => {
-        const data = JSON.parse(e.data)
+      socket.on('step', (data) => {
         setStreamLogs(prev => [
           ...prev,
           { 
@@ -316,19 +324,15 @@ function SessionsContent() {
         queryClient.invalidateQueries({ queryKey: ["sessionDetails", selectedSessionId] })
       })
 
-      eventSource.addEventListener("log", (e: any) => {
-        const data = JSON.parse(e.data)
+      socket.on('log', (data) => {
         setStreamLogs(prev => [...prev, { type: "log", message: data.message, timestamp: Date.now() }])
       })
-
-      eventSource.onerror = () => {
-        eventSource?.close()
-      }
     }
 
     return () => {
-      if (eventSource) {
-        eventSource.close()
+      if (socket) {
+        socket.emit('leave-session', selectedSessionId)
+        socket.disconnect()
       }
     }
   }, [selectedSessionId, detailsData, queryClient])
