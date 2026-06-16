@@ -83,7 +83,7 @@ export class HistoryManager {
           );
         }
       } catch (err) {
-        logger.debug(
+        logger.warn(
           `Session DB write failed (non-fatal): ${(err as Error).message}`,
         );
       }

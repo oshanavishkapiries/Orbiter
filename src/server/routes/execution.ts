@@ -202,6 +202,7 @@ export async function executionRoutes(
             return {
               stepNumber: step.stepNumber,
               toolName: step.toolName,
+              params: step.params,
               resultSummary: step.resultSummary,
               success: step.success,
               duration: step.duration,

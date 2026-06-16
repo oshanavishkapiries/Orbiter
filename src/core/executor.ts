@@ -268,12 +268,6 @@ export class TaskExecutor {
               stepResult.error,
             );
 
-            if (!stepResult.success && this.isCriticalFailure(stepResult)) {
-              logger.error('Critical failure, stopping execution');
-              continueExecution = false;
-              break;
-            }
-
             this.history.addAssistantAction(
               toolCall.id,
               toolCall.name,
@@ -291,6 +285,12 @@ export class TaskExecutor {
               stepResult.duration,
               imageBase64,
             );
+
+            if (!stepResult.success && this.isCriticalFailure(stepResult)) {
+              logger.error('Critical failure, stopping execution');
+              continueExecution = false;
+              break;
+            }
 
             logger.debug(`History size: ${this.history.size()} messages`);
           }
