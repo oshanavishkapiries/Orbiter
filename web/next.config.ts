@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
             },
         ]
     },
-    allowedDevOrigins: ['0ed6-34-126-126-215.ngrok-free.app'],
+    allowedDevOrigins: ['6822-35-198-250-122.ngrok-free.app'],
 }
 
 export default nextConfig
