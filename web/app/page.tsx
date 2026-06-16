@@ -50,9 +50,9 @@ export default function LoginPage() {
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background">
       {/* Subtle Background Gradients */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute -top-[40%] -left-[20%] w-[80%] h-[80%] rounded-full bg-indigo-500/10 blur-[120px] dark:bg-indigo-500/5" />
-        <div className="absolute -bottom-[40%] -right-[20%] w-[80%] h-[80%] rounded-full bg-cyan-500/10 blur-[120px] dark:bg-cyan-500/5" />
-        <div className="absolute top-[30%] left-[30%] w-[40%] h-[40%] rounded-full bg-violet-500/10 blur-[100px] dark:bg-violet-500/5 animate-pulse" />
+        <div className="absolute -top-[40%] -left-[20%] w-[80%] h-[80%] rounded-full bg-primary/10 blur-[120px] dark:bg-primary/5" />
+        <div className="absolute -bottom-[40%] -right-[20%] w-[80%] h-[80%] rounded-full bg-primary/10 blur-[120px] dark:bg-primary/5" />
+        <div className="absolute top-[30%] left-[30%] w-[40%] h-[40%] rounded-full bg-primary/10 blur-[100px] dark:bg-primary/5 animate-pulse" />
       </div>
 
       <div className="relative z-10 w-full max-w-md px-6">
@@ -65,7 +65,7 @@ export default function LoginPage() {
         </div>
 
         {/* Card Container */}
-        <div>
+        <div className="bg-card border border-border p-6 rounded-lg shadow-md">
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-xs font-medium">
               {error}
