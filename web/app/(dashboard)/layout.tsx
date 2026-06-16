@@ -107,12 +107,12 @@ export default function DashboardLayout({
       {/* SIDEBAR */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 border-r border-border/50 bg-card flex flex-col select-none shrink-0 transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:bg-card/45 md:backdrop-blur-md md:z-40",
+          "fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-card flex flex-col select-none shrink-0 transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:bg-card/45 md:backdrop-blur-md md:z-40",
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Brand/Logo Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-border/50 shrink-0 relative">
+        <div className="h-16 flex items-center justify-between px-4 border-b border-border shrink-0 relative">
           <div className="flex-1 flex justify-center">
             <Logo collapsed={false} size="lg" />
           </div>
@@ -155,7 +155,7 @@ export default function DashboardLayout({
       {/* MAIN LAYOUT WRAPPER */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* TOPBAR */}
-        <header className="h-16 shrink-0 border-b border-border/50 bg-background/70 backdrop-blur-md flex items-center justify-between px-6 md:px-8 z-30">
+        <header className="h-16 shrink-0 border-b border-border bg-background/70 backdrop-blur-md flex items-center justify-between px-6 md:px-8 z-30">
           {/* Left section: Mobile Toggle */}
           <div className="flex items-center gap-2 md:gap-4">
             <button
