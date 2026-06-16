@@ -21,7 +21,14 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
-  Maximize2
+  Maximize2,
+  Send,
+  Bot,
+  User as UserIcon,
+  Sparkles,
+  Settings2,
+  Clock,
+  Maximize2 as MaximizeIcon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SearchableSelect } from "@/components/ui/searchable-select"
@@ -137,13 +144,13 @@ function SessionsContent() {
   const [filter, setFilter] = React.useState<"All" | "running" | "completed" | "failed">("All")
   const [page, setPage] = React.useState(1)
 
-  // Spawning form local states
-  const [showSpawnModal, setShowSpawnModal] = React.useState(false)
+  // Spawning form configuration states (integrated directly)
   const [prompt, setPrompt] = React.useState("")
   const [selectedModel, setSelectedModel] = React.useState("")
   const [selectedProfile, setSelectedProfile] = React.useState("default")
   const [headless, setHeadless] = React.useState(true)
   const [maxSteps, setMaxSteps] = React.useState(20)
+  const [showConfigPanel, setShowConfigPanel] = React.useState(false)
 
   // Selection state
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(initialId)
@@ -153,12 +160,14 @@ function SessionsContent() {
   const [streamLogs, setStreamLogs] = React.useState<{ type: string; message: string; timestamp: number }[]>([])
   const [streamScreenshot, setStreamScreenshot] = React.useState<string | null>(null)
   const [enlargeScreenshot, setEnlargeScreenshot] = React.useState(false)
-  const [activeTab, setActiveTab] = React.useState<"logs" | "steps" | "data">("logs")
+  const [showLogsPanel, setShowLogsPanel] = React.useState(false)
+
+  const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
   // 1. Fetch sessions list with TanStack Query
   const { data: sessionsData, isLoading: loadingList } = useQuery({
     queryKey: ["sessions", page],
-    queryFn: () => orbiterApi.getSessions(page, 12),
+    queryFn: () => orbiterApi.getSessions(page, 25), // Increased limit for sidebar history
     refetchInterval: (query) => {
       // Poll list if there is any active session in the state
       const hasActive = query.state.data?.sessions?.some((s: Session) => s.status === "running" || s.status === "queued")
@@ -196,7 +205,6 @@ function SessionsContent() {
   const spawnMutation = useMutation({
     mutationFn: (payload: any) => orbiterApi.runTask(payload),
     onSuccess: (data) => {
-      setShowSpawnModal(false)
       setPrompt("")
       queryClient.invalidateQueries({ queryKey: ["sessions"] })
       router.push(`/dashboard/sessions?id=${data.sessionId}`)
@@ -220,6 +228,11 @@ function SessionsContent() {
   React.useEffect(() => {
     setSelectedStepNumber(null)
   }, [selectedSessionId])
+
+  // Scroll to bottom on logs update or new steps
+  React.useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [streamLogs, detailsData])
 
   // Determine the screenshot to display
   const displayScreenshot = React.useMemo(() => {
@@ -354,594 +367,586 @@ function SessionsContent() {
   const totalPages = sessionsData?.pagination?.totalPages || 1
 
   return (
-    <div className="space-y-6 animate-fade-in relative min-h-[75vh]">
-      {/* ─── CASE A: NO SESSION SELECTED (LIST/GRID VIEW) ─── */}
-      {!selectedSessionId ? (
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Agent Sessions</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Spawn, monitor, and manage the execution lifecycles of your background agent nodes.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowSpawnModal(true)}
-              className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/95 transition-all cursor-pointer shadow-xs shadow-primary/10"
-            >
-              <Plus className="size-4" />
-              Spawn Agent Node
-            </button>
+    <div className="flex h-[82vh] border border-border/60 bg-card/20 backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl animate-fade-in text-xs">
+      
+      {/* ─── LEFT SIDEBAR: CHAT THREADS HISTORY ─── */}
+      <div className="w-80 border-r border-border/50 bg-card/45 flex flex-col shrink-0">
+        {/* Sidebar Header */}
+        <div className="p-4 border-b border-border/50 flex flex-col gap-3">
+          <button
+            onClick={() => {
+              router.push("/dashboard/sessions")
+              setPrompt("")
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-primary/40 text-[11px] font-bold text-primary hover:text-primary-foreground hover:bg-primary transition-all cursor-pointer shadow-xs shadow-primary/5"
+          >
+            <Plus className="size-4" />
+            New Automation Chat
+          </button>
+          
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search chat history..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-[11px] bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary focus:ring-1 focus:ring-primary/10 transition-all font-semibold"
+            />
           </div>
 
-          {/* Search & Filter Bar */}
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between p-4 rounded-xl border border-border/50 bg-card/45 backdrop-blur-md">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search sessions..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
-              />
-            </div>
-
-            <div className="flex items-center gap-1.5 bg-muted/40 p-0.5 rounded-lg border text-xs font-medium text-muted-foreground overflow-x-auto w-full md:w-auto mt-2 md:mt-0">
-              {(["All", "running", "completed", "failed"] as const).map((opt) => (
-                <button
-                  key={opt}
-                  onClick={() => setFilter(opt)}
-                  className={cn(
-                    "px-3 py-1 rounded-md transition-all cursor-pointer capitalize whitespace-nowrap",
-                    filter === opt ? "bg-background text-foreground shadow-xs" : "hover:text-foreground"
-                  )}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
+          <div className="flex gap-1 bg-muted/40 p-0.5 rounded-lg border text-[10px] font-bold text-muted-foreground">
+            {(["All", "running", "completed", "failed"] as const).map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setFilter(opt)}
+                className={cn(
+                  "flex-1 py-1 rounded-md transition-all cursor-pointer capitalize text-center",
+                  filter === opt ? "bg-background text-foreground shadow-xs" : "hover:text-foreground"
+                )}
+              >
+                {opt}
+              </button>
+            ))}
           </div>
+        </div>
 
-          {/* Sessions Grid */}
+        {/* Sidebar Chat List */}
+        <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
           {loadingList ? (
-            <div className="py-20 text-center flex flex-col items-center justify-center gap-2 border border-border/50 bg-card/45 backdrop-blur-md rounded-xl">
-              <Loader2 className="size-6 text-primary animate-spin" />
-              <span className="text-xs text-muted-foreground">Fetching session logs...</span>
+            <div className="py-12 text-center flex flex-col items-center justify-center gap-2">
+              <Loader2 className="size-5 text-primary animate-spin" />
+              <span className="text-[10px] text-muted-foreground">Loading chats...</span>
             </div>
           ) : filteredSessions.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredSessions.map((session: Session) => (
+            filteredSessions.map((session: Session) => {
+              const isSelected = selectedSessionId === session.id
+              return (
                 <div
                   key={session.id}
                   onClick={() => router.push(`/dashboard/sessions?id=${session.id}`)}
-                  className="p-5 border border-border/50 bg-card/45 hover:bg-card/75 hover:border-primary/45 backdrop-blur-md rounded-xl transition-all cursor-pointer relative flex flex-col justify-between min-h-[180px] group shadow-xs hover:shadow-md"
+                  className={cn(
+                    "group relative p-3 rounded-xl transition-all cursor-pointer flex flex-col gap-1 border border-transparent",
+                    isSelected 
+                      ? "bg-primary/10 border-primary/20 text-foreground" 
+                      : "hover:bg-muted/40 text-muted-foreground hover:text-foreground"
+                  )}
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold font-mono">
                       <span className={cn(
-                        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold capitalize border shrink-0",
-                        session.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" :
-                        session.status === "completed" ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" :
-                        session.status === "queued" ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" :
-                        "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400"
-                      )}>
-                        <span className={cn(
-                          "size-1.5 rounded-full",
-                          session.status === "running" ? "bg-emerald-500 animate-pulse" :
-                          session.status === "completed" ? "bg-blue-500" :
-                          session.status === "queued" ? "bg-amber-500" : "bg-rose-500"
-                        )} />
-                        {session.status}
-                      </span>
-
-                      <button
-                        onClick={(e) => handleDeleteSession(session.id, e)}
-                        className="p-1 rounded-md hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
+                        "size-1.5 rounded-full",
+                        session.status === "running" ? "bg-emerald-500 animate-pulse" :
+                        session.status === "completed" ? "bg-blue-500" :
+                        session.status === "queued" ? "bg-amber-500" : "bg-rose-500"
+                      )} />
+                      <span className="truncate max-w-[120px]">{session.id}</span>
                     </div>
 
-                    <h3 className="text-xs font-bold text-foreground leading-relaxed line-clamp-3">
-                      {session.goal}
-                    </h3>
+                    <button
+                      onClick={(e) => handleDeleteSession(session.id, e)}
+                      className="p-0.5 rounded-md hover:bg-rose-500/15 text-muted-foreground hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
                   </div>
+                  
+                  <p className="text-[11px] font-semibold leading-snug line-clamp-2 pr-2">
+                    {session.goal}
+                  </p>
 
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground font-semibold pt-3.5 mt-4 border-t border-border/20">
-                    <span className="flex items-center gap-1">
-                      <Layers className="size-3 text-primary" />
-                      {session.stepCount} steps
-                    </span>
+                  <div className="flex items-center justify-between text-[9px] font-bold text-muted-foreground/60 pt-1 border-t border-border/10 mt-1">
+                    <span className="flex items-center gap-0.5"><Clock className="size-2.5" /> {session.stepCount} steps</span>
                     <span>{new Date(session.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-              ))}
-            </div>
+              )
+            })
           ) : (
-            <div className="py-20 text-center text-xs text-muted-foreground border border-border/50 bg-card/45 backdrop-blur-md rounded-xl">
-              No active runs or session logs found.
-            </div>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="p-3 border border-border/50 rounded-xl flex items-center justify-between bg-card/45 backdrop-blur-md">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-                className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1 cursor-pointer"
-              >
-                <ChevronLeft className="size-3" /> Prev
-              </button>
-              <span className="text-[10px] text-muted-foreground font-semibold">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage(page + 1)}
-                className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1 cursor-pointer"
-              >
-                Next <ChevronRight className="size-3" />
-              </button>
-            </div>
+            <div className="py-12 text-center text-xs text-muted-foreground">No chats found.</div>
           )}
         </div>
-      ) : (
-        /* ─── CASE B: SESSION SELECTED (FULL CO-CONSOLE LIVE BROWSER WORKSPACE) ─── */
-        <div className="space-y-6 animate-fade-in">
-          {loadingDetails ? (
-            <div className="border border-border/50 bg-card/45 backdrop-blur-md p-24 rounded-xl flex flex-col items-center justify-center gap-3">
-              <Loader2 className="size-7 text-primary animate-spin" />
-              <span className="text-xs text-muted-foreground">Retrieving session history & trace data...</span>
-            </div>
-          ) : detailsData?.success ? (
-            <div className="space-y-6">
-              {/* Header metadata bar */}
-              <div className="flex flex-col gap-3 pb-5 border-b border-border/50">
-                <button
-                  onClick={() => router.push("/dashboard/sessions")}
-                  className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer w-fit"
-                >
-                  <ChevronLeft className="size-4" />
-                  Back to Sessions
-                </button>
 
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <span className="text-[9px] uppercase font-bold text-primary tracking-wider font-mono">
-                      Session UUID: {detailsData.session.id}
-                    </span>
-                    <h1 className="text-lg font-bold text-foreground leading-snug max-w-4xl">
-                      {detailsData.session.goal}
-                    </h1>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground font-semibold pt-1">
-                      <span className="flex items-center gap-1">
-                        <Cpu className="size-3.5 text-primary" /> {detailsData.session.model || "Default Model"}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="size-3.5 text-primary" /> {new Date(detailsData.session.createdAt).toLocaleString()}
-                      </span>
+        {/* Sidebar Pagination */}
+        {totalPages > 1 && (
+          <div className="p-3 border-t border-border/50 flex items-center justify-between bg-card/20 text-[10px] font-bold">
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+              className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+            >
+              <ChevronLeft className="size-3" />
+            </button>
+            <span className="text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+              className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+            >
+              <ChevronRight className="size-3" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ─── MAIN CONVERSATION PANE ─── */}
+      <div className="flex-1 flex flex-col bg-background/30 overflow-hidden relative">
+        
+        {!selectedSessionId ? (
+          /* ─── LANDING SCREEN: CHAT CONFIG / SPAWN ─── */
+          <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 max-w-2xl mx-auto space-y-6 w-full">
+            <div className="text-center space-y-2">
+              <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto text-primary shadow-xs">
+                <Sparkles className="size-6" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">Orbiter Agent Studio</h2>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                Describe a web automation goal, and the AI agent will spawn a browser instance and perform steps to extract data or complete tasks.
+              </p>
+            </div>
+
+            <form onSubmit={handleLaunchSession} className="w-full space-y-4">
+              <div className="p-4 rounded-xl border border-border/60 bg-card/65 space-y-4 shadow-sm">
+                
+                {/* Custom Configuration Trigger */}
+                <div className="flex items-center justify-between text-[11px] border-b border-border/30 pb-2.5 font-bold">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <Settings2 className="size-4 text-primary" /> Configuration Settings
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfigPanel(!showConfigPanel)}
+                    className="text-primary hover:underline cursor-pointer"
+                  >
+                    {showConfigPanel ? "Hide Config" : "Show Config"}
+                  </button>
+                </div>
+
+                {showConfigPanel && (
+                  <div className="grid grid-cols-2 gap-4 text-[11px] font-semibold animate-fade-in">
+                    <div className="space-y-1.5">
+                      <label className="text-muted-foreground">LLM Engine</label>
+                      {modelsData?.provider === "openrouter" ? (
+                        <SearchableSelect
+                          options={modelsData?.success ? modelsData.models : []}
+                          value={selectedModel}
+                          onChange={setSelectedModel}
+                          placeholder="Select LLM Engine..."
+                          size="sm"
+                        />
+                      ) : (
+                        <select
+                          value={selectedModel}
+                          onChange={(e) => setSelectedModel(e.target.value)}
+                          className="w-full h-8 px-2 text-[11px] bg-background/50 border border-border rounded-lg text-foreground font-semibold"
+                        >
+                          {modelsData?.success && modelsData.models.length > 0 ? (
+                            modelsData.models.map((m: any) => (
+                              <option key={m.id} value={m.id} className="bg-neutral-950">
+                                {m.name}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="">No models available</option>
+                          )}
+                        </select>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-muted-foreground">Chrome Profile</label>
+                      <select
+                        value={selectedProfile}
+                        onChange={(e) => setSelectedProfile(e.target.value)}
+                        className="w-full h-8 px-2 text-[11px] bg-background/50 border border-border rounded-lg text-foreground font-semibold"
+                      >
+                        {profilesData?.success && profilesData.profiles.length > 0 ? (
+                          profilesData.profiles.map((p: any) => (
+                            <option key={p.name} value={p.name} className="bg-neutral-950">
+                              {p.name}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="default">default</option>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="col-span-2 flex items-center justify-between border-t border-border/20 pt-3">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          id="headless-mode-setup"
+                          checked={headless}
+                          onChange={(e) => setHeadless(e.target.checked)}
+                          className="size-3.5 rounded border-border text-primary"
+                        />
+                        <label htmlFor="headless-mode-setup" className="text-[11px] text-muted-foreground cursor-pointer select-none">
+                          Run Headless (no visual browser popup)
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">Max Steps:</span>
+                        <input
+                          type="number"
+                          min="5"
+                          max="100"
+                          value={maxSteps}
+                          onChange={(e) => setMaxSteps(parseInt(e.target.value))}
+                          className="w-12 h-6 px-1 text-center bg-background/50 border border-border rounded-md font-mono"
+                        />
+                      </div>
                     </div>
                   </div>
+                )}
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={cn(
-                      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold capitalize border",
-                      detailsData.session.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" :
-                      detailsData.session.status === "completed" ? "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" :
-                      detailsData.session.status === "queued" ? "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" :
-                      "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400"
-                    )}>
-                      <span className={cn(
-                        "size-2 rounded-full",
-                        detailsData.session.status === "running" ? "bg-emerald-500 animate-pulse" :
-                        detailsData.session.status === "completed" ? "bg-blue-500" :
-                        detailsData.session.status === "queued" ? "bg-amber-500" : "bg-rose-500"
-                      )} />
-                      {detailsData.session.status}
-                    </span>
+                {/* Prompt Chat Box Input */}
+                <div className="relative flex items-end bg-background/40 border border-border rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary transition-all">
+                  <textarea
+                    required
+                    rows={2}
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Ask the agent to automate something... e.g. Navigate to google, search for deepmind, grab recent links"
+                    className="flex-1 w-full p-0 bg-transparent border-0 outline-hidden resize-none text-[11px] leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:ring-0 focus:outline-hidden"
+                  />
+                  <button
+                    type="submit"
+                    disabled={spawnMutation.isPending || !prompt.trim()}
+                    className="shrink-0 size-8 rounded-lg bg-primary hover:bg-primary/95 text-primary-foreground flex items-center justify-center transition-all disabled:opacity-50 cursor-pointer shadow-xs shadow-primary/10 ml-2"
+                  >
+                    {spawnMutation.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Send className="size-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : (
+          /* ─── CONVERSATION CHAT TIMELINE VIEW ─── */
+          <div className="flex-1 flex overflow-hidden">
+            
+            {/* Left Portion: Chat Message Stream */}
+            <div className="flex-1 flex flex-col justify-between overflow-hidden bg-background/10">
+              
+              {/* Chat Session Header */}
+              <div className="px-4 py-3 border-b border-border/50 bg-card/45 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={cn(
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border",
+                    detailsData?.session?.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
+                    detailsData?.session?.status === "completed" ? "bg-blue-500/10 text-blue-600 border-blue-500/20" :
+                    detailsData?.session?.status === "queued" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" :
+                    "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                  )}>
+                    {detailsData?.session?.status}
+                  </span>
+                  
+                  <div className="truncate text-xs font-semibold text-muted-foreground/80 font-mono">
+                    Session: {selectedSessionId}
                   </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowLogsPanel(!showLogsPanel)}
+                    className={cn(
+                      "h-7 px-3 rounded-lg text-[10px] font-bold border flex items-center gap-1 transition-all cursor-pointer",
+                      showLogsPanel ? "bg-primary/10 border-primary/20 text-primary" : "border-border hover:bg-muted"
+                    )}
+                  >
+                    <Terminal className="size-3" /> Logs Console
+                  </button>
                 </div>
               </div>
 
-              {/* Console Workspace: Viewport and Console */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                
-                {/* Viewport Frame */}
-                <div className="lg:col-span-7 space-y-4">
-                  <div className="border border-border/50 rounded-xl overflow-hidden bg-card shadow-2xl flex flex-col">
-                    {/* Browser chrome header */}
-                    <div className="h-10 px-4 bg-muted/30 border-b border-border/50 flex items-center gap-3 select-none">
-                      <div className="flex gap-1.5 shrink-0">
-                        <span className="size-3 rounded-full bg-rose-500/80" />
-                        <span className="size-3 rounded-full bg-amber-500/80" />
-                        <span className="size-3 rounded-full bg-emerald-500/80" />
-                      </div>
-                      <div className="flex gap-2 text-muted-foreground shrink-0 ml-2">
-                        <ChevronLeft className="size-3.5" />
-                        <ChevronRight className="size-3.5" />
-                      </div>
-                      <div className="flex-1 max-w-lg h-6.5 px-3 bg-background/50 border border-border/40 rounded-md flex items-center justify-between gap-2 text-[10px] text-muted-foreground font-mono">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <span className={cn(
-                            "size-2 rounded-full shrink-0",
-                            selectedStepNumber ? "bg-amber-500 animate-pulse" : "bg-emerald-500/80"
-                          )} />
-                          <span className="truncate">
-                            {selectedStepNumber 
-                              ? `Step ${selectedStepNumber} Preview: ${detailsData.session.steps.find((s: Step) => s.stepNumber === selectedStepNumber)?.toolName || ""}` 
-                              : detailsData.session.status === "running" || detailsData.session.status === "queued"
-                                ? "Orbiter Live Viewport" 
-                                : "Orbiter Viewport (Session Ended)"
-                            }
-                          </span>
-                        </div>
-                        {selectedStepNumber && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedStepNumber(null)
-                            }}
-                            className="text-[8px] hover:text-foreground text-primary px-1.5 py-0.5 bg-primary/10 rounded-sm font-sans font-bold cursor-pointer transition-colors"
-                          >
-                            RESET TO LIVE
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex-1" />
-                      {displayScreenshot && (
-                        <button
-                          onClick={() => setEnlargeScreenshot(true)}
-                          className="text-[10px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer shrink-0"
-                        >
-                          <Maximize2 className="size-3" /> Enlarge
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Viewport content */}
-                    <div className="bg-black/20 dark:bg-black/50 aspect-video flex items-center justify-center relative overflow-hidden">
-                      {displayScreenshot ? (
-                        <img
-                          src={displayScreenshot.startsWith('data:') ? displayScreenshot : `data:image/png;base64,${displayScreenshot}`}
-                          alt="Browser viewport snapshot"
-                          className="w-full h-full object-contain"
-                        />
-                      ) : detailsData.session.status === "running" ? (
-                        <div className="text-center p-6 space-y-3">
-                          <Loader2 className="size-8 text-primary animate-spin mx-auto" />
-                          <p className="text-xs text-muted-foreground font-semibold">
-                            Waiting for browser viewport paint event...
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="text-center p-8 space-y-3 text-muted-foreground">
-                          <Cpu className="size-10 text-muted-foreground/30 mx-auto" />
-                          <p className="text-xs font-semibold">Browser viewport closed</p>
-                          <p className="text-[10px] text-muted-foreground/60">This session has terminated.</p>
-                        </div>
-                      )}
-                    </div>
+              {/* Chat Message Scroll Window */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {loadingDetails ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="size-6 text-primary animate-spin" />
+                    <span className="text-xs text-muted-foreground">Fetching trace history...</span>
                   </div>
-                </div>
-
-                {/* Right side Console Panel */}
-                <div className="lg:col-span-5 border border-border/50 bg-card/45 backdrop-blur-md p-6 rounded-xl shadow-xs space-y-6">
-                  {/* Tab headers */}
-                  <div className="flex items-center border-b border-border/50 text-xs font-semibold text-muted-foreground">
-                    <button
-                      onClick={() => setActiveTab("logs")}
-                      className={cn(
-                        "pb-2 px-4 border-b-2 transition-colors cursor-pointer",
-                        activeTab === "logs" ? "border-primary text-foreground" : "border-transparent hover:text-foreground"
-                      )}
-                    >
-                      Console Logs
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("steps")}
-                      className={cn(
-                        "pb-2 px-4 border-b-2 transition-colors cursor-pointer",
-                        activeTab === "steps" ? "border-primary text-foreground" : "border-transparent hover:text-foreground"
-                      )}
-                    >
-                      Trace Steps ({detailsData.session.steps.length})
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("data")}
-                      className={cn(
-                        "pb-2 px-4 border-b-2 transition-colors cursor-pointer",
-                        activeTab === "data" ? "border-primary text-foreground" : "border-transparent hover:text-foreground"
-                      )}
-                    >
-                      Extracted Data
-                    </button>
-                  </div>
-
-                  {/* Tab: Logs */}
-                  {activeTab === "logs" && (
-                    <div className="bg-black/5 dark:bg-black/40 border border-border/50 rounded-xl p-4 font-mono text-[10px] text-foreground space-y-1.5 h-96 overflow-y-auto">
-                      {streamLogs.length > 0 ? (
-                        streamLogs.map((log, idx) => (
-                          <div key={idx} className="leading-relaxed break-all">
-                            <span className="text-muted-foreground select-none">
-                              [{new Date(log.timestamp).toLocaleTimeString()}]
-                            </span>{" "}
-                            <span className={cn(
-                              log.type === "step" ? "text-blue-500 font-bold" :
-                              log.type === "status" ? "text-amber-500 font-bold" :
-                              log.type === "system" ? "text-emerald-500" : "text-foreground"
-                            )}>
-                              {log.message}
-                            </span>
-                          </div>
-                        ))
-                      ) : detailsData.session.status !== "running" ? (
-                        <div className="h-full flex items-center justify-center text-muted-foreground font-sans">
-                          No active log stream.
-                        </div>
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-muted-foreground font-sans animate-pulse">
-                          Listening for live runner output events...
-                        </div>
-                      )}
+                ) : detailsData?.success ? (
+                  <>
+                    {/* User Prompt (Initial Message) */}
+                    <div className="flex gap-3 max-w-[85%] ml-auto justify-end">
+                      <div className="bg-primary/95 text-primary-foreground p-3.5 rounded-2xl rounded-tr-none shadow-md space-y-1">
+                        <span className="text-[8px] uppercase tracking-wider font-extrabold opacity-60 flex items-center gap-1"><UserIcon className="size-2.5" /> User Goal</span>
+                        <p className="text-xs leading-relaxed font-semibold">{detailsData.session.goal}</p>
+                      </div>
                     </div>
-                  )}
 
-                  {/* Tab: Trace Steps */}
-                  {activeTab === "steps" && (
-                    <div className="space-y-4 h-96 overflow-y-auto pr-1">
-                      {detailsData.session.steps.length > 0 ? (
-                        detailsData.session.steps.map((step: Step) => (
+                    {/* Agent Chronological Step Messages */}
+                    {detailsData.session.steps.length > 0 ? (
+                      detailsData.session.steps.map((step: Step) => {
+                        const isSelected = selectedStepNumber === step.stepNumber
+                        const stepScreenshot = getScreenshotFromStep(step)
+                        return (
                           <div
                             key={step.stepNumber}
                             onClick={() => setSelectedStepNumber(step.stepNumber)}
                             className={cn(
-                              "p-3.5 border rounded-xl flex items-start justify-between gap-3 text-xs shadow-xs transition-all cursor-pointer hover:bg-muted/40",
-                              selectedStepNumber === step.stepNumber 
-                                ? "border-primary/80 ring-1 ring-primary/30 bg-muted/20" 
-                                : "border-border/40 bg-background/50"
+                              "flex gap-3 max-w-[85%] transition-all cursor-pointer",
+                              isSelected ? "scale-[1.01]" : ""
                             )}
                           >
-                            <div className="space-y-2.5 min-w-0 flex-1">
-                              <div className="flex items-center gap-2 font-semibold">
-                                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md text-[9px] font-bold">
-                                  Step {step.stepNumber}
-                                </span>
-                                <span className="text-foreground truncate font-bold">{step.toolName}</span>
-                                {getScreenshotFromStep(step) && (
-                                  <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-500 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded-sm">
-                                    <ImageIcon className="size-2.5" /> Screenshot
+                            <div className="size-7 rounded-xl bg-card border border-border flex items-center justify-center shrink-0 shadow-xs text-primary">
+                              <Bot className="size-4" />
+                            </div>
+
+                            <div className={cn(
+                              "p-4 rounded-2xl rounded-tl-none shadow-sm space-y-3 flex-1 border",
+                              isSelected 
+                                ? "bg-muted/30 border-primary/60 shadow-md ring-1 ring-primary/10" 
+                                : "bg-card/45 border-border/40 hover:bg-muted/10"
+                            )}>
+                              {/* Bubble Header */}
+                              <div className="flex items-center justify-between text-[9px] font-bold text-muted-foreground border-b border-border/10 pb-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[8px] font-mono">
+                                    Step {step.stepNumber}
                                   </span>
-                                )}
+                                  <span className="text-foreground truncate">{step.toolName}</span>
+                                </div>
+
+                                <div className="flex items-center gap-2 font-mono">
+                                  {step.success ? (
+                                    <span className="text-emerald-500 flex items-center gap-0.5"><CheckCircle className="size-2.5" /> Success</span>
+                                  ) : (
+                                    <span className="text-rose-500 flex items-center gap-0.5"><XCircle className="size-2.5" /> Failed</span>
+                                  )}
+                                  <span>{step.duration}ms</span>
+                                </div>
                               </div>
-                              <p className="text-muted-foreground leading-relaxed break-words text-[11px]">{step.resultSummary}</p>
-                              {step.fullResult && (
-                                <div className="mt-2.5 p-2.5 bg-black/5 dark:bg-black/35 rounded-lg overflow-x-auto border border-border/30">
-                                  <JsonColorizer data={step.fullResult} />
+
+                              {/* Bubble Viewport Embedded Attachment */}
+                              {stepScreenshot && (
+                                <div className="relative group rounded-lg overflow-hidden border border-border/40 bg-black/10 aspect-video max-w-sm">
+                                  <img
+                                    src={stepScreenshot.startsWith('data:') ? stepScreenshot : `data:image/png;base64,${stepScreenshot}`}
+                                    alt={`Step ${step.stepNumber} viewport attachment`}
+                                    className="w-full h-full object-contain"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSelectedStepNumber(step.stepNumber)
+                                        setEnlargeScreenshot(true)
+                                      }}
+                                      className="p-1.5 bg-background/95 rounded-lg text-foreground hover:bg-background transition-all"
+                                    >
+                                      <Maximize2 className="size-3.5" />
+                                    </button>
+                                  </div>
                                 </div>
                               )}
-                            </div>
 
-                            <div className="flex flex-col items-end shrink-0 gap-1.5 font-semibold text-[10px]">
-                              {step.success ? (
-                                <span className="text-emerald-500 flex items-center gap-0.5 font-bold">
-                                  <CheckCircle className="size-3" /> Success
-                                </span>
-                              ) : (
-                                <span className="text-rose-500 flex items-center gap-0.5 font-bold">
-                                  <XCircle className="size-3" /> Failed
-                                </span>
+                              {/* Result Summary */}
+                              <p className="text-xs leading-relaxed text-foreground font-semibold break-words">{step.resultSummary}</p>
+
+                              {/* Collapsible JSON payload */}
+                              {step.fullResult && (
+                                <details className="group text-[10px] bg-black/5 dark:bg-black/35 rounded-lg border border-border/30 overflow-hidden font-semibold">
+                                  <summary className="px-2.5 py-1.5 hover:bg-muted/30 cursor-pointer list-none flex items-center justify-between text-muted-foreground font-bold">
+                                    <span>Technical Execution Result</span>
+                                    <span className="text-[8px] font-mono group-open:hidden">SHOW JSON</span>
+                                    <span className="text-[8px] font-mono hidden group-open:inline">HIDE JSON</span>
+                                  </summary>
+                                  <div className="p-2.5 border-t border-border/20 overflow-x-auto">
+                                    <JsonColorizer data={step.fullResult} />
+                                  </div>
+                                </details>
                               )}
-                              <span className="text-muted-foreground font-mono text-[9px]">{step.duration}ms</span>
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <div className="py-16 text-center text-xs text-muted-foreground">
-                          No steps logged yet for this session.
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        )
+                      })
+                    ) : null}
 
-                  {/* Tab: Extracted Data */}
-                  {activeTab === "data" && (
-                    <div className="space-y-4 h-96 overflow-y-auto pr-1">
-                      {extractedDataResponse?.success && extractedDataResponse.records.length > 0 ? (
-                        extractedDataResponse.records.map((record: ExtractedData, idx: number) => (
-                          <div key={idx} className="border border-border/40 rounded-xl bg-background/45 p-4 space-y-3 text-xs shadow-xs">
-                            <div className="flex items-center justify-between border-b border-border/20 pb-2">
-                              <div className="font-semibold flex items-center gap-1.5">
-                                <FileSpreadsheet className="size-4 text-emerald-500" />
-                                <span>Step {record.stepNumber} ({record.toolName})</span>
+                    {/* Extracted Data Bubble (Only rendered if session finished and has data) */}
+                    {extractedDataResponse?.success && extractedDataResponse.records.length > 0 && (
+                      <div className="flex gap-3 max-w-[85%]">
+                        <div className="size-7 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
+                          <FileSpreadsheet className="size-4" />
+                        </div>
+                        <div className="p-4 rounded-2xl rounded-tl-none bg-emerald-500/5 border border-emerald-500/20 shadow-xs space-y-3 flex-1 text-xs">
+                          <div className="font-bold flex items-center justify-between border-b border-emerald-500/10 pb-1.5 text-emerald-500">
+                            <span className="flex items-center gap-1"><FileSpreadsheet className="size-3.5" /> Extracted Structured Results</span>
+                            <span>{extractedDataResponse.records.reduce((acc: number, r: any) => acc + r.itemCount, 0)} items</span>
+                          </div>
+
+                          {extractedDataResponse.records.map((record: ExtractedData, idx: number) => (
+                            <div key={idx} className="space-y-1.5">
+                              <div className="font-bold text-[10px] text-muted-foreground">Step {record.stepNumber} ({record.toolName}):</div>
+                              <div className="overflow-x-auto bg-black/5 dark:bg-black/35 rounded-lg p-2.5 border border-border/20">
+                                <JsonColorizer data={record.data} />
                               </div>
-                              <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-bold">
-                                {record.itemCount} items
-                              </span>
                             </div>
-                            <div className="overflow-x-auto bg-black/5 dark:bg-black/35 rounded-lg p-3 border border-border/30">
-                              <JsonColorizer data={record.data} />
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="py-16 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">
-                          <FileSpreadsheet className="size-8 text-muted-foreground/40" />
-                          <span>No JSON or structured output data collected.</span>
+                          ))}
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    )}
+
+                    {/* Active Running Streaming Bubble */}
+                    {(detailsData.session.status === "running" || detailsData.session.status === "queued") && (
+                      <div className="flex gap-3 max-w-[85%]">
+                        <div className="size-7 rounded-xl bg-card border border-border flex items-center justify-center shrink-0 text-primary">
+                          <Loader2 className="size-4 animate-spin" />
+                        </div>
+                        <div className="p-4 rounded-2xl rounded-tl-none bg-card/45 border border-border/40 shadow-xs flex-1 space-y-2 text-xs">
+                          <div className="flex items-center gap-2 text-primary font-bold">
+                            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>Agent is executing tools in the browser...</span>
+                          </div>
+                          
+                          {/* Live Console streaming panel inside the stream card */}
+                          {streamLogs.length > 0 && (
+                            <div className="bg-black/5 dark:bg-black/40 border border-border/40 rounded-lg p-3 font-mono text-[9px] text-foreground space-y-1 max-h-36 overflow-y-auto">
+                              {streamLogs.slice(-5).map((log, idx) => (
+                                <div key={idx} className="leading-relaxed truncate">
+                                  <span className="text-muted-foreground font-bold select-none">
+                                    [{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}]
+                                  </span>{" "}
+                                  <span className={cn(
+                                    log.type === "step" ? "text-blue-400 font-bold" :
+                                    log.type === "status" ? "text-amber-400 font-bold" :
+                                    log.type === "system" ? "text-emerald-400" : "text-muted-foreground"
+                                  )}>
+                                    {log.message}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="py-20 text-center text-xs text-muted-foreground">Session trace not found.</div>
+                )}
+                <div ref={messagesEndRef} />
               </div>
-            </div>
-          ) : (
-            <div className="border border-border/50 bg-card/45 backdrop-blur-md p-24 rounded-xl text-center text-muted-foreground flex flex-col items-center justify-center gap-3">
-              <Terminal className="size-8 text-muted-foreground/30" />
-              <p className="text-xs">Select a session to load console workspace.</p>
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* Spawn Modal */}
-      {showSpawnModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-slide-down">
-            <div className="px-5 py-4 border-b border-border/50 flex items-center justify-between">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Terminal className="size-4.5 text-primary" /> Spawn Agent Node
-              </h3>
-              <button
-                onClick={() => setShowSpawnModal(false)}
-                className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer font-bold text-xs"
-              >
-                Close
-              </button>
-            </div>
-
-            <form onSubmit={handleLaunchSession} className="p-5 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">What is the agent's goal?</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="e.g. Navigated to book.com, extract first 5 hotels in Paris under $200 and save output"
-                  className="w-full p-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all font-medium leading-relaxed"
-                />
-                <p className="text-[10px] text-muted-foreground">Goal description must be at least 5 characters.</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">LLM Engine</label>
-                  {modelsData?.provider === "openrouter" ? (
-                    <SearchableSelect
-                      options={modelsData?.success ? modelsData.models : []}
-                      value={selectedModel}
-                      onChange={setSelectedModel}
-                      placeholder="Select LLM Engine..."
-                      size="sm"
-                    />
-                  ) : (
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
-                      className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all font-semibold text-foreground"
-                    >
-                      {modelsData?.success && modelsData.models.length > 0 ? (
-                        modelsData.models.map((m: any) => (
-                          <option key={m.id} value={m.id} className="bg-neutral-900 text-neutral-100">
-                            {m.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="" disabled className="bg-neutral-900 text-neutral-100">
-                          No models available (check API keys)
-                        </option>
-                      )}
-                    </select>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Chrome Profile</label>
-                  <select
-                    value={selectedProfile}
-                    onChange={(e) => setSelectedProfile(e.target.value)}
-                    className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all font-semibold text-foreground"
-                  >
-                    {profilesData?.success && profilesData.profiles.length > 0 ? (
-                      profilesData.profiles.map((p: any) => (
-                        <option key={p.name} value={p.name} className="bg-neutral-900 text-neutral-100">
-                          {p.name}
-                        </option>
+              {/* Collapsible Sidebar Logs Panel */}
+              {showLogsPanel && (
+                <div className="h-44 border-t border-border/50 bg-card/65 flex flex-col shrink-0">
+                  <div className="px-3 py-1.5 border-b border-border/20 flex items-center justify-between text-[10px] font-bold text-muted-foreground bg-muted/20 shrink-0">
+                    <span className="flex items-center gap-1"><Terminal className="size-3" /> Streaming Console logs</span>
+                    <button onClick={() => setShowLogsPanel(false)} className="hover:text-foreground">Close</button>
+                  </div>
+                  <div className="flex-1 p-3 overflow-y-auto font-mono text-[9px] space-y-1 bg-black/10 text-foreground">
+                    {streamLogs.length > 0 ? (
+                      streamLogs.map((log, idx) => (
+                        <div key={idx} className="leading-relaxed break-all">
+                          <span className="text-muted-foreground select-none">
+                            [{new Date(log.timestamp).toLocaleTimeString()}]
+                          </span>{" "}
+                          <span className={cn(
+                            log.type === "step" ? "text-blue-500 font-bold" :
+                            log.type === "status" ? "text-amber-500 font-bold" :
+                            log.type === "system" ? "text-emerald-500" : "text-foreground"
+                          )}>
+                            {log.message}
+                          </span>
+                        </div>
                       ))
                     ) : (
-                      <option value="default" className="bg-neutral-900 text-neutral-100">
-                        default
-                      </option>
+                      <div className="h-full flex items-center justify-center text-muted-foreground font-sans">
+                        {detailsData?.session?.status !== "running" ? "No active log stream." : "Listening for live logs..."}
+                      </div>
                     )}
-                  </select>
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {/* Right Portion: Dynamic Viewport Panel */}
+            <div className="w-[360px] border-l border-border/50 bg-card/45 flex flex-col shrink-0 overflow-hidden select-none">
+              <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between font-bold text-xs bg-muted/10 shrink-0">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <ImageIcon className="size-4 text-primary" /> Browser Viewport
+                </span>
+                {selectedStepNumber && (
+                  <button
+                    onClick={() => setSelectedStepNumber(null)}
+                    className="text-[9px] hover:text-foreground text-primary px-2 py-0.5 bg-primary/10 rounded-sm font-bold cursor-pointer transition-colors"
+                  >
+                    RESET TO LIVE
+                  </button>
+                )}
               </div>
 
-              <div className="flex items-center justify-between border-t border-border/30 pt-3">
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    id="headless-mode"
-                    checked={headless}
-                    onChange={(e) => setHeadless(e.target.checked)}
-                    className="size-3.5 rounded border-border text-primary focus:ring-primary"
-                  />
-                  <label htmlFor="headless-mode" className="text-xs font-medium text-muted-foreground cursor-pointer select-none">
-                    Run Headless (no visual browser popup)
-                  </label>
+              {/* Viewport content */}
+              <div className="flex-1 flex flex-col justify-center bg-black/10 p-4 relative">
+                {displayScreenshot ? (
+                  <div className="relative group rounded-xl overflow-hidden border border-border/40 shadow-lg bg-black aspect-video flex items-center justify-center">
+                    <img
+                      src={displayScreenshot.startsWith('data:') ? displayScreenshot : `data:image/png;base64,${displayScreenshot}`}
+                      alt="Browser viewport paint preview"
+                      className="w-full h-full object-contain"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button
+                        onClick={() => setEnlargeScreenshot(true)}
+                        className="flex items-center gap-1 text-[10px] font-bold text-foreground bg-background/95 px-3 py-1.5 rounded-lg cursor-pointer"
+                      >
+                        <MaximizeIcon className="size-3" /> Enlarge Viewport
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center p-8 space-y-3 text-muted-foreground border border-dashed border-border/40 rounded-xl max-w-xs mx-auto">
+                    <Cpu className="size-8 text-muted-foreground/30 mx-auto" />
+                    <p className="text-[11px] font-bold">No paint screen detected</p>
+                    <p className="text-[9px] text-muted-foreground/75 leading-relaxed">
+                      {detailsData?.session?.status === "running" 
+                        ? "Waiting for browser screenshot stream paint event..." 
+                        : "Browser viewport has closed after session execution ended."}
+                    </p>
+                  </div>
+                )}
+
+                <div className="text-[9px] text-muted-foreground/75 font-semibold text-center mt-3 font-mono leading-relaxed max-w-[280px] mx-auto">
+                  {selectedStepNumber 
+                    ? `Step ${selectedStepNumber} Frame Preview` 
+                    : detailsData?.session?.status === "running"
+                      ? "Streaming base64 screenshots in real-time..."
+                      : "Viewport state from final execution frame"}
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-semibold text-muted-foreground">Max Steps Limit</label>
-                  <span className="font-mono font-bold text-primary">{maxSteps} steps</span>
-                </div>
-                <input
-                  type="range"
-                  min="5"
-                  max="50"
-                  step="1"
-                  value={maxSteps}
-                  onChange={(e) => setMaxSteps(parseInt(e.target.value))}
-                  className="w-full h-1 bg-border rounded-lg appearance-none cursor-pointer accent-primary focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-border/50">
-                <button
-                  type="button"
-                  onClick={() => setShowSpawnModal(false)}
-                  className="h-8 px-4 rounded-lg text-xs font-semibold hover:bg-muted transition-all border border-border bg-background cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={spawnMutation.isPending}
-                  className="h-8 px-4 rounded-lg text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/95 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shadow-primary/10"
-                >
-                  {spawnMutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
-                  Launch Runner Node
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Enlarge screenshot overlay modal */}
+      {/* ─── ENLARGED SCREENSHOT LIGHTBOX OVERLAY ─── */}
       {enlargeScreenshot && displayScreenshot && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-fade-in"
           onClick={() => setEnlargeScreenshot(false)}
         >
-          <div className="max-w-4xl max-h-[90vh] bg-card border border-border rounded-xl overflow-hidden relative p-1.5 flex flex-col justify-between" onClick={e => e.stopPropagation()}>
+          <div className="max-w-4xl max-h-[90vh] bg-card border border-border rounded-2xl overflow-hidden relative p-1.5 flex flex-col justify-between" onClick={e => e.stopPropagation()}>
             <img 
               src={displayScreenshot.startsWith('data:') ? displayScreenshot : `data:image/png;base64,${displayScreenshot}`} 
               alt="Enlarged viewport paint" 
-              className="object-contain max-h-[80vh] rounded-lg mx-auto" 
+              className="object-contain max-h-[80vh] rounded-xl mx-auto shadow-2xl" 
             />
-            <button
-              onClick={() => setEnlargeScreenshot(false)}
-              className="absolute top-4 right-4 bg-black/60 text-white font-bold p-1 px-2.5 rounded-full hover:bg-black text-xs cursor-pointer"
-            >
-              Close
-            </button>
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              <button
+                onClick={() => setEnlargeScreenshot(false)}
+                className="bg-black/60 text-white font-bold p-1 px-3 rounded-full hover:bg-black text-xs cursor-pointer shadow-md"
+              >
+                Close View
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -961,4 +966,3 @@ export default function SessionsPage() {
     </React.Suspense>
   )
 }
-
