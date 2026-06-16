@@ -155,7 +155,7 @@ export default function DashboardLayout({
       {/* MAIN LAYOUT WRAPPER */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* TOPBAR */}
-        <header className="h-16 shrink-0 border-b border-border bg-background/70 backdrop-blur-md flex items-center justify-between px-6 md:px-8 z-30">
+        <header className="h-16 shrink-0 border-b border-border bg-card/45 backdrop-blur-md flex items-center justify-between px-6 md:px-8 z-30">
           {/* Left section: Mobile Toggle */}
           <div className="flex items-center gap-2 md:gap-4">
             <button
