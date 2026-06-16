@@ -16,19 +16,16 @@ import {
   Calendar,
   Layers,
   FileSpreadsheet,
-  Image as ImageIcon,
   CheckCircle,
   XCircle,
   ChevronLeft,
   ChevronRight,
-  Maximize2,
   Send,
   Bot,
   User as UserIcon,
   Sparkles,
   Settings2,
-  Clock,
-  Maximize2 as MaximizeIcon
+  Clock
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SearchableSelect } from "@/components/ui/searchable-select"
@@ -119,20 +116,6 @@ function JsonColorizer({ data }: { data: any }) {
   )
 }
 
-function getScreenshotFromStep(step: Step): string | null {
-  if (!step || !step.fullResult) return null;
-  if (typeof step.fullResult.imageBase64 === 'string') {
-    return step.fullResult.imageBase64;
-  }
-  if (step.fullResult.result && typeof step.fullResult.result.imageBase64 === 'string') {
-    return step.fullResult.result.imageBase64;
-  }
-  if (step.fullResult.data && typeof step.fullResult.data.imageBase64 === 'string') {
-    return step.fullResult.data.imageBase64;
-  }
-  return null;
-}
-
 function SessionsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -157,8 +140,6 @@ function SessionsContent() {
   
   // SSE stream local states
   const [streamLogs, setStreamLogs] = React.useState<{ type: string; message: string; timestamp: number }[]>([])
-  const [streamScreenshot, setStreamScreenshot] = React.useState<string | null>(null)
-  const [enlargeScreenshot, setEnlargeScreenshot] = React.useState(false)
   const [showLogsPanel, setShowLogsPanel] = React.useState(false)
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
@@ -264,38 +245,12 @@ function SessionsContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [streamLogs, detailsData])
 
-  // Determine the screenshot to display
-  const displayScreenshot = React.useMemo(() => {
-    if (selectedStepNumber && detailsData?.session?.steps) {
-      const step = detailsData.session.steps.find((s: Step) => s.stepNumber === selectedStepNumber)
-      if (step) {
-        const screenshot = getScreenshotFromStep(step)
-        if (screenshot) return screenshot
-      }
-    }
-
-    const isRunning = detailsData?.session?.status === "running" || detailsData?.session?.status === "queued"
-    if (isRunning && streamScreenshot) {
-      return streamScreenshot
-    }
-
-    if (detailsData?.session?.steps) {
-      for (let i = detailsData.session.steps.length - 1; i >= 0; i--) {
-        const screenshot = getScreenshotFromStep(detailsData.session.steps[i])
-        if (screenshot) return screenshot
-      }
-    }
-
-    return streamScreenshot
-  }, [detailsData, selectedStepNumber, streamScreenshot])
-
   // SSE Stream integration for running sessions
   React.useEffect(() => {
     let eventSource: EventSource | null = null
 
     if (!selectedSessionId) {
       setStreamLogs([])
-      setStreamScreenshot(null)
       return
     }
 
@@ -337,11 +292,6 @@ function SessionsContent() {
       eventSource.addEventListener("log", (e: any) => {
         const data = JSON.parse(e.data)
         setStreamLogs(prev => [...prev, { type: "log", message: data.message, timestamp: Date.now() }])
-      })
-
-      eventSource.addEventListener("screenshot", (e: any) => {
-        const data = JSON.parse(e.data)
-        setStreamScreenshot(data.imageBase64)
       })
 
       eventSource.onerror = () => {
@@ -696,7 +646,6 @@ function SessionsContent() {
                     {detailsData.session.steps.length > 0 ? (
                       detailsData.session.steps.map((step: Step) => {
                         const isSelected = selectedStepNumber === step.stepNumber
-                        const stepScreenshot = getScreenshotFromStep(step)
                         return (
                           <div
                             key={step.stepNumber}
@@ -734,29 +683,6 @@ function SessionsContent() {
                                   <span>{step.duration}ms</span>
                                 </div>
                               </div>
-
-                              {/* Bubble Viewport Embedded Attachment */}
-                              {stepScreenshot && (
-                                <div className="relative group rounded-lg overflow-hidden border border-border/40 bg-black/10 aspect-video max-w-sm">
-                                  <img
-                                    src={stepScreenshot.startsWith('data:') ? stepScreenshot : `data:image/png;base64,${stepScreenshot}`}
-                                    alt={`Step ${step.stepNumber} viewport attachment`}
-                                    className="w-full h-full object-contain"
-                                  />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
-                                    <button 
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setSelectedStepNumber(step.stepNumber)
-                                        setEnlargeScreenshot(true)
-                                      }}
-                                      className="p-1.5 bg-background/95 rounded-lg text-foreground hover:bg-background transition-all"
-                                    >
-                                      <Maximize2 className="size-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
 
                               {/* Result Summary */}
                               <p className="text-xs leading-relaxed text-foreground font-semibold break-words">{step.resultSummary}</p>
@@ -877,89 +803,9 @@ function SessionsContent() {
                 </div>
               )}
             </div>
-
-            {/* Right Portion: Dynamic Viewport Panel */}
-            <div className="w-[360px] border-l border-border/50 bg-card/45 flex flex-col shrink-0 overflow-hidden select-none">
-              <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between font-bold text-xs bg-muted/10 shrink-0">
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <ImageIcon className="size-4 text-primary" /> Browser Viewport
-                </span>
-                {selectedStepNumber && (
-                  <button
-                    onClick={() => setSelectedStepNumber(null)}
-                    className="text-[9px] hover:text-foreground text-primary px-2 py-0.5 bg-primary/10 rounded-sm font-bold cursor-pointer transition-colors"
-                  >
-                    RESET TO LIVE
-                  </button>
-                )}
-              </div>
-
-              {/* Viewport content */}
-              <div className="flex-1 flex flex-col justify-center bg-black/10 p-4 relative">
-                {displayScreenshot ? (
-                  <div className="relative group rounded-xl overflow-hidden border border-border/40 shadow-lg bg-black aspect-video flex items-center justify-center">
-                    <img
-                      src={displayScreenshot.startsWith('data:') ? displayScreenshot : `data:image/png;base64,${displayScreenshot}`}
-                      alt="Browser viewport paint preview"
-                      className="w-full h-full object-contain"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <button
-                        onClick={() => setEnlargeScreenshot(true)}
-                        className="flex items-center gap-1 text-[10px] font-bold text-foreground bg-background/95 px-3 py-1.5 rounded-lg cursor-pointer"
-                      >
-                        <MaximizeIcon className="size-3" /> Enlarge Viewport
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center p-8 space-y-3 text-muted-foreground border border-dashed border-border/40 rounded-xl max-w-xs mx-auto">
-                    <Cpu className="size-8 text-muted-foreground/30 mx-auto" />
-                    <p className="text-[11px] font-bold">No paint screen detected</p>
-                    <p className="text-[9px] text-muted-foreground/75 leading-relaxed">
-                      {detailsData?.session?.status === "running" 
-                        ? "Waiting for browser screenshot stream paint event..." 
-                        : "Browser viewport has closed after session execution ended."}
-                    </p>
-                  </div>
-                )}
-
-                <div className="text-[9px] text-muted-foreground/75 font-semibold text-center mt-3 font-mono leading-relaxed max-w-[280px] mx-auto">
-                  {selectedStepNumber 
-                    ? `Step ${selectedStepNumber} Frame Preview` 
-                    : detailsData?.session?.status === "running"
-                      ? "Streaming base64 screenshots in real-time..."
-                      : "Viewport state from final execution frame"}
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>
-
-      {/* ─── ENLARGED SCREENSHOT LIGHTBOX OVERLAY ─── */}
-      {enlargeScreenshot && displayScreenshot && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-fade-in"
-          onClick={() => setEnlargeScreenshot(false)}
-        >
-          <div className="max-w-4xl max-h-[90vh] bg-card border border-border rounded-2xl overflow-hidden relative p-1.5 flex flex-col justify-between" onClick={e => e.stopPropagation()}>
-            <img 
-              src={displayScreenshot.startsWith('data:') ? displayScreenshot : `data:image/png;base64,${displayScreenshot}`} 
-              alt="Enlarged viewport paint" 
-              className="object-contain max-h-[80vh] rounded-xl mx-auto shadow-2xl" 
-            />
-            <div className="absolute top-4 right-4 flex items-center gap-2">
-              <button
-                onClick={() => setEnlargeScreenshot(false)}
-                className="bg-black/60 text-white font-bold p-1 px-3 rounded-full hover:bg-black text-xs cursor-pointer shadow-md"
-              >
-                Close View
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
