@@ -288,8 +288,14 @@ export default function DashboardLayout({
         </header>
 
         {/* CONTENT AREA */}
-        <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto bg-muted/15 dark:bg-background/20">
-          <div className="max-w-7xl mx-auto animate-fade-in duration-300">
+        <main className={cn(
+          "flex-1 bg-muted/15 dark:bg-background/20",
+          pathname === "/dashboard/sessions" ? "p-0 overflow-hidden" : "p-4 sm:p-6 md:p-8 overflow-y-auto"
+        )}>
+          <div className={cn(
+            "animate-fade-in duration-300",
+            pathname === "/dashboard/sessions" ? "w-full h-full" : "max-w-7xl mx-auto"
+          )}>
             {children}
           </div>
         </main>

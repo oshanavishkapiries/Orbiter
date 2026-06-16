@@ -336,7 +336,7 @@ function SessionsContent() {
   }
 
   return (
-    <div className="flex h-[82vh] border border-border/60 bg-card/20 backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl animate-fade-in text-xs">
+    <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden animate-fade-in text-xs">
       
       {/* ─── LEFT SIDEBAR: CHAT THREADS HISTORY ─── */}
       <div className="w-80 border-r border-border/50 bg-card/45 flex flex-col shrink-0">
