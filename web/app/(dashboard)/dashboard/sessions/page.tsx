@@ -251,6 +251,57 @@ function SessionsContent() {
     queryFn: () => orbiterApi.getProfiles()
   })
 
+  // 5.5 Fetch user settings
+  const { data: settingsData } = useQuery({
+    queryKey: ["userSettings"],
+    queryFn: () => orbiterApi.getSettings()
+  })
+
+  const isInitialSyncDoneRef = React.useRef(false)
+
+  // Sync initial configuration from database user settings
+  React.useEffect(() => {
+    if (settingsData?.success && settingsData.settings && !isInitialSyncDoneRef.current) {
+      const sMap = new Map<string, string>()
+      for (const s of settingsData.settings) {
+        sMap.set(s.key, s.value)
+      }
+      
+      const dbModel = sMap.get("llm.model")
+      const dbProfile = sMap.get("browser.profile")
+      const dbHeadless = sMap.get("browser.headless")
+      const dbMaxSteps = sMap.get("execution.maxSteps")
+
+      if (dbModel) setSelectedModel(dbModel)
+      if (dbProfile) setSelectedProfile(dbProfile)
+      if (dbHeadless !== undefined) setHeadless(dbHeadless === "true")
+      if (dbMaxSteps) setMaxSteps(parseInt(dbMaxSteps, 10))
+
+      isInitialSyncDoneRef.current = true
+    }
+  }, [settingsData])
+
+  // Debounced auto-save config settings to database on state change
+  React.useEffect(() => {
+    if (!isInitialSyncDoneRef.current) return
+
+    const timer = setTimeout(() => {
+      orbiterApi.updateSettings([
+        { key: "llm.model", value: selectedModel },
+        { key: "browser.profile", value: selectedProfile },
+        { key: "browser.headless", value: headless.toString() },
+        { key: "execution.maxSteps", value: maxSteps.toString() },
+      ]).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["userSettings"] })
+      }).catch((err) => {
+        console.error("Failed to auto-save settings:", err)
+      })
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [selectedModel, selectedProfile, headless, maxSteps, queryClient])
+
+
   // 6. Spawn Mutation
   const spawnMutation = useMutation({
     mutationFn: (payload: any) => orbiterApi.runTask(payload),

@@ -508,6 +508,13 @@ export class DataRepository extends BaseRepository<FlowRecord> {
         desc: 'Run browser in headless mode',
       },
       {
+        key: 'browser.profile',
+        value: String(cfg.browser?.profilePath ?? 'default'),
+        type: 'string',
+        cat: 'browser',
+        desc: 'Default browser profile to use (e.g., default)',
+      },
+      {
         key: 'browser.defaultTimeout',
         value: String(cfg.browser?.defaultTimeout ?? 30000),
         type: 'number',
