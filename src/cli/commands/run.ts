@@ -74,9 +74,15 @@ export function runCommand() {
         initializeTools();
         sp.text('Tools registered');
 
+        const { ProfileManager } = await import('../../browser/profile-manager.js');
+        const profileManager = new ProfileManager();
+        const resolvedProfilePath = profileManager.resolvePath(
+          options.profile ?? cfg.browser.profilePath ?? 'default',
+        );
+
         const mcpOptions = {
           headless: options.headless ?? cfg.browser.headless,
-          userDataDir: options.profile ?? cfg.browser.profilePath,
+          userDataDir: resolvedProfilePath,
           executablePath: cfg.browser.executablePath,
           browser: (cfg.browser.channel as any) ?? undefined,
           viewport: cfg.browser.viewport,

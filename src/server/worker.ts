@@ -212,9 +212,15 @@ async function runTask(sessionId: string, payload: any): Promise<void> {
   try {
     initializeTools();
 
+    const { ProfileManager } = await import('../browser/profile-manager.js');
+    const profileManager = new ProfileManager();
+    const resolvedProfilePath = profileManager.resolvePath(
+      profile ?? cfg.browser.profilePath ?? 'default',
+    );
+
     const mcpOptions = {
       headless: headless ?? cfg.browser.headless,
-      userDataDir: profile ?? cfg.browser.profilePath,
+      userDataDir: resolvedProfilePath,
       executablePath: cfg.browser.executablePath,
       browser: (cfg.browser.channel as any) ?? undefined,
       viewport: cfg.browser.viewport,

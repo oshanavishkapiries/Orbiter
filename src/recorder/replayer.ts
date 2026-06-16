@@ -97,10 +97,16 @@ export class FlowReplayer {
 
     initializeTools();
 
+    const { ProfileManager } = await import('../browser/profile-manager.js');
+    const profileManager = new ProfileManager();
+    const resolvedProfilePath = profileManager.resolvePath(
+      options.profilePath ?? cfg.browser.profilePath ?? 'default',
+    );
+
     logger.info('Starting Playwright MCP server...');
     await this.mcpClient.connect({
       headless: options.headless ?? cfg.browser.headless,
-      userDataDir: options.profilePath ?? cfg.browser.profilePath,
+      userDataDir: resolvedProfilePath,
       executablePath: cfg.browser.executablePath,
       browser: (cfg.browser.channel as any) ?? undefined,
       viewport: cfg.browser.viewport,
