@@ -476,25 +476,13 @@ function SessionsContent() {
     }
   }, [settingsData])
 
-  // Debounced auto-save config settings to database on state change
-  React.useEffect(() => {
-    if (!isInitialSyncDoneRef.current) return
-
-    const timer = setTimeout(() => {
-      orbiterApi.updateSettings([
-        { key: "llm.model", value: selectedModel },
-        { key: "browser.profile", value: selectedProfile },
-        { key: "browser.headless", value: headless.toString() },
-        { key: "execution.maxSteps", value: maxSteps.toString() },
-      ]).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["userSettings"] })
-      }).catch((err) => {
-        console.error("Failed to auto-save settings:", err)
-      })
-    }, 500)
-
-    return () => clearTimeout(timer)
-  }, [selectedModel, selectedProfile, headless, maxSteps, queryClient])
+  const saveSetting = (key: string, value: string) => {
+    orbiterApi.updateSettings([{ key, value }]).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["userSettings"] })
+    }).catch((err) => {
+      console.error(`Failed to save setting ${key}:`, err)
+    })
+  }
 
 
   // 6. Spawn Mutation
@@ -819,14 +807,21 @@ function SessionsContent() {
                         <SearchableSelect
                           options={modelsData?.success ? modelsData.models : []}
                           value={selectedModel}
-                          onChange={setSelectedModel}
+                          onChange={(val) => {
+                            setSelectedModel(val)
+                            saveSetting("llm.model", val)
+                          }}
                           placeholder="Select LLM Engine..."
                           size="sm"
                         />
                       ) : (
                         <select
                           value={selectedModel}
-                          onChange={(e) => setSelectedModel(e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setSelectedModel(val)
+                            saveSetting("llm.model", val)
+                          }}
                           className="w-full h-8 px-2 text-[11px] bg-background/50 border border-border rounded-lg text-foreground font-semibold"
                         >
                           {modelsData?.success && modelsData.models.length > 0 ? (
@@ -846,7 +841,11 @@ function SessionsContent() {
                       <label className="text-muted-foreground">Chrome Profile</label>
                       <select
                         value={selectedProfile}
-                        onChange={(e) => setSelectedProfile(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setSelectedProfile(val)
+                          saveSetting("browser.profile", val)
+                        }}
                         className="w-full h-8 px-2 text-[11px] bg-background/50 border border-border rounded-lg text-foreground font-semibold"
                       >
                         {profilesData?.success && profilesData.profiles.length > 0 ? (
@@ -867,7 +866,11 @@ function SessionsContent() {
                           type="checkbox"
                           id="headless-mode-setup"
                           checked={headless}
-                          onChange={(e) => setHeadless(e.target.checked)}
+                          onChange={(e) => {
+                            const val = e.target.checked
+                            setHeadless(val)
+                            saveSetting("browser.headless", val.toString())
+                          }}
                           className="size-3.5 rounded border-border text-primary"
                         />
                         <label htmlFor="headless-mode-setup" className="text-[11px] text-muted-foreground cursor-pointer select-none">
@@ -881,7 +884,11 @@ function SessionsContent() {
                           min="5"
                           max="100"
                           value={maxSteps}
-                          onChange={(e) => setMaxSteps(parseInt(e.target.value))}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 20
+                            setMaxSteps(val)
+                            saveSetting("execution.maxSteps", val.toString())
+                          }}
                           className="w-12 h-6 px-1 text-center bg-background/50 border border-border rounded-md font-mono"
                         />
                       </div>
