@@ -166,6 +166,7 @@ export interface ReplayOptions {
   stopOnError?: boolean;
   screenshotOnStep?: boolean;
   config?: any;
+  sessionId?: string;
 }
 
 export interface ReplayResult {

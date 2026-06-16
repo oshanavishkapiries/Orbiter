@@ -4,6 +4,7 @@ import { ExecutionContext } from './execution-context.js';
 import { SYSTEM_PROMPT } from '../llm/prompts/system.js';
 import { eventBus } from '../server/event-bus.js';
 import { HistoryManager } from './history-manager.js';
+import { checkExecutionControl } from '../server/execution-control.js';
 import { SessionRepository } from '../memory/database/repositories/session-repository.js';
 import { DataRepository } from '../memory/database/repositories/data-repository.js';
 import { DatabaseConnection } from '../memory/database/connection.js';
@@ -170,6 +171,7 @@ export class TaskExecutor {
     let stepLimitWarned = false;
 
     while (continueExecution && stepNumber < effectiveMaxSteps) {
+      await checkExecutionControl(this.sessionId);
       stepNumber++;
 
       // Warn LLM when only a few steps remain so it can save data and wrap up

@@ -11,6 +11,7 @@ import { OutputFormatter } from './output-formatter.js';
 import { DatabaseConnection } from '../memory/database/connection.js';
 import { DataRepository } from '../memory/database/repositories/data-repository.js';
 import { Flow, FlowStep, ReplayOptions, ReplayResult } from './schema.js';
+import { checkExecutionControl } from '../server/execution-control.js';
 
 export class FlowReplayer {
   private context: ExecutionContext;
@@ -146,6 +147,8 @@ export class FlowReplayer {
     let stepsFailed = 0;
 
     for (let i = 0; i < stepsToReplay.length; i++) {
+      await checkExecutionControl(options.sessionId || null);
+
       const step = stepsToReplay[i];
       const params = this.paramEngine.substituteParams(step.params);
 

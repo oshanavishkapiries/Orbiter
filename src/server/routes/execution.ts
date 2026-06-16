@@ -539,5 +539,122 @@ export async function executionRoutes(
       });
     }
   });
+
+  // 8. Control Routes (Pause, Resume, Stop, Rerun)
+  app.post(
+    '/sessions/:id/pause',
+    {
+      schema: {
+        params: sessionParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const pool = DatabaseConnection.getInstance().getPool();
+        await pool.query(
+          "UPDATE orbiter_sessions SET status = 'paused' WHERE id = $1",
+          [id]
+        );
+        eventBus.emitStatus(id, { status: 'paused' });
+        return { success: true, message: 'Session paused' };
+      } catch (err) {
+        return reply.status(500).send({ success: false, error: (err as Error).message });
+      }
+    }
+  );
+
+  app.post(
+    '/sessions/:id/resume',
+    {
+      schema: {
+        params: sessionParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const pool = DatabaseConnection.getInstance().getPool();
+        await pool.query(
+          "UPDATE orbiter_sessions SET status = 'running' WHERE id = $1",
+          [id]
+        );
+        eventBus.emitStatus(id, { status: 'running' });
+        return { success: true, message: 'Session resumed' };
+      } catch (err) {
+        return reply.status(500).send({ success: false, error: (err as Error).message });
+      }
+    }
+  );
+
+  app.post(
+    '/sessions/:id/stop',
+    {
+      schema: {
+        params: sessionParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const pool = DatabaseConnection.getInstance().getPool();
+        await pool.query(
+          "UPDATE orbiter_sessions SET status = 'stopped' WHERE id = $1",
+          [id]
+        );
+        eventBus.emitStatus(id, { status: 'stopped' });
+        return { success: true, message: 'Session stopped' };
+      } catch (err) {
+        return reply.status(500).send({ success: false, error: (err as Error).message });
+      }
+    }
+  );
+
+  app.post(
+    '/sessions/:id/rerun',
+    {
+      schema: {
+        params: sessionParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const pool = DatabaseConnection.getInstance().getPool();
+        const sessionRes = await pool.query(
+          'SELECT * FROM orbiter_sessions WHERE id = $1',
+          [id]
+        );
+        if (sessionRes.rows.length === 0) {
+          return reply.status(404).send({ success: false, error: 'Session not found' });
+        }
+        const s = sessionRes.rows[0];
+
+        // 1. Clean previous execution data
+        await pool.query('DELETE FROM orbiter_session_steps WHERE session_id = $1', [id]);
+        await pool.query('DELETE FROM orbiter_app_logs WHERE session_id = $1', [id]);
+        await pool.query('DELETE FROM orbiter_session_dom_snapshots WHERE session_id = $1', [id]);
+        await pool.query('DELETE FROM orbiter_session_collected_data WHERE session_id = $1', [id]);
+
+        // 2. Reset session status
+        await pool.query(
+          "UPDATE orbiter_sessions SET status = 'running', completed_at = NULL WHERE id = $1",
+          [id]
+        );
+
+        // 3. Queue a new job
+        const payload = {
+          prompt: s.goal,
+          model: s.model || undefined,
+          title: s.title || undefined,
+        };
+        await enqueueJob('run', id, payload);
+
+        return { success: true, message: 'Session restarted' };
+      } catch (err) {
+        return reply.status(500).send({ success: false, error: (err as Error).message });
+      }
+    }
+  );
 }
 

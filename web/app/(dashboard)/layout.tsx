@@ -179,62 +179,6 @@ export default function DashboardLayout({
           <div className="flex items-center gap-4">
 
 
-            {/* Notification Bell */}
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                <Bell className="size-5" />
-                {unreadNotifications > 0 && (
-                  <span className="absolute top-1.5 right-1.5 size-2 bg-rose-500 rounded-full animate-ping" />
-                )}
-                {unreadNotifications > 0 && (
-                  <span className="absolute top-1.5 right-1.5 size-2 bg-rose-500 rounded-full" />
-                )}
-              </button>
-
-              {/* Notification Dropdown */}
-              {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-popover text-popover-foreground border border-border rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-slide-down">
-                  <div className="px-4 py-2.5 border-b border-border/50 flex items-center justify-between">
-                    <span className="text-xs font-semibold">Notifications</span>
-                    {unreadNotifications > 0 && (
-                      <button
-                        onClick={() => setUnreadNotifications(0)}
-                        className="text-[10px] text-primary hover:underline font-medium"
-                      >
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-                  <div className="divide-y divide-border/50 max-h-64 overflow-y-auto">
-                    {notifications.map((n) => (
-                      <div key={n.id} className="p-3 hover:bg-muted/50 transition-colors cursor-pointer">
-                        <div className="flex justify-between items-start">
-                          <span className="text-xs font-semibold flex items-center gap-1.5">
-                            <span className={cn(
-                              "size-1.5 rounded-full",
-                              n.type === "success" ? "bg-emerald-500" :
-                              n.type === "warning" ? "bg-amber-500" : "bg-sky-500"
-                            )} />
-                            {n.title}
-                          </span>
-                          <span className="text-[9px] text-muted-foreground">{n.time}</span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{n.desc}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="px-4 py-2 border-t border-border/50 text-center">
-                    <a href="#" className="text-[10px] text-primary hover:underline font-medium block">
-                      View all activities
-                    </a>
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Vertical Divider */}
             <div className="h-5 w-px bg-border" />
 

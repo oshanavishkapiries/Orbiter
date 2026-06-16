@@ -77,6 +77,14 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
     }));
   }
 
+  async getSessionStatus(sessionId: string): Promise<string> {
+    const result = await this.pool.query(
+      `SELECT status FROM orbiter_sessions WHERE id = $1`,
+      [sessionId],
+    );
+    return result.rows[0]?.status ?? 'running';
+  }
+
   async createSession(
     goal: string,
     model?: string,

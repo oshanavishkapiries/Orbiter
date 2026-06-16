@@ -305,6 +305,7 @@ async function replayFlow(sessionId: string, payload: any): Promise<void> {
       screenshotOnStep: screenshotSteps,
       skipSteps: skipSteps || [],
       config: cfg,
+      sessionId,
     });
   } finally {
     await replayer.cleanup();

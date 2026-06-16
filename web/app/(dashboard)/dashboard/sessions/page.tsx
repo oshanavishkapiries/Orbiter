@@ -8,6 +8,10 @@ import {
   Activity,
   Cpu,
   Filter,
+  Play,
+  Pause,
+  Square,
+  RotateCcw,
   Plus,
   Search,
   Terminal,
@@ -323,6 +327,44 @@ function SessionsContent() {
       }
     }
   })
+
+  // 7.6. Pause Session Mutation
+  const pauseMutation = useMutation({
+    mutationFn: (id: string) => orbiterApi.pauseSession(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] })
+      queryClient.invalidateQueries({ queryKey: ["sessionDetails", selectedSessionId] })
+    }
+  })
+
+  // 7.7. Resume Session Mutation
+  const resumeMutation = useMutation({
+    mutationFn: (id: string) => orbiterApi.resumeSession(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] })
+      queryClient.invalidateQueries({ queryKey: ["sessionDetails", selectedSessionId] })
+    }
+  })
+
+  // 7.8. Stop Session Mutation
+  const stopMutation = useMutation({
+    mutationFn: (id: string) => orbiterApi.stopSession(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] })
+      queryClient.invalidateQueries({ queryKey: ["sessionDetails", selectedSessionId] })
+    }
+  })
+
+  // 7.9. Rerun Session Mutation
+  const rerunMutation = useMutation({
+    mutationFn: (id: string) => orbiterApi.rerunSession(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] })
+      queryClient.invalidateQueries({ queryKey: ["sessionDetails", selectedSessionId] })
+      queryClient.invalidateQueries({ queryKey: ["sessionLogs", selectedSessionId] })
+    }
+  })
+
 
   // 7.5. Rename Session Mutation
   const renameMutation = useMutation({
@@ -702,6 +744,8 @@ function SessionsContent() {
                     detailsData?.session?.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
                     detailsData?.session?.status === "completed" ? "bg-blue-500/10 text-blue-600 border-blue-500/20" :
                     detailsData?.session?.status === "queued" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" :
+                    detailsData?.session?.status === "paused" ? "bg-orange-500/10 text-orange-600 border-orange-500/20" :
+                    detailsData?.session?.status === "stopped" ? "bg-neutral-500/10 text-neutral-600 border-neutral-500/20" :
                     "bg-rose-500/10 text-rose-600 border-rose-500/20"
                   )}>
                     {detailsData?.session?.status}
@@ -736,6 +780,59 @@ function SessionsContent() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Real-time execution controls */}
+                  {selectedSessionId && detailsData?.session && (
+                    <div className="flex items-center gap-1.5 border-r border-border/40 pr-2 mr-1">
+                      {/* Pause button */}
+                      {(detailsData.session.status === "running" || detailsData.session.status === "queued") && (
+                        <button
+                          onClick={() => pauseMutation.mutate(selectedSessionId)}
+                          disabled={pauseMutation.isPending}
+                          className="h-7 w-7 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-all cursor-pointer"
+                          title="Pause execution"
+                        >
+                          <Pause className="size-3.5" />
+                        </button>
+                      )}
+
+                      {/* Resume button */}
+                      {detailsData.session.status === "paused" && (
+                        <button
+                          onClick={() => resumeMutation.mutate(selectedSessionId)}
+                          disabled={resumeMutation.isPending}
+                          className="h-7 w-7 rounded-lg hover:bg-muted text-emerald-500 hover:text-emerald-600 flex items-center justify-center transition-all cursor-pointer"
+                          title="Resume execution"
+                        >
+                          <Play className="size-3.5" />
+                        </button>
+                      )}
+
+                      {/* Stop button */}
+                      {(detailsData.session.status === "running" || detailsData.session.status === "queued" || detailsData.session.status === "paused") && (
+                        <button
+                          onClick={() => stopMutation.mutate(selectedSessionId)}
+                          disabled={stopMutation.isPending}
+                          className="h-7 w-7 rounded-lg hover:bg-muted text-rose-500 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer"
+                          title="Stop execution"
+                        >
+                          <Square className="size-3.5 fill-rose-500/10" />
+                        </button>
+                      )}
+
+                      {/* Re-run button */}
+                      {(detailsData.session.status === "completed" || detailsData.session.status === "failed" || detailsData.session.status === "stopped") && (
+                        <button
+                          onClick={() => rerunMutation.mutate(selectedSessionId)}
+                          disabled={rerunMutation.isPending}
+                          className="h-7 px-2.5 gap-1.5 rounded-lg hover:bg-muted text-primary hover:text-primary/80 flex items-center justify-center transition-all cursor-pointer text-[10px] font-bold border border-border"
+                          title="Re-run session"
+                        >
+                          <RotateCcw className="size-3" /> Re-run
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <button
                     onClick={() => setShowLogsPanel(!showLogsPanel)}
                     className={cn(
@@ -853,16 +950,29 @@ function SessionsContent() {
                       </div>
                     )}
 
-                    {/* Active Running Streaming Bubble */}
-                    {(detailsData.session.status === "running" || detailsData.session.status === "queued") && (
+                    {/* Active Running/Paused Streaming Bubble */}
+                    {(detailsData.session.status === "running" || detailsData.session.status === "queued" || detailsData.session.status === "paused") && (
                       <div className="flex gap-3 max-w-[85%]">
                         <div className="size-7 rounded-xl bg-card border border-border flex items-center justify-center shrink-0 text-primary">
-                          <Loader2 className="size-4 animate-spin" />
+                          {detailsData.session.status === "paused" ? (
+                            <Pause className="size-3.5 text-amber-500 animate-pulse" />
+                          ) : (
+                            <Loader2 className="size-4 animate-spin" />
+                          )}
                         </div>
                         <div className="p-4 rounded-2xl rounded-tl-none bg-card/45 border border-border/40 shadow-xs flex-1 space-y-2 text-xs">
                           <div className="flex items-center gap-2 text-primary font-bold">
-                            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <span>Agent is executing tools in the browser...</span>
+                            {detailsData.session.status === "paused" ? (
+                              <>
+                                <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+                                <span className="text-amber-500">Agent execution is paused.</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>Agent is executing tools in the browser...</span>
+                              </>
+                            )}
                           </div>
                           
                           {/* Live Console streaming panel inside the stream card */}
