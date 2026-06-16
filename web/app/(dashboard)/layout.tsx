@@ -138,15 +138,10 @@ export default function DashboardLayout({
                 className={cn(
                   "relative flex items-center h-10 px-3 rounded-lg text-sm font-medium transition-all group/item overflow-hidden",
                   isActive
-                    ? "bg-primary text-primary-foreground shadow-xs shadow-primary/10"
+                    ? "bg-primary/10 text-primary font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 )}
               >
-                {/* Active indicator bar */}
-                {isActive && (
-                  <div className="absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r-md bg-primary-foreground" />
-                )}
-                
                 <Icon className="size-5 shrink-0 mr-3 transition-transform duration-200 group-hover/item:scale-105" />
                 <span className="truncate">
                   {item.name}
