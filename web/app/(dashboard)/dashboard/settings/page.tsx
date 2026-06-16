@@ -15,7 +15,8 @@ import {
   FolderOpen,
   Camera,
   Terminal,
-  Activity
+  Activity,
+  X
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SearchableSelect } from "@/components/ui/searchable-select"
@@ -24,6 +25,7 @@ export default function SettingsPage() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = React.useState<"llm" | "browser" | "execution" | "recording" | "logging">("llm")
   const [toastMessage, setToastMessage] = React.useState("")
+  const [activeProviderModal, setActiveProviderModal] = React.useState<"openrouter" | "opencode-go" | null>(null)
 
   // --- State for all dynamic settings ---
   const [llmProvider, setLlmProvider] = React.useState("openrouter")
@@ -257,136 +259,245 @@ export default function SettingsPage() {
           
           {/* TAB 1: LLM ENGINE */}
           {activeTab === "llm" && (
-            <div className="space-y-5">
+            <div className="space-y-6">
               <div>
                 <h2 className="text-base font-semibold">LLM Inference Settings</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">Customize default inference node engines and routing parameters.</p>
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">LLM Provider</label>
-                    <select
-                      value={llmProvider}
-                      onChange={(e) => setLlmProvider(e.target.value)}
-                      className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
-                    >
-                      <option value="openrouter" className="bg-neutral-900 text-neutral-100">OpenRouter</option>
-                      <option value="opencode-go" className="bg-neutral-900 text-neutral-100">OpenCode Go</option>
-                    </select>
+              {/* Provider Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* OpenRouter Card */}
+                <div
+                  onClick={() => {
+                    setLlmProvider("openrouter")
+                    setActiveProviderModal("openrouter")
+                  }}
+                  className={cn(
+                    "p-4 rounded-xl border cursor-pointer transition-all duration-200 flex flex-col justify-between h-32 hover:scale-[1.01]",
+                    llmProvider === "openrouter"
+                      ? "bg-primary/5 border-primary/60 shadow-md ring-1 ring-primary/10"
+                      : "bg-background/40 border-border/40 hover:bg-muted/10"
+                  )}
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-foreground">OpenRouter</span>
+                      <span className={cn(
+                        "px-1.5 py-0.5 rounded text-[9px] font-bold",
+                        llmOpenrouterApiKey ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                      )}>
+                        {llmOpenrouterApiKey ? "Configured" : "Needs API Key"}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-normal">
+                      Access a wide array of commercial and open-source models through a single API gateway.
+                    </p>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Default Agent Model</label>
-                    {loadingModels ? (
-                      <div className="w-full h-10 flex items-center justify-center bg-background/50 border border-border rounded-lg">
-                        <Loader2 className="size-4 animate-spin text-primary" />
-                      </div>
-                    ) : llmProvider === "openrouter" ? (
-                      <SearchableSelect
-                        options={modelsData?.success ? modelsData.models : []}
-                        value={llmModel}
-                        onChange={setLlmModel}
-                        placeholder="Select default model..."
-                      />
-                    ) : (
-                      <select
-                        value={llmModel}
-                        onChange={(e) => setLlmModel(e.target.value)}
-                        className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
-                      >
-                        {modelsData?.success && modelsData.models.length > 0 ? (
-                          modelsData.models.map((m: any) => (
-                            <option key={m.id} value={m.id} className="bg-neutral-900 text-neutral-100">
-                              {m.name}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="" disabled className="bg-neutral-900 text-neutral-100">
-                            No models available (check API keys)
-                          </option>
-                        )}
-                      </select>
-                    )}
+                  <div className="flex items-center justify-between text-[9px] font-mono text-muted-foreground border-t border-border/10 pt-2 mt-2">
+                    <span className="truncate max-w-[150px]">Model: {llmProvider === "openrouter" ? llmModel : "N/A"}</span>
+                    <span className="text-primary hover:underline font-bold">Configure →</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">OpenRouter API Key</label>
-                    <input
-                      type="password"
-                      value={llmOpenrouterApiKey}
-                      onChange={(e) => setLlmOpenrouterApiKey(e.target.value)}
-                      placeholder="sk-or-..."
-                      className="w-full h-10 px-3.5 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">OpenCode API Key</label>
-                    <input
-                      type="password"
-                      value={llmOpencodeApiKey}
-                      onChange={(e) => setLlmOpencodeApiKey(e.target.value)}
-                      placeholder="sk-oc-..."
-                      className="w-full h-10 px-3.5 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Model Vision Capability</label>
-                  <select
-                    value={llmVision}
-                    onChange={(e) => setLlmVision(e.target.value)}
-                    className="w-full h-10 px-3 text-xs bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground"
-                  >
-                    <option value="auto" className="bg-neutral-900 text-neutral-100">Auto (Detect modal abilities dynamically)</option>
-                    <option value="enabled" className="bg-neutral-900 text-neutral-100">Enabled (Force capture & vision updates)</option>
-                    <option value="disabled" className="bg-neutral-900 text-neutral-100">Disabled (Text-only run context)</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs">
-                      <label className="font-medium text-muted-foreground">Model Temperature</label>
-                      <span className="font-mono font-bold text-primary">{llmTemperature.toFixed(2)}</span>
+                {/* OpenCode Go Card */}
+                <div
+                  onClick={() => {
+                    setLlmProvider("opencode-go")
+                    setActiveProviderModal("opencode-go")
+                  }}
+                  className={cn(
+                    "p-4 rounded-xl border cursor-pointer transition-all duration-200 flex flex-col justify-between h-32 hover:scale-[1.01]",
+                    llmProvider === "opencode-go"
+                      ? "bg-primary/5 border-primary/60 shadow-md ring-1 ring-primary/10"
+                      : "bg-background/40 border-border/40 hover:bg-muted/10"
+                  )}
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-foreground">OpenCode Go</span>
+                      <span className={cn(
+                        "px-1.5 py-0.5 rounded text-[9px] font-bold",
+                        llmOpencodeApiKey ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                      )}>
+                        {llmOpencodeApiKey ? "Configured" : "Needs API Key"}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1.5"
-                      step="0.05"
-                      value={llmTemperature}
-                      onChange={(e) => setLlmTemperature(parseFloat(e.target.value))}
-                      className="w-full h-1 bg-border rounded-lg appearance-none cursor-pointer accent-primary focus:outline-none"
-                    />
-                    <div className="flex justify-between text-[9px] text-muted-foreground font-semibold">
-                      <span>Deterministic</span>
-                      <span>Creative / Exploratory</span>
-                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-normal">
+                      Run specialized local or custom hosted code generation and agent action models.
+                    </p>
                   </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs">
-                      <label className="font-medium text-muted-foreground">Max Output Token Limit</label>
-                      <span className="font-mono font-bold text-primary">{llmMaxTokens} tokens</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="256"
-                      max="8192"
-                      step="256"
-                      value={llmMaxTokens}
-                      onChange={(e) => setLlmMaxTokens(parseInt(e.target.value))}
-                      className="w-full h-1 bg-border rounded-lg appearance-none cursor-pointer accent-primary focus:outline-none"
-                    />
+                  <div className="flex items-center justify-between text-[9px] font-mono text-muted-foreground border-t border-border/10 pt-2 mt-2">
+                    <span className="truncate max-w-[150px]">Model: {llmProvider === "opencode-go" ? llmModel : "N/A"}</span>
+                    <span className="text-primary hover:underline font-bold">Configure →</span>
                   </div>
                 </div>
               </div>
+
+              {/* Displaying Current Selection Summary below cards */}
+              <div className="p-3 bg-muted/20 border border-border/30 rounded-lg text-xs flex justify-between items-center">
+                <div>
+                  <span className="text-muted-foreground font-medium">Active Engine:</span>{" "}
+                  <span className="font-bold text-foreground capitalize">{llmProvider === "openrouter" ? "OpenRouter" : "OpenCode Go"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground font-medium">Model:</span>{" "}
+                  <span className="font-mono text-primary font-bold">{llmModel}</span>
+                </div>
+              </div>
+
+              {/* Provider Configuration Modal */}
+              {activeProviderModal && (
+                <div
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) setActiveProviderModal(null)
+                  }}
+                  className="fixed inset-0 bg-background/80 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-default"
+                >
+                  <div 
+                    onClick={(e) => e.stopPropagation()} 
+                    className="bg-card border border-border rounded-xl shadow-xl w-full max-w-xl flex flex-col overflow-hidden max-h-[90vh]"
+                  >
+                    {/* Modal Header */}
+                    <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-muted/10">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sm text-foreground">
+                          Configure {activeProviderModal === "openrouter" ? "OpenRouter" : "OpenCode Go"}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">Adjust keys, model selections, and inference tuning.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveProviderModal(null)}
+                        className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-all"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+
+                    {/* Modal Content */}
+                    <div className="p-5 overflow-y-auto space-y-4 text-xs">
+                      {/* API Key */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground">
+                          {activeProviderModal === "openrouter" ? "OpenRouter API Key" : "OpenCode API Key"}
+                        </label>
+                        <input
+                          type="password"
+                          value={activeProviderModal === "openrouter" ? llmOpenrouterApiKey : llmOpencodeApiKey}
+                          onChange={(e) => {
+                            if (activeProviderModal === "openrouter") {
+                              setLlmOpenrouterApiKey(e.target.value)
+                            } else {
+                              setLlmOpencodeApiKey(e.target.value)
+                            }
+                          }}
+                          placeholder={activeProviderModal === "openrouter" ? "sk-or-..." : "sk-oc-..."}
+                          className="w-full h-10 px-3.5 bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-mono text-xs"
+                        />
+                      </div>
+
+                      {/* Model Selection */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground">Default Agent Model</label>
+                        {loadingModels ? (
+                          <div className="w-full h-10 flex items-center justify-center bg-background/50 border border-border rounded-lg">
+                            <Loader2 className="size-4 animate-spin text-primary" />
+                          </div>
+                        ) : activeProviderModal === "openrouter" ? (
+                          <SearchableSelect
+                            options={modelsData?.success ? modelsData.models : []}
+                            value={llmModel}
+                            onChange={setLlmModel}
+                            placeholder="Select default model..."
+                          />
+                        ) : (
+                          <select
+                            value={llmModel}
+                            onChange={(e) => setLlmModel(e.target.value)}
+                            className="w-full h-10 px-3 bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground text-xs"
+                          >
+                            {modelsData?.success && modelsData.models.length > 0 ? (
+                              modelsData.models.map((m: any) => (
+                                <option key={m.id} value={m.id} className="bg-neutral-900 text-neutral-100">
+                                  {m.name}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="" disabled className="bg-neutral-900 text-neutral-100">
+                                No models available (check API keys)
+                              </option>
+                            )}
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Vision Capability */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground">Model Vision Capability</label>
+                        <select
+                          value={llmVision}
+                          onChange={(e) => setLlmVision(e.target.value)}
+                          className="w-full h-10 px-3 bg-background/50 border border-border rounded-lg outline-hidden focus:border-primary transition-all dark:bg-background/25 font-semibold text-foreground text-xs"
+                        >
+                          <option value="auto" className="bg-neutral-900 text-neutral-100">Auto (Detect modal abilities dynamically)</option>
+                          <option value="enabled" className="bg-neutral-900 text-neutral-100">Enabled (Force capture & vision updates)</option>
+                          <option value="disabled" className="bg-neutral-900 text-neutral-100">Disabled (Text-only run context)</option>
+                        </select>
+                      </div>
+
+                      {/* Temperature */}
+                      <div className="space-y-2 pt-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <label className="font-semibold text-muted-foreground">Model Temperature</label>
+                          <span className="font-mono font-bold text-primary">{llmTemperature.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1.5"
+                          step="0.05"
+                          value={llmTemperature}
+                          onChange={(e) => setLlmTemperature(parseFloat(e.target.value))}
+                          className="w-full h-1 bg-border rounded-lg appearance-none cursor-pointer accent-primary focus:outline-none"
+                        />
+                        <div className="flex justify-between text-[9px] text-muted-foreground font-semibold">
+                          <span>Deterministic</span>
+                          <span>Creative / Exploratory</span>
+                        </div>
+                      </div>
+
+                      {/* Max Tokens */}
+                      <div className="space-y-2 pt-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <label className="font-semibold text-muted-foreground">Max Output Token Limit</label>
+                          <span className="font-mono font-bold text-primary">{llmMaxTokens} tokens</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="256"
+                          max="8192"
+                          step="256"
+                          value={llmMaxTokens}
+                          onChange={(e) => setLlmMaxTokens(parseInt(e.target.value))}
+                          className="w-full h-1 bg-border rounded-lg appearance-none cursor-pointer accent-primary focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div className="px-4 py-3 border-t border-border flex justify-end bg-muted/10 gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setActiveProviderModal(null)}
+                        className="h-8 px-4 rounded-lg text-xs font-semibold text-foreground bg-muted hover:bg-muted/80 transition-all cursor-pointer"
+                      >
+                        Apply Settings
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
