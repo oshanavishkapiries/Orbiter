@@ -133,6 +133,7 @@ function SessionsContent() {
   const [headless, setHeadless] = React.useState(true)
   const [maxSteps, setMaxSteps] = React.useState(20)
   const [showConfigPanel, setShowConfigPanel] = React.useState(false)
+  const [isCreatingNewChat, setIsCreatingNewChat] = React.useState(false)
 
   // Selection state
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(initialId)
@@ -233,6 +234,9 @@ function SessionsContent() {
   React.useEffect(() => {
     const id = searchParams.get("id")
     setSelectedSessionId(id)
+    if (id) {
+      setIsCreatingNewChat(false)
+    }
   }, [searchParams])
 
   // Reset selected step when selectedSessionId changes
@@ -339,13 +343,17 @@ function SessionsContent() {
     <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden animate-fade-in text-xs">
       
       {/* ─── LEFT SIDEBAR: CHAT THREADS HISTORY ─── */}
-      <div className="w-80 border-r border-border/50 bg-card/45 flex flex-col shrink-0">
+      <div className={cn(
+        "w-full md:w-80 border-r border-border/50 bg-card/45 flex flex-col shrink-0",
+        (selectedSessionId || isCreatingNewChat) ? "hidden md:flex" : "flex"
+      )}>
         {/* Sidebar Header */}
         <div className="p-4 border-b border-border/50 flex flex-col gap-3">
           <button
             onClick={() => {
               router.push("/dashboard/sessions")
               setPrompt("")
+              setIsCreatingNewChat(true)
             }}
             className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-primary/40 text-[11px] font-bold text-primary hover:text-primary-foreground hover:bg-primary transition-all cursor-pointer shadow-xs shadow-primary/5"
           >
@@ -452,11 +460,23 @@ function SessionsContent() {
       </div>
 
       {/* ─── MAIN CONVERSATION PANE ─── */}
-      <div className="flex-1 flex flex-col bg-background/30 overflow-hidden relative">
+      <div className={cn(
+        "flex-1 flex flex-col bg-background/30 overflow-hidden relative",
+        (!selectedSessionId && !isCreatingNewChat) ? "hidden md:flex" : "flex"
+      )}>
         
         {!selectedSessionId ? (
           /* ─── LANDING SCREEN: CHAT CONFIG / SPAWN ─── */
-          <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 max-w-2xl mx-auto space-y-6 w-full">
+          <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 max-w-2xl mx-auto space-y-6 w-full relative">
+            {isCreatingNewChat && (
+              <button
+                type="button"
+                onClick={() => setIsCreatingNewChat(false)}
+                className="md:hidden self-start flex items-center gap-1 text-muted-foreground hover:text-foreground font-bold text-xs mb-2"
+              >
+                <ChevronLeft className="size-4" /> Back to History
+              </button>
+            )}
             <div className="text-center space-y-2">
               <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto text-primary shadow-xs">
                 <Sparkles className="size-6" />
@@ -597,6 +617,15 @@ function SessionsContent() {
               {/* Chat Session Header */}
               <div className="px-4 py-3 border-b border-border/50 bg-card/45 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    onClick={() => {
+                      router.push("/dashboard/sessions")
+                      setIsCreatingNewChat(false)
+                    }}
+                    className="md:hidden p-1 -ml-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer mr-1"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </button>
                   <span className={cn(
                     "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border",
                     detailsData?.session?.status === "running" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
