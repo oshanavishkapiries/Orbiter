@@ -147,8 +147,7 @@ function SessionsContent() {
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(initialId)
   const [selectedStepNumber, setSelectedStepNumber] = React.useState<number | null>(null)
   
-  // Console logs panel visibility state
-  const [showLogsPanel, setShowLogsPanel] = React.useState(false)
+
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
@@ -194,47 +193,7 @@ function SessionsContent() {
     }
   })
 
-  // 2.5 Fetch selected session logs (with short polling when active)
-  const { data: logsData } = useQuery({
-    queryKey: ["sessionLogs", selectedSessionId],
-    queryFn: () => selectedSessionId ? orbiterApi.getSessionLogs(selectedSessionId) : Promise.resolve(null),
-    enabled: !!selectedSessionId,
-    refetchInterval: () => {
-      const status = detailsData?.session?.status;
-      return (status === "running" || status === "queued") ? 2000 : false;
-    }
-  })
 
-  // Compute logs dynamically from DB logs and step execution events
-  const streamLogs = React.useMemo(() => {
-    if (!selectedSessionId) return [];
-    const logsList: { type: string; message: string; timestamp: number }[] = [];
-
-    // Add step executions
-    if (detailsData?.session?.steps && Array.isArray(detailsData.session.steps)) {
-      detailsData.session.steps.forEach((step: any) => {
-        logsList.push({
-          type: "step",
-          message: `Step ${step.stepNumber}: Executed [${step.toolName}] - ${step.success ? 'Success' : 'Failed'}`,
-          timestamp: step.createdAt || 0
-        });
-      });
-    }
-
-    // Add execution log messages
-    if (logsData?.success && Array.isArray(logsData.logs)) {
-      logsData.logs.forEach((log: any) => {
-        logsList.push({
-          type: "log",
-          message: log.message,
-          timestamp: log.createdAt || 0
-        });
-      });
-    }
-
-    // Sort by timestamp
-    return logsList.sort((a, b) => a.timestamp - b.timestamp);
-  }, [detailsData, logsData, selectedSessionId]);
 
   // 3. Fetch selected session data
   const { data: extractedDataResponse } = useQuery({
@@ -408,7 +367,7 @@ function SessionsContent() {
   // Scroll to bottom on logs update or new steps
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [streamLogs, detailsData])
+  }, [detailsData])
 
 
 
@@ -832,16 +791,6 @@ function SessionsContent() {
                       )}
                     </div>
                   )}
-
-                  <button
-                    onClick={() => setShowLogsPanel(!showLogsPanel)}
-                    className={cn(
-                      "h-7 px-3 rounded-lg text-[10px] font-bold border flex items-center gap-1 transition-all cursor-pointer",
-                      showLogsPanel ? "bg-primary/10 border-primary/20 text-primary" : "border-border hover:bg-muted"
-                    )}
-                  >
-                    <Terminal className="size-3" /> Logs Console
-                  </button>
                 </div>
               </div>
 
@@ -974,26 +923,7 @@ function SessionsContent() {
                               </>
                             )}
                           </div>
-                          
-                          {/* Live Console streaming panel inside the stream card */}
-                          {streamLogs.length > 0 && (
-                            <div className="bg-black/5 dark:bg-black/40 border border-border/40 rounded-lg p-3 font-mono text-[9px] text-foreground space-y-1 max-h-36 overflow-y-auto">
-                              {streamLogs.slice(-5).map((log, idx) => (
-                                <div key={idx} className="leading-relaxed truncate">
-                                  <span className="text-muted-foreground font-bold select-none">
-                                    [{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}]
-                                  </span>{" "}
-                                  <span className={cn(
-                                    log.type === "step" ? "text-blue-400 font-bold" :
-                                    log.type === "status" ? "text-amber-400 font-bold" :
-                                    log.type === "system" ? "text-emerald-400" : "text-muted-foreground"
-                                  )}>
-                                    {log.message}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+
                         </div>
                       </div>
                     )}
@@ -1004,37 +934,7 @@ function SessionsContent() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Collapsible Sidebar Logs Panel */}
-              {showLogsPanel && (
-                <div className="h-44 border-t border-border/50 bg-card/65 flex flex-col shrink-0">
-                  <div className="px-3 py-1.5 border-b border-border/20 flex items-center justify-between text-[10px] font-bold text-muted-foreground bg-muted/20 shrink-0">
-                    <span className="flex items-center gap-1"><Terminal className="size-3" /> Streaming Console logs</span>
-                    <button onClick={() => setShowLogsPanel(false)} className="hover:text-foreground">Close</button>
-                  </div>
-                  <div className="flex-1 p-3 overflow-y-auto font-mono text-[9px] space-y-1 bg-black/10 text-foreground">
-                    {streamLogs.length > 0 ? (
-                      streamLogs.map((log, idx) => (
-                        <div key={idx} className="leading-relaxed break-all">
-                          <span className="text-muted-foreground select-none">
-                            [{new Date(log.timestamp).toLocaleTimeString()}]
-                          </span>{" "}
-                          <span className={cn(
-                            log.type === "step" ? "text-blue-500 font-bold" :
-                            log.type === "status" ? "text-amber-500 font-bold" :
-                            log.type === "system" ? "text-emerald-500" : "text-foreground"
-                          )}>
-                            {log.message}
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground font-sans">
-                        {detailsData?.session?.status !== "running" ? "No active log stream." : "Listening for live logs..."}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+
             </div>
           </div>
         )}
