@@ -3,7 +3,6 @@
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query"
-import { io, Socket } from "socket.io-client"
 import { orbiterApi } from "@/lib/endpoint"
 import {
   Activity,
@@ -144,8 +143,7 @@ function SessionsContent() {
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(initialId)
   const [selectedStepNumber, setSelectedStepNumber] = React.useState<number | null>(null)
   
-  // SSE stream local states
-  const [streamLogs, setStreamLogs] = React.useState<{ type: string; message: string; timestamp: number }[]>([])
+  // Console logs panel visibility state
   const [showLogsPanel, setShowLogsPanel] = React.useState(false)
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
@@ -181,12 +179,58 @@ function SessionsContent() {
       : [];
   }, [infiniteSessionsData]);
 
-  // 2. Fetch selected session details
+  // 2. Fetch selected session details (with short polling when active)
   const { data: detailsData, isLoading: loadingDetails } = useQuery({
     queryKey: ["sessionDetails", selectedSessionId],
     queryFn: () => selectedSessionId ? orbiterApi.getSessionDetails(selectedSessionId, true) : Promise.resolve(null),
-    enabled: !!selectedSessionId
+    enabled: !!selectedSessionId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.session?.status;
+      return (status === "running" || status === "queued") ? 2000 : false;
+    }
   })
+
+  // 2.5 Fetch selected session logs (with short polling when active)
+  const { data: logsData } = useQuery({
+    queryKey: ["sessionLogs", selectedSessionId],
+    queryFn: () => selectedSessionId ? orbiterApi.getSessionLogs(selectedSessionId) : Promise.resolve(null),
+    enabled: !!selectedSessionId,
+    refetchInterval: () => {
+      const status = detailsData?.session?.status;
+      return (status === "running" || status === "queued") ? 2000 : false;
+    }
+  })
+
+  // Compute logs dynamically from DB logs and step execution events
+  const streamLogs = React.useMemo(() => {
+    if (!selectedSessionId) return [];
+    const logsList: { type: string; message: string; timestamp: number }[] = [];
+
+    // Add step executions
+    if (detailsData?.session?.steps && Array.isArray(detailsData.session.steps)) {
+      detailsData.session.steps.forEach((step: any) => {
+        logsList.push({
+          type: "step",
+          message: `Step ${step.stepNumber}: Executed [${step.toolName}] - ${step.success ? 'Success' : 'Failed'}`,
+          timestamp: step.createdAt || 0
+        });
+      });
+    }
+
+    // Add execution log messages
+    if (logsData?.success && Array.isArray(logsData.logs)) {
+      logsData.logs.forEach((log: any) => {
+        logsList.push({
+          type: "log",
+          message: log.message,
+          timestamp: log.createdAt || 0
+        });
+      });
+    }
+
+    // Sort by timestamp
+    return logsList.sort((a, b) => a.timestamp - b.timestamp);
+  }, [detailsData, logsData, selectedSessionId]);
 
   // 3. Fetch selected session data
   const { data: extractedDataResponse } = useQuery({
@@ -273,69 +317,7 @@ function SessionsContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [streamLogs, detailsData])
 
-  // Socket.io stream integration for running sessions
-  React.useEffect(() => {
-    let socket: Socket | null = null
 
-    if (!selectedSessionId) {
-      setStreamLogs([])
-      return
-    }
-
-    const isActive = detailsData?.session
-      ? (detailsData.session.status === "running" || detailsData.session.status === "queued")
-      : true
-
-    if (isActive) {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('orbiter_token') : '';
-
-      // Establish socket connection with token authentication
-      socket = io(typeof window !== 'undefined' ? window.location.origin : '', {
-        auth: {
-          token
-        },
-        transports: ['websocket', 'polling']
-      })
-
-      socket.on('connect', () => {
-        setStreamLogs(prev => [...prev, { type: "system", message: "Real-time connection established.", timestamp: Date.now() }])
-        socket?.emit('join-session', selectedSessionId)
-      })
-
-      socket.on('connect_error', (err) => {
-        setStreamLogs(prev => [...prev, { type: "system", message: `Connection error: ${err.message}`, timestamp: Date.now() }])
-      })
-
-      socket.on('status', (data) => {
-        setStreamLogs(prev => [...prev, { type: "status", message: `Status updated: ${data.status}`, timestamp: Date.now() }])
-        queryClient.invalidateQueries({ queryKey: ["sessions"] })
-        queryClient.invalidateQueries({ queryKey: ["sessionDetails", selectedSessionId] })
-      })
-
-      socket.on('step', (data) => {
-        setStreamLogs(prev => [
-          ...prev,
-          { 
-            type: "step", 
-            message: `Step ${data.stepNumber}: Executed [${data.toolName}] - ${data.success ? 'Success' : 'Failed'}`, 
-            timestamp: Date.now() 
-          }
-        ])
-        queryClient.invalidateQueries({ queryKey: ["sessionDetails", selectedSessionId] })
-      })
-
-      socket.on('log', (data) => {
-        setStreamLogs(prev => [...prev, { type: "log", message: data.message, timestamp: Date.now() }])
-      })
-    }
-
-    return () => {
-      if (socket) {
-        socket.emit('leave-session', selectedSessionId)
-        socket.disconnect()
-      }
-    }
-  }, [selectedSessionId, detailsData, queryClient])
 
   const handleLaunchSession = (e: React.FormEvent) => {
     e.preventDefault()

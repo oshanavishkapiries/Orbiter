@@ -72,11 +72,6 @@ async function main() {
     await server.listen({ port: PORT, host: HOST });
     logger.info(`Orbiter REST API server running at http://${HOST}:${PORT}`);
 
-    // 3. Initialize Socket.io Server
-    const { SocketServerManager } = await import('./socket.js');
-    SocketServerManager.getInstance().initialize(server.server);
-    logger.info('Socket.io server initialized and attached successfully.');
-
     // Handle shutdown signals
     const shutdown = async () => {
       logger.info('Shutting down server...');

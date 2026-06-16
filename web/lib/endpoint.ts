@@ -15,6 +15,7 @@ export const ENDPOINTS = {
   EXECUTION_SESSIONS: `${API_BASE}/execution/sessions`,
   EXECUTION_SESSION_DETAIL: (id: string) => `${API_BASE}/execution/sessions/${id}`,
   EXECUTION_SESSION_DATA: (id: string) => `${API_BASE}/execution/sessions/${id}/data`,
+  EXECUTION_SESSION_LOGS: (id: string) => `${API_BASE}/execution/sessions/${id}/logs`,
   EXECUTION_STATS: `${API_BASE}/execution/stats`,
 
   // Flows Domain
@@ -139,6 +140,11 @@ export const orbiterApi = {
 
   async getSessionDetails(id: string, full = false) {
     const res = await authFetch(`${ENDPOINTS.EXECUTION_SESSION_DETAIL(id)}?full=${full}`);
+    return handleResponse<any>(res);
+  },
+
+  async getSessionLogs(id: string) {
+    const res = await authFetch(ENDPOINTS.EXECUTION_SESSION_LOGS(id));
     return handleResponse<any>(res);
   },
 

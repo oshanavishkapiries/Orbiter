@@ -205,6 +205,7 @@ export async function executionRoutes(
               resultSummary: step.resultSummary,
               success: step.success,
               duration: step.duration,
+              createdAt: Number(step.createdAt),
               fullResult,
             };
           }),
@@ -238,6 +239,33 @@ export async function executionRoutes(
               10,
             ),
           },
+        };
+      } catch (err) {
+        return reply.status(500).send({
+          success: false,
+          error: (err as Error).message,
+        });
+      }
+    },
+  );
+
+  // 2.3 Get Session Logs
+  app.get(
+    '/sessions/:id/logs',
+    {
+      schema: {
+        params: sessionParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      try {
+        const repo = new SessionRepository();
+        const logs = await repo.getSessionLogs(id);
+        return {
+          success: true,
+          logs,
         };
       } catch (err) {
         return reply.status(500).send({

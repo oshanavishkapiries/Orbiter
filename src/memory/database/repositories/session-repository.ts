@@ -53,7 +53,30 @@ export interface LLMInteractionRecord {
   timestamp: number;
 }
 
+export interface AppLogRecord {
+  level: string;
+  message: string;
+  meta: any;
+  createdAt: number;
+}
+
 export class SessionRepository extends BaseRepository<SessionRecord> {
+  async getSessionLogs(sessionId: string): Promise<AppLogRecord[]> {
+    const result = await this.pool.query(
+      `SELECT level, message, meta, created_at as "createdAt"
+       FROM orbiter_app_logs
+       WHERE session_id = $1
+       ORDER BY created_at ASC`,
+      [sessionId],
+    );
+    return result.rows.map((row) => ({
+      level: row.level,
+      message: row.message,
+      meta: row.meta,
+      createdAt: Number(row.createdAt),
+    }));
+  }
+
   async createSession(
     goal: string,
     model?: string,
