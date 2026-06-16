@@ -122,8 +122,18 @@ export const orbiterApi = {
   },
 
   // Execution
-  async getSessions(page = 1, limit = 15) {
-    const res = await authFetch(`${ENDPOINTS.EXECUTION_SESSIONS}?page=${page}&limit=${limit}`);
+  async getSessions(page = 1, limit = 15, search?: string, status?: string) {
+    let url = `${ENDPOINTS.EXECUTION_SESSIONS}?page=${page}&limit=${limit}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (status) url += `&status=${encodeURIComponent(status)}`;
+    const res = await authFetch(url);
+    return handleResponse<any>(res);
+  },
+
+  async deleteSession(id: string) {
+    const res = await authFetch(ENDPOINTS.EXECUTION_SESSION_DETAIL(id), {
+      method: 'DELETE',
+    });
     return handleResponse<any>(res);
   },
 

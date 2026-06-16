@@ -317,4 +317,12 @@ export class SessionRepository extends BaseRepository<SessionRecord> {
       completedAt: row.completed_at ? Number(row.completed_at) : undefined,
     }));
   }
+
+  async deleteSession(sessionId: string): Promise<boolean> {
+    const res = await this.pool.query(
+      `DELETE FROM orbiter_sessions WHERE id = $1`,
+      [sessionId]
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
 }

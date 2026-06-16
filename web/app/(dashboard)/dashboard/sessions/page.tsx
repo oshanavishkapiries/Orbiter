@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query"
 import { orbiterApi } from "@/lib/endpoint"
 import {
   Activity,
@@ -139,12 +139,11 @@ function SessionsContent() {
   const initialId = searchParams.get("id")
   const queryClient = useQueryClient()
 
-  // Local state
+  // Local search and filter states
   const [search, setSearch] = React.useState("")
   const [filter, setFilter] = React.useState<"All" | "running" | "completed" | "failed">("All")
-  const [page, setPage] = React.useState(1)
 
-  // Spawning form configuration states (integrated directly)
+  // Spawning form configuration states
   const [prompt, setPrompt] = React.useState("")
   const [selectedModel, setSelectedModel] = React.useState("")
   const [selectedProfile, setSelectedProfile] = React.useState("default")
@@ -164,16 +163,36 @@ function SessionsContent() {
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
-  // 1. Fetch sessions list with TanStack Query
-  const { data: sessionsData, isLoading: loadingList } = useQuery({
-    queryKey: ["sessions", page],
-    queryFn: () => orbiterApi.getSessions(page, 25), // Increased limit for sidebar history
+  // 1. Fetch sessions list using useInfiniteQuery for infinite scroll pagination
+  const {
+    data: infiniteSessionsData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: loadingList,
+  } = useInfiniteQuery({
+    queryKey: ["sessions", search, filter],
+    queryFn: ({ pageParam = 1 }) => orbiterApi.getSessions(pageParam, 15, search, filter),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const { currentPage, totalPages } = lastPage.pagination;
+      return currentPage < totalPages ? currentPage + 1 : undefined;
+    },
     refetchInterval: (query) => {
-      // Poll list if there is any active session in the state
-      const hasActive = query.state.data?.sessions?.some((s: Session) => s.status === "running" || s.status === "queued")
-      return hasActive ? 3000 : false
+      // Poll if there is any active session in any of the fetched pages
+      const hasActive = query.state.data?.pages?.some((page: any) =>
+        page.sessions?.some((s: Session) => s.status === "running" || s.status === "queued")
+      );
+      return hasActive ? 3000 : false;
     }
   })
+
+  // Flat map the paginated session records
+  const sessions = React.useMemo(() => {
+    return infiniteSessionsData
+      ? infiniteSessionsData.pages.flatMap((page) => page.sessions)
+      : [];
+  }, [infiniteSessionsData]);
 
   // 2. Fetch selected session details
   const { data: detailsData, isLoading: loadingDetails } = useQuery({
@@ -208,6 +227,17 @@ function SessionsContent() {
       setPrompt("")
       queryClient.invalidateQueries({ queryKey: ["sessions"] })
       router.push(`/dashboard/sessions?id=${data.sessionId}`)
+    }
+  })
+
+  // 7. Delete Session Mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => orbiterApi.deleteSession(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] })
+      if (selectedSessionId) {
+        router.push("/dashboard/sessions")
+      }
     }
   })
 
@@ -269,9 +299,9 @@ function SessionsContent() {
       return
     }
 
-    const sessionsList = sessionsData?.sessions || []
-    const sessObj = sessionsList.find((s: Session) => s.id === selectedSessionId)
-    const isActive = sessObj ? (sessObj.status === "running" || sessObj.status === "queued") : true
+    const isActive = detailsData?.session
+      ? (detailsData.session.status === "running" || detailsData.session.status === "queued")
+      : true
 
     if (isActive) {
       const token = typeof window !== 'undefined' ? localStorage.getItem('orbiter_token') : '';
@@ -324,7 +354,7 @@ function SessionsContent() {
         eventSource.close()
       }
     }
-  }, [selectedSessionId, sessionsData, queryClient])
+  }, [selectedSessionId, detailsData, queryClient])
 
   const handleLaunchSession = (e: React.FormEvent) => {
     e.preventDefault()
@@ -342,29 +372,18 @@ function SessionsContent() {
   const handleDeleteSession = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     if (!confirm("Are you sure you want to delete this session? This action cannot be undone.")) return
-    
-    // UI Filtering since we don't have single DELETE endpoint
-    queryClient.setQueryData(["sessions", page], (oldData: any) => {
-      if (!oldData) return oldData
-      return {
-        ...oldData,
-        sessions: oldData.sessions.filter((s: Session) => s.id !== id)
-      }
-    })
-    
-    if (selectedSessionId === id) {
-      router.push("/dashboard/sessions")
-    }
+    deleteMutation.mutate(id)
   }
 
-  const sessionsList = sessionsData?.sessions || []
-  const filteredSessions = sessionsList.filter((s: Session) => {
-    const matchesSearch = s.goal.toLowerCase().includes(search.toLowerCase()) || s.id.toLowerCase().includes(search.toLowerCase())
-    if (filter === "All") return matchesSearch
-    return s.status === filter && matchesSearch
-  })
-
-  const totalPages = sessionsData?.pagination?.totalPages || 1
+  // Handle scroll event for infinite pagination trigger
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget
+    if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
+      if (hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    }
+  }
 
   return (
     <div className="flex h-[82vh] border border-border/60 bg-card/20 backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl animate-fade-in text-xs">
@@ -412,83 +431,74 @@ function SessionsContent() {
         </div>
 
         {/* Sidebar Chat List */}
-        <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
-          {loadingList ? (
+        <div 
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-2.5 space-y-1"
+        >
+          {loadingList && sessions.length === 0 ? (
             <div className="py-12 text-center flex flex-col items-center justify-center gap-2">
               <Loader2 className="size-5 text-primary animate-spin" />
               <span className="text-[10px] text-muted-foreground">Loading chats...</span>
             </div>
-          ) : filteredSessions.length > 0 ? (
-            filteredSessions.map((session: Session) => {
-              const isSelected = selectedSessionId === session.id
-              return (
-                <div
-                  key={session.id}
-                  onClick={() => router.push(`/dashboard/sessions?id=${session.id}`)}
-                  className={cn(
-                    "group relative p-3 rounded-xl transition-all cursor-pointer flex flex-col gap-1 border border-transparent",
-                    isSelected 
-                      ? "bg-primary/10 border-primary/20 text-foreground" 
-                      : "hover:bg-muted/40 text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 text-[10px] font-semibold font-mono">
-                      <span className={cn(
-                        "size-1.5 rounded-full",
-                        session.status === "running" ? "bg-emerald-500 animate-pulse" :
-                        session.status === "completed" ? "bg-blue-500" :
-                        session.status === "queued" ? "bg-amber-500" : "bg-rose-500"
-                      )} />
-                      <span className="truncate max-w-[120px]">{session.id}</span>
+          ) : sessions.length > 0 ? (
+            <>
+              {sessions.map((session: Session) => {
+                const isSelected = selectedSessionId === session.id
+                return (
+                  <div
+                    key={session.id}
+                    onClick={() => router.push(`/dashboard/sessions?id=${session.id}`)}
+                    className={cn(
+                      "group relative p-3 rounded-xl transition-all cursor-pointer flex flex-col gap-1 border border-transparent",
+                      isSelected 
+                        ? "bg-primary/10 border-primary/20 text-foreground" 
+                        : "hover:bg-muted/40 text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-[10px] font-semibold font-mono">
+                        <span className={cn(
+                          "size-1.5 rounded-full",
+                          session.status === "running" ? "bg-emerald-500 animate-pulse" :
+                          session.status === "completed" ? "bg-blue-500" :
+                          session.status === "queued" ? "bg-amber-500" : "bg-rose-500"
+                        )} />
+                        <span className="truncate max-w-[120px]">{session.id}</span>
+                      </div>
+
+                      <button
+                        onClick={(e) => handleDeleteSession(session.id, e)}
+                        disabled={deleteMutation.isPending}
+                        className="p-0.5 rounded-md hover:bg-rose-500/15 text-muted-foreground hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
                     </div>
+                    
+                    <p className="text-[11px] font-semibold leading-snug line-clamp-2 pr-2">
+                      {session.goal}
+                    </p>
 
-                    <button
-                      onClick={(e) => handleDeleteSession(session.id, e)}
-                      className="p-0.5 rounded-md hover:bg-rose-500/15 text-muted-foreground hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
+                    <div className="flex items-center justify-between text-[9px] font-bold text-muted-foreground/60 pt-1 border-t border-border/10 mt-1">
+                      <span className="flex items-center gap-0.5"><Clock className="size-2.5" /> {session.stepCount} steps</span>
+                      <span>{new Date(session.createdAt).toLocaleDateString()}</span>
+                    </div>
                   </div>
-                  
-                  <p className="text-[11px] font-semibold leading-snug line-clamp-2 pr-2">
-                    {session.goal}
-                  </p>
+                )
+              })}
 
-                  <div className="flex items-center justify-between text-[9px] font-bold text-muted-foreground/60 pt-1 border-t border-border/10 mt-1">
-                    <span className="flex items-center gap-0.5"><Clock className="size-2.5" /> {session.stepCount} steps</span>
-                    <span>{new Date(session.createdAt).toLocaleDateString()}</span>
-                  </div>
+              {/* Infinite load status */}
+              {isFetchingNextPage && (
+                <div className="py-3 text-center flex items-center justify-center gap-1.5 text-muted-foreground text-[10px] font-semibold">
+                  <Loader2 className="size-3.5 animate-spin text-primary" />
+                  <span>Loading more...</span>
                 </div>
-              )
-            })
+              )}
+            </>
           ) : (
             <div className="py-12 text-center text-xs text-muted-foreground">No chats found.</div>
           )}
         </div>
-
-        {/* Sidebar Pagination */}
-        {totalPages > 1 && (
-          <div className="p-3 border-t border-border/50 flex items-center justify-between bg-card/20 text-[10px] font-bold">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-              className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 flex items-center gap-1 cursor-pointer"
-            >
-              <ChevronLeft className="size-3" />
-            </button>
-            <span className="text-muted-foreground">
-              {page} / {totalPages}
-            </span>
-            <button
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-              className="p-1 px-2.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 flex items-center gap-1 cursor-pointer"
-            >
-              <ChevronRight className="size-3" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ─── MAIN CONVERSATION PANE ─── */}

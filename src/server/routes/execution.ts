@@ -9,7 +9,7 @@ import { eventBus } from '../event-bus.js';
 export async function executionRoutes(
   app: FastifyInstance<any, any, any, any, ZodTypeProvider>,
 ) {
-  // 1. List Sessions (with Pagination)
+  // 1. List Sessions (with Pagination, Search & Status filters)
   const listSessionsSchema = z.object({
     page: z
       .string()
@@ -19,6 +19,8 @@ export async function executionRoutes(
       .string()
       .optional()
       .transform((val) => (val ? parseInt(val, 10) : 15)),
+    search: z.string().optional(),
+    status: z.string().optional(),
   });
 
   app.get(
@@ -29,27 +31,52 @@ export async function executionRoutes(
       },
     },
     async (request, reply) => {
-      const { page, limit } = request.query;
+      const { page, limit, search, status } = request.query;
       const offset = (page - 1) * limit;
 
       try {
         const pool = DatabaseConnection.getInstance().getPool();
 
-        // 1. Query total sessions count
-        const countResult = await pool.query('SELECT COUNT(*) FROM orbiter_sessions');
-        const totalItems = parseInt(countResult.rows[0].count, 10);
-
-        // 2. Query sessions list with step counts
-        const query = `
+        // 1. Build query strings dynamically based on parameters
+        let countQuery = 'SELECT COUNT(*) FROM orbiter_sessions s';
+        let query = `
           SELECT s.id, s.goal, s.model, s.provider, s.status, s.created_at as "createdAt", s.completed_at as "completedAt",
                  COUNT(st.id) AS "stepCount"
           FROM orbiter_sessions s
           LEFT JOIN orbiter_session_steps st ON st.session_id = s.id
+        `;
+
+        const conditions: string[] = [];
+        const values: any[] = [];
+
+        if (search) {
+          values.push(`%${search}%`);
+          conditions.push(`(s.id ILIKE $${values.length} OR s.goal ILIKE $${values.length})`);
+        }
+
+        if (status && status !== 'All') {
+          values.push(status);
+          conditions.push(`s.status = $${values.length}`);
+        }
+
+        if (conditions.length > 0) {
+          const condStr = ' WHERE ' + conditions.join(' AND ');
+          countQuery += condStr;
+          query += condStr;
+        }
+
+        query += `
           GROUP BY s.id
           ORDER BY s.created_at DESC
-          LIMIT $1 OFFSET $2
+          LIMIT $${values.length + 1} OFFSET $${values.length + 2}
         `;
-        const result = await pool.query(query, [limit, offset]);
+
+        // 2. Query total items
+        const countResult = await pool.query(countQuery, values);
+        const totalItems = parseInt(countResult.rows[0].count, 10);
+
+        // 3. Query list matching limit/offset
+        const result = await pool.query(query, [...values, limit, offset]);
         const sessions = result.rows.map((row) => ({
           id: row.id,
           goal: row.goal,
@@ -72,6 +99,43 @@ export async function executionRoutes(
             totalItems,
             hasNext: page < totalPages,
           },
+        };
+      } catch (err) {
+        return reply.status(500).send({
+          success: false,
+          error: (err as Error).message,
+        });
+      }
+    },
+  );
+
+  // 1.5 Delete Session
+  const deleteSessionParamsSchema = z.object({
+    id: z.string(),
+  });
+
+  app.delete(
+    '/sessions/:id',
+    {
+      schema: {
+        params: deleteSessionParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      try {
+        const repo = new SessionRepository();
+        const deleted = await repo.deleteSession(id);
+        if (!deleted) {
+          return reply.status(404).send({
+            success: false,
+            error: `Session not found: ${id}`,
+          });
+        }
+        return {
+          success: true,
+          message: 'Session deleted successfully',
         };
       } catch (err) {
         return reply.status(500).send({
