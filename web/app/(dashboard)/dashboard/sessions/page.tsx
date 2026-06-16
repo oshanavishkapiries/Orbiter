@@ -356,6 +356,9 @@ function SessionsContent() {
   const [selectedProfile, setSelectedProfile] = React.useState("default")
   const [headless, setHeadless] = React.useState(true)
   const [maxSteps, setMaxSteps] = React.useState(20)
+  const [llmVision, setLlmVision] = React.useState("auto")
+  const [llmTemperature, setLlmTemperature] = React.useState(0.7)
+  const [llmMaxTokens, setLlmMaxTokens] = React.useState(4096)
   const [showConfigPanel, setShowConfigPanel] = React.useState(false)
   const [isCreatingNewChat, setIsCreatingNewChat] = React.useState(false)
   const [customTitle, setCustomTitle] = React.useState("")
@@ -466,11 +469,17 @@ function SessionsContent() {
       const dbProfile = sMap.get("browser.profile")
       const dbHeadless = sMap.get("browser.headless")
       const dbMaxSteps = sMap.get("execution.maxSteps")
+      const dbVision = sMap.get("llm.vision")
+      const dbTemperature = sMap.get("llm.temperature")
+      const dbMaxTokens = sMap.get("llm.maxTokens")
 
       if (dbModel) setSelectedModel(dbModel)
       if (dbProfile) setSelectedProfile(dbProfile)
       if (dbHeadless !== undefined) setHeadless(dbHeadless === "true")
       if (dbMaxSteps) setMaxSteps(parseInt(dbMaxSteps, 10))
+      if (dbVision) setLlmVision(dbVision)
+      if (dbTemperature) setLlmTemperature(parseFloat(dbTemperature))
+      if (dbMaxTokens) setLlmMaxTokens(parseInt(dbMaxTokens, 10))
 
       isInitialSyncDoneRef.current = true
     }
@@ -858,6 +867,63 @@ function SessionsContent() {
                           <option value="default">default</option>
                         )}
                       </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-muted-foreground">Vision Capability</label>
+                      <select
+                        value={llmVision}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setLlmVision(val)
+                          saveSetting("llm.vision", val)
+                        }}
+                        className="w-full h-8 px-2 text-[11px] bg-background/50 border border-border rounded-lg text-foreground font-semibold"
+                      >
+                        <option value="auto" className="bg-neutral-950">Auto</option>
+                        <option value="enabled" className="bg-neutral-950">Enabled</option>
+                        <option value="disabled" className="bg-neutral-950">Disabled</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="text-muted-foreground">LLM Temperature</label>
+                        <span className="font-mono text-primary font-bold">{llmTemperature.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1.5"
+                        step="0.05"
+                        value={llmTemperature}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value)
+                          setLlmTemperature(val)
+                          saveSetting("llm.temperature", val.toString())
+                        }}
+                        className="w-full h-1 bg-border rounded-lg appearance-none cursor-pointer accent-primary focus:outline-none mt-2"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 col-span-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-muted-foreground">Max Output Token Limit</label>
+                        <span className="font-mono text-primary font-bold">{llmMaxTokens} tokens</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="256"
+                        max="8192"
+                        step="256"
+                        value={llmMaxTokens}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value)
+                          setLlmMaxTokens(val)
+                          saveSetting("llm.maxTokens", val.toString())
+                        }}
+                        className="w-full h-1 bg-border rounded-lg appearance-none cursor-pointer accent-primary focus:outline-none mt-2"
+                      />
                     </div>
 
                     <div className="col-span-2 flex items-center justify-between border-t border-border/20 pt-3">
