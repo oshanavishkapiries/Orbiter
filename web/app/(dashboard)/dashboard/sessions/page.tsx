@@ -29,7 +29,12 @@ import {
   User as UserIcon,
   Sparkles,
   Settings2,
-  Clock
+  Clock,
+  ChevronDown,
+  Maximize2,
+  Copy,
+  Check,
+  X
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SearchableSelect } from "@/components/ui/searchable-select"
@@ -118,6 +123,220 @@ function JsonColorizer({ data }: { data: any }) {
         </span>
       ))}
     </pre>
+  )
+}
+
+function StepResultCard({ step, isSelected, onClick }: { step: Step; isSelected: boolean; onClick: () => void }) {
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  const [showModal, setShowModal] = React.useState(false)
+  const [viewMode, setViewMode] = React.useState<"text" | "json">("text")
+  const [copied, setCopied] = React.useState(false)
+
+  const handleCopy = (content: string) => {
+    navigator.clipboard.writeText(content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  // Get the first meaningful line of resultSummary
+  const getFirstMeaningfulLine = (text: string): string => {
+    if (!text) return ""
+    const lines = text.split("\n")
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.length > 0) {
+        return trimmed
+      }
+    }
+    return ""
+  }
+
+  const firstLine = getFirstMeaningfulLine(step.resultSummary)
+
+  const toggleExpand = (e: React.MouseEvent) => {
+    // Prevent toggle if clicking on interactive buttons/modal inside
+    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('pre')) return
+    setIsExpanded(!isExpanded)
+    onClick()
+  }
+
+  const rawJsonString = React.useMemo(() => {
+    if (!step.fullResult) return ""
+    return JSON.stringify(step.fullResult, null, 2)
+  }, [step.fullResult])
+
+  return (
+    <div
+      onClick={toggleExpand}
+      className={cn(
+        "rounded-xl border shadow-xs flex flex-col overflow-hidden select-text cursor-pointer flex-1 font-mono transition-all duration-300 ease-in-out",
+        step.success
+          ? "border-border/40 hover:bg-muted/10"
+          : "border-l-4 border-l-rose-500 border-border/40 hover:bg-muted/10",
+        isSelected
+          ? "bg-muted/30 border-primary/60 shadow-md ring-1 ring-primary/10"
+          : "bg-card/45",
+      )}
+      style={{
+        maxHeight: isExpanded ? "450px" : "56px"
+      }}
+    >
+      {/* Summary Header Row (max-h-14 / 56px collapsed area) */}
+      <div className="h-[54px] px-3 flex flex-col justify-center shrink-0">
+        <div className="flex items-center justify-between text-[11px] font-semibold font-mono">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px] font-bold font-mono">
+              Step {step.stepNumber}
+            </span>
+            <span className="text-foreground font-bold truncate font-mono max-w-[150px] sm:max-w-[200px]">
+              {step.toolName}
+            </span>
+            <span className={cn(
+              "px-1.5 py-0.5 rounded text-[9px] font-bold font-mono shrink-0",
+              step.success
+                ? "bg-emerald-500/10 text-emerald-500"
+                : "bg-rose-500/10 text-rose-500"
+            )}>
+              {step.success ? "Success" : "Failed"}
+            </span>
+            <span className="text-muted-foreground text-[9px] font-mono shrink-0">
+              {step.duration}ms
+            </span>
+          </div>
+
+          <ChevronDown
+            className={cn(
+              "size-4 text-muted-foreground transition-transform duration-200 shrink-0 ml-2",
+              isExpanded && "rotate-180"
+            )}
+          />
+        </div>
+
+        {/* First meaningful line only */}
+        <div className="text-[10px] text-muted-foreground truncate font-mono mt-0.5 pr-6">
+          {firstLine || "No summary details available."}
+        </div>
+      </div>
+
+      {/* Expanded view */}
+      {isExpanded && (
+        <div className="px-3 pb-3 border-t border-border/20 pt-2.5 flex flex-col gap-2 overflow-hidden flex-1">
+          {/* Scrollable monospace code block for resultSummary */}
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap overflow-y-auto max-h-[200px] bg-black/5 dark:bg-black/35 p-2.5 rounded-lg border border-border/20 flex-1">
+              {step.resultSummary || "No detailed summary."}
+            </pre>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex justify-end gap-2 shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleCopy(step.resultSummary)
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md text-[10px] font-bold font-mono transition-all"
+            >
+              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+            {step.fullResult && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowModal(true)
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-[10px] font-bold font-mono transition-all"
+              >
+                <Maximize2 className="size-3" />
+                Full screen / View JSON
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Full screen modal / overlay */}
+      {showModal && (
+        <div
+          onClick={(e) => {
+            // Close modal if clicking overlay background
+            if (e.target === e.currentTarget) {
+              setShowModal(false)
+            }
+          }}
+          className="fixed inset-0 bg-background/80 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-default"
+        >
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden font-mono">
+            {/* Modal Header */}
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold font-mono">
+                  Step {step.stepNumber}
+                </span>
+                <span className="font-bold text-xs">Raw Execution Output ({step.toolName})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* View mode toggle */}
+                <div className="flex rounded-md bg-muted p-0.5 text-xs font-mono font-bold">
+                  <button
+                    onClick={() => setViewMode("text")}
+                    className={cn(
+                      "px-2 py-0.5 rounded-sm transition-all",
+                      viewMode === "text"
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Formatted Text
+                  </button>
+                  <button
+                    onClick={() => setViewMode("json")}
+                    className={cn(
+                      "px-2 py-0.5 rounded-sm transition-all",
+                      viewMode === "json"
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Raw JSON
+                  </button>
+                </div>
+
+                {/* Copy button */}
+                <button
+                  onClick={() => handleCopy(viewMode === "json" ? rawJsonString : (typeof step.fullResult === 'string' ? step.fullResult : rawJsonString))}
+                  className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-all"
+                  title="Copy to clipboard"
+                >
+                  {copied ? <Check className="size-4 text-emerald-500" /> : <Copy className="size-4" />}
+                </button>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-all"
+                  title="Close Modal"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 p-4 overflow-y-auto bg-black/5 dark:bg-black/35 min-h-0">
+              {viewMode === "json" ? (
+                <JsonColorizer data={step.fullResult} />
+              ) : (
+                <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap select-text">
+                  {typeof step.fullResult === 'string' ? step.fullResult : rawJsonString}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -818,9 +1037,8 @@ function SessionsContent() {
                         return (
                           <div
                             key={step.stepNumber}
-                            onClick={() => setSelectedStepNumber(step.stepNumber)}
                             className={cn(
-                              "flex gap-3 max-w-[85%] transition-all cursor-pointer",
+                              "flex gap-3 max-w-[85%] transition-all w-full",
                               isSelected ? "scale-[1.01]" : ""
                             )}
                           >
@@ -828,48 +1046,11 @@ function SessionsContent() {
                               <Bot className="size-4" />
                             </div>
 
-                            <div className={cn(
-                              "p-4 rounded-2xl rounded-tl-none shadow-sm space-y-3 flex-1 border",
-                              isSelected 
-                                ? "bg-muted/30 border-primary/60 shadow-md ring-1 ring-primary/10" 
-                                : "bg-card/45 border-border/40 hover:bg-muted/10"
-                            )}>
-                              {/* Bubble Header */}
-                              <div className="flex items-center justify-between text-[9px] font-bold text-muted-foreground border-b border-border/10 pb-1.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[8px] font-mono">
-                                    Step {step.stepNumber}
-                                  </span>
-                                  <span className="text-foreground truncate">{step.toolName}</span>
-                                </div>
-
-                                <div className="flex items-center gap-2 font-mono">
-                                  {step.success ? (
-                                    <span className="text-emerald-500 flex items-center gap-0.5"><CheckCircle className="size-2.5" /> Success</span>
-                                  ) : (
-                                    <span className="text-rose-500 flex items-center gap-0.5"><XCircle className="size-2.5" /> Failed</span>
-                                  )}
-                                  <span>{step.duration}ms</span>
-                                </div>
-                              </div>
-
-                              {/* Result Summary */}
-                              <p className="text-xs leading-relaxed text-foreground font-semibold break-words">{step.resultSummary}</p>
-
-                              {/* Collapsible JSON payload */}
-                              {step.fullResult && (
-                                <details className="group text-[10px] bg-black/5 dark:bg-black/35 rounded-lg border border-border/30 overflow-hidden font-semibold">
-                                  <summary className="px-2.5 py-1.5 hover:bg-muted/30 cursor-pointer list-none flex items-center justify-between text-muted-foreground font-bold">
-                                    <span>Technical Execution Result</span>
-                                    <span className="text-[8px] font-mono group-open:hidden">SHOW JSON</span>
-                                    <span className="text-[8px] font-mono hidden group-open:inline">HIDE JSON</span>
-                                  </summary>
-                                  <div className="p-2.5 border-t border-border/20 overflow-x-auto">
-                                    <JsonColorizer data={step.fullResult} />
-                                  </div>
-                                </details>
-                              )}
-                            </div>
+                            <StepResultCard
+                              step={step}
+                              isSelected={isSelected}
+                              onClick={() => setSelectedStepNumber(step.stepNumber)}
+                            />
                           </div>
                         )
                       })
